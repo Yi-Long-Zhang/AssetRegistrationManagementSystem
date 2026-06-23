@@ -1,13 +1,16 @@
 <template>
   <section class="page">
-    <div class="toolbar">
-      <h2>服务器资产</h2>
-      <div class="toolbar-actions">
+    <PageHeader title="服务器资产">
+      <template #actions>
+        <el-button v-if="canManage" type="primary" :icon="Plus" @click="openCreate">新增资产</el-button>
+      </template>
+    </PageHeader>
+    <DataToolbar>
+      <template #actions>
         <el-input v-model="keyword" placeholder="搜索资产编号、主机名、IP" clearable @keyup.enter="load" />
         <el-button :icon="Search" @click="load" />
-        <el-button v-if="canManage" type="primary" :icon="Plus" @click="openCreate">新增资产</el-button>
-      </div>
-    </div>
+      </template>
+    </DataToolbar>
     <div class="panel">
       <el-table :data="items" v-loading="loading">
         <el-table-column prop="assetNo" label="资产编号" width="140" />
@@ -15,11 +18,15 @@
         <el-table-column prop="ip" label="IP" width="150" />
         <el-table-column prop="location" label="机房" width="140" />
         <el-table-column prop="owner" label="负责人" width="120" />
-        <el-table-column prop="status" label="状态" width="120" />
+        <el-table-column prop="status" label="状态" width="120">
+          <template #default="{ row }">
+            <StatusTag :value="row.status" :map="ASSET_STATUS_MAP" />
+          </template>
+        </el-table-column>
         <el-table-column v-if="canManage" label="操作" width="160">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="danger" @click="remove(row)">删除</el-button>
+            <ConfirmAction link type="danger" :message="`确认删除资产 ${row.assetNo}？`" @confirm="remove(row)">删除</ConfirmAction>
           </template>
         </el-table-column>
       </el-table>
@@ -52,12 +59,19 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import { api } from '../api'
+import { assetsApi } from '../api'
+import ConfirmAction from '../components/common/ConfirmAction.vue'
+import DataToolbar from '../components/common/DataToolbar.vue'
+import PageHeader from '../components/common/PageHeader.vue'
+import StatusTag from '../components/common/StatusTag.vue'
+import { ASSET_STATUS_MAP } from '../constants/dictionaries'
+import { useAuthStore } from '../stores/auth'
+import { canManageAssets } from '../utils/permissions'
 
-const user = JSON.parse(localStorage.getItem('user') || 'null')
-const canManage = computed(() => ['admin', 'asset_manager'].includes(user?.role))
+const auth = useAuthStore()
+const canManage = computed(() => canManageAssets(auth.user))
 const items = ref([])
 const loading = ref(false)
 const keyword = ref('')
@@ -71,7 +85,7 @@ function emptyAsset() {
 async function load() {
   loading.value = true
   try {
-    const { data } = await api.get('/assets', { params: { q: keyword.value } })
+    const data = await assetsApi.list({ q: keyword.value })
     items.value = data.items
   } finally {
     loading.value = false
@@ -90,8 +104,8 @@ function openEdit(row) {
 
 async function save() {
   try {
-    if (form.id) await api.put(`/assets/${form.id}`, form)
-    else await api.post('/assets', form)
+    if (form.id) await assetsApi.update(form.id, form)
+    else await assetsApi.create(form)
     ElMessage.success('已保存')
     dialogVisible.value = false
     load()
@@ -101,8 +115,7 @@ async function save() {
 }
 
 async function remove(row) {
-  await ElMessageBox.confirm(`确认删除资产 ${row.assetNo}？`, '删除确认', { type: 'warning' })
-  await api.delete(`/assets/${row.id}`)
+  await assetsApi.remove(row.id)
   ElMessage.success('已删除')
   load()
 }

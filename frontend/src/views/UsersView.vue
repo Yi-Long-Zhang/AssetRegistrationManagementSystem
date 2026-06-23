@@ -1,18 +1,31 @@
 <template>
   <section class="page">
-    <div class="toolbar">
-      <h2>用户角色</h2>
-      <el-button type="primary" :icon="Plus" @click="openCreate">新增用户</el-button>
-    </div>
+    <PageHeader title="用户角色">
+      <template #actions>
+        <el-button type="primary" :icon="Plus" @click="openCreate">新增用户</el-button>
+      </template>
+    </PageHeader>
     <div class="panel">
       <el-table :data="items" v-loading="loading">
         <el-table-column prop="username" label="账号" width="150" />
         <el-table-column prop="name" label="姓名" min-width="160" />
-        <el-table-column prop="authSource" label="来源" width="100" />
+        <el-table-column prop="authSource" label="来源" width="100">
+          <template #default="{ row }">
+            <StatusTag :value="row.authSource" :map="AUTH_SOURCE_MAP" />
+          </template>
+        </el-table-column>
         <el-table-column prop="email" label="邮箱" min-width="180" />
         <el-table-column prop="department" label="部门" width="140" />
-        <el-table-column prop="role" label="角色" width="160" />
-        <el-table-column prop="status" label="状态" width="120" />
+        <el-table-column prop="role" label="角色" width="160">
+          <template #default="{ row }">
+            <RoleTag :value="row.role" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="120">
+          <template #default="{ row }">
+            <StatusTag :value="row.status" :map="USER_STATUS_MAP" />
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="120">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
@@ -108,13 +121,10 @@
         <el-form-item label="姓名"><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="角色">
           <el-select v-model="form.role">
-            <el-option label="管理员" value="admin" />
-            <el-option label="资产管理员" value="asset_manager" />
-            <el-option label="审批人" value="approver" />
-            <el-option label="申请人" value="applicant" />
+            <el-option v-for="option in roleOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态"><el-select v-model="form.status"><el-option label="启用" value="active" /><el-option label="禁用" value="disabled" /></el-select></el-form-item>
+        <el-form-item label="状态"><el-select v-model="form.status"><el-option v-for="option in userStatusOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
         <el-form-item label="邮箱"><el-input v-model="form.email" /></el-form-item>
         <el-form-item label="部门"><el-input v-model="form.department" /></el-form-item>
         <el-form-item v-if="form.authSource !== 'ad'" label="密码"><el-input v-model="form.password" type="password" show-password placeholder="编辑时留空则不修改" /></el-form-item>
@@ -131,7 +141,11 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { api } from '../api'
+import { adApi, settingsApi, usersApi } from '../api'
+import PageHeader from '../components/common/PageHeader.vue'
+import RoleTag from '../components/common/RoleTag.vue'
+import StatusTag from '../components/common/StatusTag.vue'
+import { AUTH_SOURCE_MAP, ROLE_MAP, TICKET_TYPE_MAP, USER_STATUS_MAP, dictOptions } from '../constants/dictionaries'
 
 const items = ref([])
 const loading = ref(false)
@@ -154,12 +168,9 @@ const adConfig = reactive({
 const lookupUsername = ref('')
 const lookupResult = ref(null)
 const importRole = ref('applicant')
-const ticketTypes = [
-  { label: '资产登记', value: 'asset_register' },
-  { label: '资产变更', value: 'asset_change' },
-  { label: '资产下线/报废', value: 'asset_retire' },
-  { label: '权限/维护申请', value: 'maintenance' }
-]
+const ticketTypes = dictOptions(TICKET_TYPE_MAP)
+const roleOptions = dictOptions(ROLE_MAP)
+const userStatusOptions = dictOptions(USER_STATUS_MAP)
 const approverUsers = computed(() => items.value.filter((user) => ['admin', 'approver'].includes(user.role) && user.status === 'active'))
 
 function emptyUser() {
@@ -169,7 +180,7 @@ function emptyUser() {
 async function load() {
   loading.value = true
   try {
-    const { data } = await api.get('/users')
+    const data = await usersApi.list()
     items.value = data.items
     await loadApprovers()
     await loadADConfig()
@@ -179,12 +190,12 @@ async function load() {
 }
 
 async function loadADConfig() {
-  const { data } = await api.get('/ad/config')
+  const data = await adApi.config()
   Object.assign(adConfig, data, { bindPassword: '' })
 }
 
 async function loadApprovers() {
-  const { data } = await api.get('/ticket-type-approvers')
+  const data = await settingsApi.ticketTypeApprovers()
   for (const item of data.items) {
     approverMap[item.type] = item.approverId
   }
@@ -201,8 +212,8 @@ function openEdit(row) {
 }
 
 async function save() {
-  if (form.id) await api.put(`/users/${form.id}`, form)
-  else await api.post('/users', form)
+  if (form.id) await usersApi.update(form.id, form)
+  else await usersApi.create(form)
   ElMessage.success('已保存')
   dialogVisible.value = false
   load()
@@ -213,20 +224,20 @@ async function saveApprover(type) {
     ElMessage.warning('请选择审批人')
     return
   }
-  await api.put(`/ticket-type-approvers/${type}`, { approverId: approverMap[type] })
+  await settingsApi.saveTicketTypeApprover(type, { approverId: approverMap[type] })
   ElMessage.success('审批人配置已保存')
   await loadApprovers()
 }
 
 async function saveADConfig() {
-  await api.put('/ad/config', adConfig)
+  await adApi.saveConfig(adConfig)
   ElMessage.success('AD 配置已保存')
   await loadADConfig()
 }
 
 async function testAD() {
   try {
-    await api.post('/ad/test')
+    await adApi.test()
     ElMessage.success('AD 连接测试成功')
   } catch (error) {
     ElMessage.error(error.response?.data?.error || 'AD 连接测试失败')
@@ -239,15 +250,14 @@ async function lookupADUser() {
     return
   }
   try {
-    const { data } = await api.post('/ad/lookup-user', { username: lookupUsername.value })
-    lookupResult.value = data
+    lookupResult.value = await adApi.lookupUser({ username: lookupUsername.value })
   } catch (error) {
     ElMessage.error(error.response?.data?.error || '查询失败')
   }
 }
 
 async function importADUser() {
-  await api.post('/ad/import-user', { username: lookupResult.value.username, role: importRole.value, status: 'active' })
+  await adApi.importUser({ username: lookupResult.value.username, role: importRole.value, status: 'active' })
   ElMessage.success('AD 用户已导入')
   lookupResult.value = null
   lookupUsername.value = ''

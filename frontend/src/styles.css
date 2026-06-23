@@ -9,6 +9,10 @@ body {
   font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
 
+#app {
+  min-height: 100vh;
+}
+
 .page {
   padding: 20px;
 }
@@ -25,6 +29,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .panel {
@@ -36,4 +41,60 @@ body {
 
 .muted {
   color: #6b7280;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page-header h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 22px;
+  line-height: 30px;
+}
+
+.page-header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.data-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.data-toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.data-toolbar .el-input {
+  width: 260px;
+  max-width: 100%;
+}
+
+.el-main {
+  background: #f4f6f8;
+}
+
+.el-table .el-button + .el-button {
+  margin-left: 8px;
 }

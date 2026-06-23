@@ -20,18 +20,17 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { api } from '../api'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const auth = useAuthStore()
 const loading = ref(false)
 const form = reactive({ username: 'admin', password: 'admin123456' })
 
 async function submit() {
   loading.value = true
   try {
-    const { data } = await api.post('/auth/login', form)
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user', JSON.stringify(data.user))
+    await auth.login(form)
     router.push('/assets')
   } catch (error) {
     ElMessage.error(error.response?.data?.error || '登录失败')

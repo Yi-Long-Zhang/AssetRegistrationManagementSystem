@@ -1,9 +1,10 @@
 <template>
   <section class="page">
-    <div class="toolbar">
-      <h2>工单流程</h2>
-      <el-button type="primary" :icon="Plus" @click="openCreate">新建工单</el-button>
-    </div>
+    <PageHeader title="工单流程">
+      <template #actions>
+        <el-button type="primary" :icon="Plus" @click="openCreate">新建工单</el-button>
+      </template>
+    </PageHeader>
     <div class="panel">
       <el-tabs v-model="activeView" @tab-change="load">
         <el-tab-pane label="我的待办" name="todo" />
@@ -13,9 +14,21 @@
       <el-table :data="items" v-loading="loading">
         <el-table-column prop="id" label="编号" width="80" />
         <el-table-column prop="title" label="标题" min-width="180" />
-        <el-table-column prop="type" label="类型" width="150" />
-        <el-table-column prop="status" label="状态" width="120" />
-        <el-table-column prop="priority" label="优先级" width="100" />
+        <el-table-column prop="type" label="类型" width="150">
+          <template #default="{ row }">
+            <StatusTag :value="row.type" :map="TICKET_TYPE_MAP" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="120">
+          <template #default="{ row }">
+            <StatusTag :value="row.status" :map="TICKET_STATUS_MAP" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="priority" label="优先级" width="100">
+          <template #default="{ row }">
+            <StatusTag :value="row.priority" :map="PRIORITY_MAP" />
+          </template>
+        </el-table-column>
         <el-table-column label="申请人" width="120"><template #default="{ row }">{{ row.applicant?.name }}</template></el-table-column>
         <el-table-column label="操作" width="360">
           <template #default="{ row }">
@@ -28,9 +41,9 @@
 
     <el-dialog v-model="dialogVisible" title="新建工单" width="640px">
       <el-form :model="form" label-width="90px">
-        <el-form-item label="类型"><el-select v-model="form.type"><el-option label="资产登记" value="asset_register" /><el-option label="资产变更" value="asset_change" /><el-option label="资产下线/报废" value="asset_retire" /><el-option label="权限/维护申请" value="maintenance" /></el-select></el-form-item>
+        <el-form-item label="类型"><el-select v-model="form.type"><el-option v-for="option in ticketTypeOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
         <el-form-item label="标题"><el-input v-model="form.title" /></el-form-item>
-        <el-form-item label="优先级"><el-select v-model="form.priority"><el-option label="低" value="low" /><el-option label="普通" value="normal" /><el-option label="高" value="high" /><el-option label="紧急" value="urgent" /></el-select></el-form-item>
+        <el-form-item label="优先级"><el-select v-model="form.priority"><el-option v-for="option in priorityOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
         <el-form-item label="说明"><el-input v-model="form.description" type="textarea" :rows="4" /></el-form-item>
       </el-form>
       <template #footer>
@@ -43,7 +56,7 @@
       <template v-if="detail">
         <el-descriptions :column="1" border>
           <el-descriptions-item label="标题">{{ detail.title }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ detail.status }}</el-descriptions-item>
+          <el-descriptions-item label="状态"><StatusTag :value="detail.status" :map="TICKET_STATUS_MAP" /></el-descriptions-item>
           <el-descriptions-item label="说明">{{ detail.description }}</el-descriptions-item>
           <el-descriptions-item label="结果">{{ detail.result || '-' }}</el-descriptions-item>
         </el-descriptions>
@@ -81,9 +94,13 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { api } from '../api'
+import { ticketsApi } from '../api'
+import PageHeader from '../components/common/PageHeader.vue'
+import StatusTag from '../components/common/StatusTag.vue'
+import { PRIORITY_MAP, TICKET_STATUS_MAP, TICKET_TYPE_MAP, dictOptions } from '../constants/dictionaries'
+import { useAuthStore } from '../stores/auth'
 
-const user = JSON.parse(localStorage.getItem('user') || 'null')
+const auth = useAuthStore()
 const items = ref([])
 const loading = ref(false)
 const activeView = ref('todo')
@@ -94,11 +111,13 @@ const comments = ref([])
 const attachments = ref([])
 const commentText = ref('')
 const form = reactive({ type: 'asset_register', title: '', priority: 'normal', description: '' })
+const ticketTypeOptions = dictOptions(TICKET_TYPE_MAP)
+const priorityOptions = dictOptions(PRIORITY_MAP)
 
 async function load() {
   loading.value = true
   try {
-    const { data } = await api.get('/tickets', { params: { view: activeView.value } })
+    const data = await ticketsApi.list({ view: activeView.value })
     items.value = data.items
   } finally {
     loading.value = false
@@ -111,14 +130,14 @@ function openCreate() {
 }
 
 async function save() {
-  await api.post('/tickets', form)
+  await ticketsApi.create(form)
   ElMessage.success('已创建草稿')
   dialogVisible.value = false
   load()
 }
 
 async function view(row) {
-  const { data } = await api.get(`/tickets/${row.id}`)
+  const data = await ticketsApi.detail(row.id)
   detail.value = data
   comments.value = data.comments || []
   attachments.value = data.attachments || []
@@ -129,17 +148,18 @@ async function view(row) {
 
 async function loadComments() {
   if (!detail.value) return
-  const { data } = await api.get(`/tickets/${detail.value.id}/comments`)
+  const data = await ticketsApi.comments(detail.value.id)
   comments.value = data.items
 }
 
 async function loadAttachments() {
   if (!detail.value) return
-  const { data } = await api.get(`/tickets/${detail.value.id}/attachments`)
+  const data = await ticketsApi.attachments(detail.value.id)
   attachments.value = data.items
 }
 
 function actions(row) {
+  const user = auth.user
   const role = user?.role
   const items = []
   if (row.status === 'draft' && (role === 'admin' || row.applicantId === user?.id)) items.push({ name: 'submit', label: '提交' })
@@ -154,7 +174,7 @@ function actions(row) {
 async function doAction(row, action) {
   try {
     const { value } = await ElMessageBox.prompt('处理备注', '工单操作', { inputType: 'textarea', inputValue: action })
-    await api.post(`/tickets/${row.id}/${action}`, { remark: value, result: action === 'complete' ? value : '' })
+    await ticketsApi.action(row.id, action, { remark: value, result: action === 'complete' ? value : '' })
     ElMessage.success('操作成功')
     load()
   } catch (error) {
@@ -164,7 +184,7 @@ async function doAction(row, action) {
 
 async function submitComment() {
   if (!detail.value || !commentText.value.trim()) return
-  await api.post(`/tickets/${detail.value.id}/comments`, { content: commentText.value })
+  await ticketsApi.createComment(detail.value.id, { content: commentText.value })
   commentText.value = ''
   ElMessage.success('评论已发送')
   await loadComments()
@@ -174,7 +194,7 @@ async function uploadAttachment(options) {
   const formData = new FormData()
   formData.append('file', options.file)
   try {
-    await api.post(`/tickets/${detail.value.id}/attachments`, formData)
+    await ticketsApi.uploadAttachment(detail.value.id, formData)
     ElMessage.success('附件已上传')
     await loadAttachments()
     options.onSuccess()
@@ -185,7 +205,7 @@ async function uploadAttachment(options) {
 }
 
 async function downloadAttachment(row) {
-  const { data } = await api.get(`/tickets/${detail.value.id}/attachments/${row.id}/download`, { responseType: 'blob' })
+  const data = await ticketsApi.downloadAttachment(detail.value.id, row.id)
   const url = URL.createObjectURL(data)
   const link = document.createElement('a')
   link.href = url

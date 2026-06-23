@@ -1,0 +1,7 @@
+export { request as api } from './request'
+export { authApi } from './auth'
+export { assetsApi } from './assets'
+export { ticketsApi } from './tickets'
+export { usersApi } from './users'
+export { adApi } from './ad'
+export { settingsApi } from './settings'

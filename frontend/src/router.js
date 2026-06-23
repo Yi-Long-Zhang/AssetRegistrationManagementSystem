@@ -1,9 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import LoginView from './views/LoginView.vue'
 import DashboardView from './views/DashboardView.vue'
 import AssetsView from './views/AssetsView.vue'
 import TicketsView from './views/TicketsView.vue'
 import UsersView from './views/UsersView.vue'
+import { useAppStore } from './stores/app'
+import { useAuthStore } from './stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -15,19 +18,38 @@ const router = createRouter({
       meta: { auth: true },
       children: [
         { path: '', redirect: '/assets' },
-        { path: 'assets', component: AssetsView },
-        { path: 'tickets', component: TicketsView },
-        { path: 'users', component: UsersView, meta: { roles: ['admin'] } }
+        { path: 'assets', component: AssetsView, meta: { auth: true, menu: true, title: '服务器资产', icon: 'Monitor', order: 10 } },
+        { path: 'tickets', component: TicketsView, meta: { auth: true, menu: true, title: '工单流程', icon: 'Tickets', order: 20 } },
+        { path: 'users', component: UsersView, meta: { auth: true, menu: true, title: '用户角色', icon: 'User', roles: ['admin'], order: 30 } }
       ]
     }
   ]
 })
 
-router.beforeEach((to) => {
-  const token = localStorage.getItem('token')
-  const user = JSON.parse(localStorage.getItem('user') || 'null')
-  if (to.meta.auth && !token) return '/login'
-  if (to.meta.roles && !to.meta.roles.includes(user?.role)) return '/assets'
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+  const app = useAppStore()
+  const needAuth = to.matched.some((record) => record.meta.auth)
+  const roles = to.matched.flatMap((record) => record.meta.roles || [])
+
+  if (to.path === '/login' && auth.isLoggedIn) return '/assets'
+  if (needAuth && !auth.isLoggedIn) return '/login'
+
+  if (needAuth && auth.isLoggedIn && !auth.loaded) {
+    try {
+      await auth.fetchMe()
+    } catch {
+      auth.clearSession()
+      return '/login'
+    }
+  }
+
+  if (roles.length && !auth.canAccess(roles)) {
+    ElMessage.warning('无权限访问该页面')
+    return '/assets'
+  }
+
+  app.setPageTitle(to.meta.title)
 })
 
 export default router
