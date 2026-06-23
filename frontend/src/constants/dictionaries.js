@@ -29,7 +29,7 @@ export const TICKET_STATUS_MAP = {
   in_progress: { label: '执行中', type: 'primary' },
   done: { label: '待验收', type: 'warning' },
   closed: { label: '已关闭', type: 'success' },
-  canceled: { label: '已取消', type: 'info' }
+  cancelled: { label: '已取消', type: 'info' }
 }
 
 export const TICKET_TYPE_MAP = {

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -209,6 +210,15 @@ func testRouter(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := sqlDB.Close(); err != nil {
+			t.Errorf("close test database: %v", err)
+		}
+	})
 	if err := database.Migrate(db); err != nil {
 		t.Fatal(err)
 	}
@@ -234,14 +244,14 @@ func testRouter(t *testing.T) http.Handler {
 
 type fakeADClient struct{}
 
-func (fakeADClient) Test(config model.ADConfig, bindPassword string) error {
+func (fakeADClient) Test(_ model.ADConfig, bindPassword string) error {
 	if bindPassword != "bind-secret" {
 		return fmt.Errorf("invalid bind password")
 	}
 	return nil
 }
 
-func (fakeADClient) LookupUser(config model.ADConfig, bindPassword, username string) (service.ADUserInfo, error) {
+func (fakeADClient) LookupUser(_ model.ADConfig, _ string, username string) (service.ADUserInfo, error) {
 	if username != "zhangsan" {
 		return service.ADUserInfo{}, fmt.Errorf("not found")
 	}

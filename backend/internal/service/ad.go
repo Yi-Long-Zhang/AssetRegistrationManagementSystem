@@ -38,7 +38,7 @@ func (LDAPADClient) Test(config model.ADConfig, bindPassword string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	return conn.Bind(config.BindDN, bindPassword)
 }
 
@@ -47,7 +47,7 @@ func (c LDAPADClient) LookupUser(config model.ADConfig, bindPassword, username s
 	if err != nil {
 		return ADUserInfo{}, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if err := conn.Bind(config.BindDN, bindPassword); err != nil {
 		return ADUserInfo{}, err
 	}
@@ -62,7 +62,7 @@ func (c LDAPADClient) Authenticate(config model.ADConfig, bindPassword, username
 	if err != nil {
 		return ADUserInfo{}, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if err := conn.Bind(config.BindDN, bindPassword); err != nil {
 		return ADUserInfo{}, err
 	}
@@ -166,7 +166,6 @@ func encryptionKey(keyText string) []byte {
 }
 
 func ApplyADInfo(user *model.User, info ADUserInfo) {
-	now := time.Now()
 	user.Username = info.Username
 	user.Name = defaultString(info.DisplayName, info.Username)
 	user.DisplayName = info.DisplayName
@@ -174,7 +173,7 @@ func ApplyADInfo(user *model.User, info ADUserInfo) {
 	user.Department = info.Department
 	user.ADDN = info.DN
 	user.AuthSource = "ad"
-	user.LastLoginAt = &now
+	user.LastLoginAt = new(time.Now())
 }
 
 func defaultString(value, fallback string) string {

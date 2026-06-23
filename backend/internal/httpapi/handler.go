@@ -48,7 +48,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	user, ok := h.authenticate(c, req.Username, req.Password)
+	user, ok := h.authenticate(req.Username, req.Password)
 	if !ok {
 		errorJSON(c, http.StatusUnauthorized, "用户名或密码错误")
 		return
@@ -75,8 +75,8 @@ func (h *Handler) ListRoles(c *gin.Context) {
 }
 
 func (h *Handler) GetADConfig(c *gin.Context) {
-	config := h.currentADConfig()
-	c.JSON(http.StatusOK, h.adConfigResponse(config))
+	adConfig := h.currentADConfig()
+	c.JSON(http.StatusOK, h.adConfigResponse(adConfig))
 }
 
 func (h *Handler) SaveADConfig(c *gin.Context) {
@@ -84,19 +84,19 @@ func (h *Handler) SaveADConfig(c *gin.Context) {
 	if !bind(c, &req) {
 		return
 	}
-	config := h.currentADConfig()
-	config.Enabled = req.Enabled
-	config.LDAPURL = req.LDAPURL
-	config.BaseDN = req.BaseDN
-	config.BindDN = req.BindDN
-	config.LoginAttribute = defaultString(req.LoginAttribute, "sAMAccountName")
-	config.FilterUserObject = req.FilterUserObject
-	config.ExcludeDisabled = req.ExcludeDisabled
-	config.AdvancedFilter = req.AdvancedFilter
+	adConfig := h.currentADConfig()
+	adConfig.Enabled = req.Enabled
+	adConfig.LDAPURL = req.LDAPURL
+	adConfig.BaseDN = req.BaseDN
+	adConfig.BindDN = req.BindDN
+	adConfig.LoginAttribute = defaultString(req.LoginAttribute, "sAMAccountName")
+	adConfig.FilterUserObject = req.FilterUserObject
+	adConfig.ExcludeDisabled = req.ExcludeDisabled
+	adConfig.AdvancedFilter = req.AdvancedFilter
 	if req.AdvancedFilter {
-		config.UserFilter = defaultString(req.UserFilter, buildADUserFilter(config.LoginAttribute, config.FilterUserObject, config.ExcludeDisabled))
+		adConfig.UserFilter = defaultString(req.UserFilter, buildADUserFilter(adConfig.LoginAttribute, adConfig.FilterUserObject, adConfig.ExcludeDisabled))
 	} else {
-		config.UserFilter = buildADUserFilter(config.LoginAttribute, config.FilterUserObject, config.ExcludeDisabled)
+		adConfig.UserFilter = buildADUserFilter(adConfig.LoginAttribute, adConfig.FilterUserObject, adConfig.ExcludeDisabled)
 	}
 	if req.BindPassword != "" {
 		encrypted, err := service.EncryptString(req.BindPassword, h.cfg.ConfigKey)
@@ -104,25 +104,25 @@ func (h *Handler) SaveADConfig(c *gin.Context) {
 			errorJSON(c, http.StatusInternalServerError, "加密 Bind 密码失败")
 			return
 		}
-		config.EncryptedBindPassword = encrypted
+		adConfig.EncryptedBindPassword = encrypted
 	}
-	if config.ID == 0 && config.EncryptedBindPassword == "" {
+	if adConfig.ID == 0 && adConfig.EncryptedBindPassword == "" {
 		errorJSON(c, http.StatusBadRequest, "首次保存 AD 配置必须填写 Bind 密码")
 		return
 	}
-	if err := h.db.Save(&config).Error; err != nil {
+	if err := h.db.Save(&adConfig).Error; err != nil {
 		errorJSON(c, http.StatusBadRequest, "保存 AD 配置失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, h.adConfigResponse(config))
+	c.JSON(http.StatusOK, h.adConfigResponse(adConfig))
 }
 
 func (h *Handler) TestADConnection(c *gin.Context) {
-	config, bindPassword, ok := h.readyADConfig(c)
+	adConfig, bindPassword, ok := h.readyADConfig(c)
 	if !ok {
 		return
 	}
-	if err := h.ad.Test(config, bindPassword); err != nil {
+	if err := h.ad.Test(adConfig, bindPassword); err != nil {
 		errorJSON(c, http.StatusBadRequest, "AD 连接测试失败: "+err.Error())
 		return
 	}
@@ -134,11 +134,11 @@ func (h *Handler) LookupADUser(c *gin.Context) {
 	if !bind(c, &req) {
 		return
 	}
-	config, bindPassword, ok := h.readyADConfig(c)
+	adConfig, bindPassword, ok := h.readyADConfig(c)
 	if !ok {
 		return
 	}
-	info, err := h.ad.LookupUser(config, bindPassword, req.Username)
+	info, err := h.ad.LookupUser(adConfig, bindPassword, req.Username)
 	if err != nil {
 		errorJSON(c, http.StatusBadRequest, "查询 AD 用户失败: "+err.Error())
 		return
@@ -151,11 +151,11 @@ func (h *Handler) ImportADUser(c *gin.Context) {
 	if !bind(c, &req) {
 		return
 	}
-	config, bindPassword, ok := h.readyADConfig(c)
+	adConfig, bindPassword, ok := h.readyADConfig(c)
 	if !ok {
 		return
 	}
-	info, err := h.ad.LookupUser(config, bindPassword, req.Username)
+	info, err := h.ad.LookupUser(adConfig, bindPassword, req.Username)
 	if err != nil {
 		errorJSON(c, http.StatusBadRequest, "查询 AD 用户失败: "+err.Error())
 		return
@@ -673,8 +673,8 @@ func (h *Handler) applyTodoFilter(db *gorm.DB, user model.User) *gorm.DB {
 }
 
 func (h *Handler) defaultApproverID(c *gin.Context, ticketType model.TicketType) (uint, bool) {
-	var config model.TicketTypeApprover
-	if err := h.db.Where("type = ?", ticketType).First(&config).Error; err != nil {
+	var approverConfig model.TicketTypeApprover
+	if err := h.db.Where("type = ?", ticketType).First(&approverConfig).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			errorJSON(c, http.StatusBadRequest, "该工单类型尚未配置默认审批人")
 			return 0, false
@@ -682,7 +682,7 @@ func (h *Handler) defaultApproverID(c *gin.Context, ticketType model.TicketType)
 		errorJSON(c, http.StatusInternalServerError, "查询默认审批人失败")
 		return 0, false
 	}
-	return config.ApproverID, true
+	return approverConfig.ApproverID, true
 }
 
 func (h *Handler) collaborationTicket(c *gin.Context) (model.Ticket, bool) {
@@ -729,7 +729,7 @@ func uniqueStoredName(original string) string {
 	return fmt.Sprintf("%d-%s-%s", time.Now().UnixNano(), hex.EncodeToString(random[:]), filepath.Base(original))
 }
 
-func (h *Handler) authenticate(c *gin.Context, username, password string) (model.User, bool) {
+func (h *Handler) authenticate(username, password string) (model.User, bool) {
 	var user model.User
 	err := h.db.Where("username = ?", username).First(&user).Error
 	if err != nil {
@@ -749,8 +749,7 @@ func (h *Handler) authenticate(c *gin.Context, username, password string) (model
 		if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
 			return model.User{}, false
 		}
-		now := time.Now()
-		user.LastLoginAt = &now
+		user.LastLoginAt = new(time.Now())
 		_ = h.db.Save(&user).Error
 		return user, true
 	}
@@ -758,11 +757,11 @@ func (h *Handler) authenticate(c *gin.Context, username, password string) (model
 		if authMode == "local" {
 			return model.User{}, false
 		}
-		config, bindPassword, ok := h.adConfigForAuth()
+		adConfig, bindPassword, ok := h.adConfigForAuth()
 		if !ok {
 			return model.User{}, false
 		}
-		info, err := h.ad.Authenticate(config, bindPassword, username, password)
+		info, err := h.ad.Authenticate(adConfig, bindPassword, username, password)
 		if err != nil {
 			return model.User{}, false
 		}
@@ -776,60 +775,60 @@ func (h *Handler) authenticate(c *gin.Context, username, password string) (model
 }
 
 func (h *Handler) adConfigForAuth() (model.ADConfig, string, bool) {
-	config := h.currentADConfig()
-	if config.ID == 0 || !config.Enabled {
+	adConfig := h.currentADConfig()
+	if adConfig.ID == 0 || !adConfig.Enabled {
 		return model.ADConfig{}, "", false
 	}
-	bindPassword, err := service.DecryptString(config.EncryptedBindPassword, h.cfg.ConfigKey)
+	bindPassword, err := service.DecryptString(adConfig.EncryptedBindPassword, h.cfg.ConfigKey)
 	if err != nil {
 		return model.ADConfig{}, "", false
 	}
-	return config, bindPassword, true
+	return adConfig, bindPassword, true
 }
 
 func (h *Handler) currentADConfig() model.ADConfig {
-	var config model.ADConfig
-	if err := h.db.First(&config).Error; err != nil {
+	var adConfig model.ADConfig
+	if err := h.db.First(&adConfig).Error; err != nil {
 		return defaultADConfig()
 	}
-	if config.LoginAttribute == "" {
-		config.LoginAttribute = "sAMAccountName"
+	if adConfig.LoginAttribute == "" {
+		adConfig.LoginAttribute = "sAMAccountName"
 	}
-	if config.UserFilter == "" {
-		config.UserFilter = buildADUserFilter(config.LoginAttribute, config.FilterUserObject, config.ExcludeDisabled)
+	if adConfig.UserFilter == "" {
+		adConfig.UserFilter = buildADUserFilter(adConfig.LoginAttribute, adConfig.FilterUserObject, adConfig.ExcludeDisabled)
 	}
-	return config
+	return adConfig
 }
 
 func (h *Handler) readyADConfig(c *gin.Context) (model.ADConfig, string, bool) {
-	config := h.currentADConfig()
-	if config.ID == 0 || !config.Enabled {
+	adConfig := h.currentADConfig()
+	if adConfig.ID == 0 || !adConfig.Enabled {
 		errorJSON(c, http.StatusBadRequest, "AD 配置未启用")
 		return model.ADConfig{}, "", false
 	}
-	bindPassword, err := service.DecryptString(config.EncryptedBindPassword, h.cfg.ConfigKey)
+	bindPassword, err := service.DecryptString(adConfig.EncryptedBindPassword, h.cfg.ConfigKey)
 	if err != nil {
 		errorJSON(c, http.StatusBadRequest, "AD Bind 密码解密失败")
 		return model.ADConfig{}, "", false
 	}
-	return config, bindPassword, true
+	return adConfig, bindPassword, true
 }
 
-func (h *Handler) adConfigResponse(config model.ADConfig) gin.H {
+func (h *Handler) adConfigResponse(adConfig model.ADConfig) gin.H {
 	return gin.H{
-		"id":               config.ID,
-		"enabled":          config.Enabled,
-		"ldapUrl":          config.LDAPURL,
-		"baseDn":           config.BaseDN,
-		"bindDn":           config.BindDN,
-		"loginAttribute":   defaultString(config.LoginAttribute, "sAMAccountName"),
-		"filterUserObject": config.FilterUserObject,
-		"excludeDisabled":  config.ExcludeDisabled,
-		"advancedFilter":   config.AdvancedFilter,
-		"userFilter":       defaultString(config.UserFilter, buildADUserFilter(config.LoginAttribute, config.FilterUserObject, config.ExcludeDisabled)),
-		"hasBindPassword":  config.EncryptedBindPassword != "",
-		"createdAt":        config.CreatedAt,
-		"updatedAt":        config.UpdatedAt,
+		"id":               adConfig.ID,
+		"enabled":          adConfig.Enabled,
+		"ldapUrl":          adConfig.LDAPURL,
+		"baseDn":           adConfig.BaseDN,
+		"bindDn":           adConfig.BindDN,
+		"loginAttribute":   defaultString(adConfig.LoginAttribute, "sAMAccountName"),
+		"filterUserObject": adConfig.FilterUserObject,
+		"excludeDisabled":  adConfig.ExcludeDisabled,
+		"advancedFilter":   adConfig.AdvancedFilter,
+		"userFilter":       defaultString(adConfig.UserFilter, buildADUserFilter(adConfig.LoginAttribute, adConfig.FilterUserObject, adConfig.ExcludeDisabled)),
+		"hasBindPassword":  adConfig.EncryptedBindPassword != "",
+		"createdAt":        adConfig.CreatedAt,
+		"updatedAt":        adConfig.UpdatedAt,
 	}
 }
 
