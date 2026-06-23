@@ -1,1 +1,21 @@
 .idea
+
+# Go
+backend/bin/
+backend/data/
+backend/coverage.out
+backend/.gocache/
+backend/.gotmp/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
