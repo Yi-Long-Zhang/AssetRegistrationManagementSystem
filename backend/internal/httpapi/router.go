@@ -42,6 +42,10 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	users.POST("", h.CreateUser)
 	users.PUT("/:id", h.UpdateUser)
 
+	typeApprovers := api.Group("/ticket-type-approvers", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
+	typeApprovers.GET("", h.ListTicketTypeApprovers)
+	typeApprovers.PUT("/:type", h.SetTicketTypeApprover)
+
 	assets := api.Group("/assets", h.AuthRequired())
 	assets.GET("", h.ListAssets)
 	assets.POST("", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.CreateAsset)
@@ -54,6 +58,11 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	tickets.POST("", h.CreateTicket)
 	tickets.GET("/:id", h.GetTicket)
 	tickets.PUT("/:id", h.UpdateTicket)
+	tickets.GET("/:id/comments", h.ListTicketComments)
+	tickets.POST("/:id/comments", h.CreateTicketComment)
+	tickets.GET("/:id/attachments", h.ListTicketAttachments)
+	tickets.POST("/:id/attachments", h.UploadTicketAttachment)
+	tickets.GET("/:id/attachments/:attachmentId/download", h.DownloadTicketAttachment)
 	for _, action := range []string{"submit", "approve", "reject", "start", "complete", "close", "cancel"} {
 		tickets.POST("/:id/"+action, h.TicketAction(action))
 	}

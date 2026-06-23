@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,6 +40,7 @@ func TestLoginAndAssetCRUD(t *testing.T) {
 func TestTicketFlow(t *testing.T) {
 	router := testRouter(t)
 	token := login(t, router, "admin", "admin123456")
+	configureApprover(t, router, token, "asset_register", 1)
 
 	resp := request(t, router, http.MethodPost, "/api/v1/tickets", token, map[string]interface{}{
 		"type":        "asset_register",
@@ -62,9 +64,66 @@ func TestTicketFlow(t *testing.T) {
 	}
 }
 
+func TestSubmitTicketRequiresTypeApprover(t *testing.T) {
+	router := testRouter(t)
+	token := login(t, router, "admin", "admin123456")
+
+	resp := request(t, router, http.MethodPost, "/api/v1/tickets", token, map[string]interface{}{
+		"type":  "asset_change",
+		"title": "变更服务器配置",
+	})
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create ticket status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var ticket model.Ticket
+	if err := json.Unmarshal(resp.Body.Bytes(), &ticket); err != nil {
+		t.Fatal(err)
+	}
+
+	resp = request(t, router, http.MethodPost, "/api/v1/tickets/"+itoa(ticket.ID)+"/submit", token, map[string]string{"remark": "submit"})
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected missing approver config to fail, status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestTicketTodoCommentsAndAttachments(t *testing.T) {
+	router := testRouter(t)
+	token := login(t, router, "admin", "admin123456")
+	configureApprover(t, router, token, "maintenance", 1)
+
+	resp := request(t, router, http.MethodPost, "/api/v1/tickets", token, map[string]interface{}{
+		"type":  "maintenance",
+		"title": "维护窗口申请",
+	})
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create ticket status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var ticket model.Ticket
+	if err := json.Unmarshal(resp.Body.Bytes(), &ticket); err != nil {
+		t.Fatal(err)
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/tickets/"+itoa(ticket.ID)+"/submit", token, map[string]string{"remark": "submit"})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("submit ticket status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	resp = request(t, router, http.MethodGet, "/api/v1/tickets?view=todo", token, nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("todo tickets status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/tickets/"+itoa(ticket.ID)+"/comments", token, map[string]string{"content": "请审批"})
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create comment status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	resp = multipartRequest(t, router, "/api/v1/tickets/"+itoa(ticket.ID)+"/attachments", token, "file", "note.txt", "hello")
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("upload attachment status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
 func testRouter(t *testing.T) http.Handler {
 	t.Helper()
-	db, err := database.Open(t.TempDir() + "/test.db")
+	dir := t.TempDir()
+	db, err := database.Open(dir + "/test.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +137,7 @@ func testRouter(t *testing.T) http.Handler {
 		Config: config.Config{
 			HTTPAddr:       ":0",
 			DatabasePath:   "test.db",
+			AttachmentDir:  dir + "/attachments",
 			JWTSecret:      "test-secret",
 			TokenTTL:       time.Hour,
 			AllowedOrigins: "*",
@@ -85,6 +145,14 @@ func testRouter(t *testing.T) http.Handler {
 		DB:    db,
 		Roles: model.AllRoles(),
 	})
+}
+
+func configureApprover(t *testing.T, router http.Handler, token, ticketType string, approverID uint) {
+	t.Helper()
+	resp := request(t, router, http.MethodPut, "/api/v1/ticket-type-approvers/"+ticketType, token, map[string]uint{"approverId": approverID})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("configure approver status=%d body=%s", resp.Code, resp.Body.String())
+	}
 }
 
 func login(t *testing.T, router http.Handler, username, password string) string {
@@ -106,6 +174,28 @@ func login(t *testing.T, router http.Handler, username, password string) string 
 		t.Fatal("empty token")
 	}
 	return data.Token
+}
+
+func multipartRequest(t *testing.T, router http.Handler, path, token, field, filename, content string) *httptest.ResponseRecorder {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile(field, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, path, &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+	return resp
 }
 
 func request(t *testing.T, router http.Handler, method, path, token string, body interface{}) *httptest.ResponseRecorder {

@@ -5,6 +5,7 @@ services:
     environment:
       HTTP_ADDR: :8080
       DATABASE_PATH: /app/data/assets.db
+      ATTACHMENT_DIR: /app/data/attachments
       JWT_SECRET: change-me-in-production
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: admin123456

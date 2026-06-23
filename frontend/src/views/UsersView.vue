@@ -18,6 +18,27 @@
       </el-table>
     </div>
 
+    <div class="panel approver-panel">
+      <div class="toolbar">
+        <h3>工单类型审批人配置</h3>
+      </div>
+      <el-table :data="ticketTypes">
+        <el-table-column prop="label" label="工单类型" min-width="180" />
+        <el-table-column label="默认审批人" min-width="220">
+          <template #default="{ row }">
+            <el-select v-model="approverMap[row.value]" placeholder="选择审批人">
+              <el-option v-for="user in approverUsers" :key="user.id" :label="`${user.name} (${user.username})`" :value="user.id" />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="saveApprover(row.value)">保存</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑用户' : '新增用户'" width="520px">
       <el-form :model="form" label-width="80px">
         <el-form-item label="账号"><el-input v-model="form.username" /></el-form-item>
@@ -42,7 +63,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { api } from '../api'
@@ -51,6 +72,14 @@ const items = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const form = reactive(emptyUser())
+const approverMap = reactive({})
+const ticketTypes = [
+  { label: '资产登记', value: 'asset_register' },
+  { label: '资产变更', value: 'asset_change' },
+  { label: '资产下线/报废', value: 'asset_retire' },
+  { label: '权限/维护申请', value: 'maintenance' }
+]
+const approverUsers = computed(() => items.value.filter((user) => ['admin', 'approver'].includes(user.role) && user.status === 'active'))
 
 function emptyUser() {
   return { username: '', name: '', role: 'applicant', status: 'active', password: '' }
@@ -61,8 +90,16 @@ async function load() {
   try {
     const { data } = await api.get('/users')
     items.value = data.items
+    await loadApprovers()
   } finally {
     loading.value = false
+  }
+}
+
+async function loadApprovers() {
+  const { data } = await api.get('/ticket-type-approvers')
+  for (const item of data.items) {
+    approverMap[item.type] = item.approverId
   }
 }
 
@@ -84,5 +121,21 @@ async function save() {
   load()
 }
 
+async function saveApprover(type) {
+  if (!approverMap[type]) {
+    ElMessage.warning('请选择审批人')
+    return
+  }
+  await api.put(`/ticket-type-approvers/${type}`, { approverId: approverMap[type] })
+  ElMessage.success('审批人配置已保存')
+  await loadApprovers()
+}
+
 onMounted(load)
 </script>
+
+<style scoped>
+.approver-panel {
+  margin-top: 16px;
+}
+</style>

@@ -24,6 +24,9 @@ func Migrate(db *gorm.DB) error {
 		&model.User{},
 		&model.Asset{},
 		&model.Ticket{},
+		&model.TicketTypeApprover{},
+		&model.TicketComment{},
+		&model.TicketAttachment{},
 		&model.TicketRecord{},
 		&model.AuditLog{},
 	)

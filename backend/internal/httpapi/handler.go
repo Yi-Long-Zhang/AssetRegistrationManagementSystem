@@ -1,9 +1,13 @@
 package httpapi
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +75,48 @@ func (h *Handler) Me(c *gin.Context) {
 
 func (h *Handler) ListRoles(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": h.roles})
+}
+
+func (h *Handler) ListTicketTypeApprovers(c *gin.Context) {
+	var items []model.TicketTypeApprover
+	if err := h.db.Preload("Approver").Order("type asc").Find(&items).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "查询审批配置失败")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func (h *Handler) SetTicketTypeApprover(c *gin.Context) {
+	ticketType := model.TicketType(c.Param("type"))
+	var req ticketTypeApproverRequest
+	if !bind(c, &req) {
+		return
+	}
+	var approver model.User
+	if err := h.db.First(&approver, req.ApproverID).Error; err != nil {
+		statusForDBError(c, err, "审批人不存在")
+		return
+	}
+	if approver.Role != model.RoleApprover && approver.Role != model.RoleAdmin {
+		errorJSON(c, http.StatusBadRequest, "审批人必须是审批人或管理员角色")
+		return
+	}
+
+	var item model.TicketTypeApprover
+	err := h.db.Where("type = ?", ticketType).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		item = model.TicketTypeApprover{Type: ticketType, ApproverID: req.ApproverID}
+		err = h.db.Create(&item).Error
+	} else if err == nil {
+		item.ApproverID = req.ApproverID
+		err = h.db.Save(&item).Error
+	}
+	if err != nil {
+		errorJSON(c, http.StatusBadRequest, "保存审批配置失败: "+err.Error())
+		return
+	}
+	h.db.Preload("Approver").First(&item, item.ID)
+	c.JSON(http.StatusOK, item)
 }
 
 func (h *Handler) ListUsers(c *gin.Context) {
@@ -224,7 +270,17 @@ func (h *Handler) ListTickets(c *gin.Context) {
 	user := currentUser(c)
 	var tickets []model.Ticket
 	db := h.db.Preload("Applicant").Preload("Asset").Order("id desc")
-	if user.Role == model.RoleApplicant {
+	switch c.Query("view") {
+	case "todo":
+		db = h.applyTodoFilter(db, user)
+	case "submitted":
+		db = db.Where("applicant_id = ?", user.ID)
+	default:
+		if user.Role == model.RoleApplicant {
+			db = db.Where("applicant_id = ?", user.ID)
+		}
+	}
+	if user.Role == model.RoleApplicant && c.Query("view") == "all" {
 		db = db.Where("applicant_id = ?", user.ID)
 	}
 	if err := db.Find(&tickets).Error; err != nil {
@@ -263,7 +319,7 @@ func (h *Handler) GetTicket(c *gin.Context) {
 		return
 	}
 	var ticket model.Ticket
-	if err := h.db.Preload("Applicant").Preload("Asset").Preload("Approver").Preload("Executor").Preload("Records.Actor").First(&ticket, id).Error; err != nil {
+	if err := h.db.Preload("Applicant").Preload("Asset").Preload("Approver").Preload("Executor").Preload("Records.Actor").Preload("Comments.Actor").Preload("Attachments.Uploader").First(&ticket, id).Error; err != nil {
 		statusForDBError(c, err, "工单不存在")
 		return
 	}
@@ -328,6 +384,19 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 			errorJSON(c, http.StatusForbidden, "只能提交自己的工单")
 			return
 		}
+		if action == "submit" {
+			approverID, ok := h.defaultApproverID(c, ticket.Type)
+			if !ok {
+				return
+			}
+			ticket.ApproverID = &approverID
+		}
+		if (action == "approve" || action == "reject") && user.Role != model.RoleAdmin {
+			if ticket.ApproverID == nil || *ticket.ApproverID != user.ID {
+				errorJSON(c, http.StatusForbidden, "只有该工单指定审批人可以处理")
+				return
+			}
+		}
 		if action == "close" && ticket.ApplicantID != user.ID && user.Role != model.RoleAdmin && user.Role != model.RoleAssetManager {
 			errorJSON(c, http.StatusForbidden, "没有关闭该工单的权限")
 			return
@@ -351,6 +420,190 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 		h.addRecord(ticket.ID, user.ID, action, from, next, req.Remark)
 		c.JSON(http.StatusOK, ticket)
 	}
+}
+
+func (h *Handler) ListTicketComments(c *gin.Context) {
+	ticket, ok := h.collaborationTicket(c)
+	if !ok {
+		return
+	}
+	var comments []model.TicketComment
+	if err := h.db.Preload("Actor").Where("ticket_id = ?", ticket.ID).Order("id asc").Find(&comments).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "查询评论失败")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": comments})
+}
+
+func (h *Handler) CreateTicketComment(c *gin.Context) {
+	ticket, ok := h.collaborationTicket(c)
+	if !ok {
+		return
+	}
+	var req ticketCommentRequest
+	if !bind(c, &req) {
+		return
+	}
+	user := currentUser(c)
+	comment := model.TicketComment{TicketID: ticket.ID, ActorID: user.ID, Content: strings.TrimSpace(req.Content)}
+	if comment.Content == "" {
+		errorJSON(c, http.StatusBadRequest, "评论不能为空")
+		return
+	}
+	if err := h.db.Create(&comment).Error; err != nil {
+		errorJSON(c, http.StatusBadRequest, "创建评论失败: "+err.Error())
+		return
+	}
+	h.addRecord(ticket.ID, user.ID, "comment", ticket.Status, ticket.Status, comment.Content)
+	h.db.Preload("Actor").First(&comment, comment.ID)
+	c.JSON(http.StatusCreated, comment)
+}
+
+func (h *Handler) ListTicketAttachments(c *gin.Context) {
+	ticket, ok := h.collaborationTicket(c)
+	if !ok {
+		return
+	}
+	var attachments []model.TicketAttachment
+	if err := h.db.Preload("Uploader").Where("ticket_id = ?", ticket.ID).Order("id desc").Find(&attachments).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "查询附件失败")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": attachments})
+}
+
+func (h *Handler) UploadTicketAttachment(c *gin.Context) {
+	ticket, ok := h.collaborationTicket(c)
+	if !ok {
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		errorJSON(c, http.StatusBadRequest, "请选择上传文件")
+		return
+	}
+	storedName := uniqueStoredName(file.Filename)
+	dir := filepath.Join(h.cfg.AttachmentDir, fmt.Sprint(ticket.ID))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		errorJSON(c, http.StatusInternalServerError, "创建附件目录失败")
+		return
+	}
+	storagePath := filepath.Join(dir, storedName)
+	if err := c.SaveUploadedFile(file, storagePath); err != nil {
+		errorJSON(c, http.StatusInternalServerError, "保存附件失败")
+		return
+	}
+	user := currentUser(c)
+	attachment := model.TicketAttachment{
+		TicketID:     ticket.ID,
+		UploaderID:   user.ID,
+		OriginalName: filepath.Base(file.Filename),
+		StoredName:   storedName,
+		StoragePath:  storagePath,
+		Size:         file.Size,
+		ContentType:  file.Header.Get("Content-Type"),
+	}
+	if err := h.db.Create(&attachment).Error; err != nil {
+		_ = os.Remove(storagePath)
+		errorJSON(c, http.StatusBadRequest, "保存附件元数据失败: "+err.Error())
+		return
+	}
+	h.addRecord(ticket.ID, user.ID, "attach", ticket.Status, ticket.Status, attachment.OriginalName)
+	h.db.Preload("Uploader").First(&attachment, attachment.ID)
+	c.JSON(http.StatusCreated, attachment)
+}
+
+func (h *Handler) DownloadTicketAttachment(c *gin.Context) {
+	ticket, ok := h.collaborationTicket(c)
+	if !ok {
+		return
+	}
+	attachmentID, err := strconv.ParseUint(c.Param("attachmentId"), 10, 64)
+	if err != nil {
+		errorJSON(c, http.StatusBadRequest, "无效附件 ID")
+		return
+	}
+	var attachment model.TicketAttachment
+	if err := h.db.Where("ticket_id = ? AND id = ?", ticket.ID, attachmentID).First(&attachment).Error; err != nil {
+		statusForDBError(c, err, "附件不存在")
+		return
+	}
+	c.FileAttachment(attachment.StoragePath, attachment.OriginalName)
+}
+
+func (h *Handler) applyTodoFilter(db *gorm.DB, user model.User) *gorm.DB {
+	switch user.Role {
+	case model.RoleAdmin:
+		return db.Where("status IN ?", []model.TicketStatus{
+			model.TicketStatusSubmitted,
+			model.TicketStatusApproved,
+			model.TicketStatusInProgress,
+			model.TicketStatusDone,
+		})
+	case model.RoleApprover:
+		return db.Where("status = ? AND approver_id = ?", model.TicketStatusSubmitted, user.ID)
+	case model.RoleAssetManager:
+		return db.Where("status IN ?", []model.TicketStatus{model.TicketStatusApproved, model.TicketStatusInProgress})
+	default:
+		return db.Where("status = ? AND applicant_id = ?", model.TicketStatusDone, user.ID)
+	}
+}
+
+func (h *Handler) defaultApproverID(c *gin.Context, ticketType model.TicketType) (uint, bool) {
+	var config model.TicketTypeApprover
+	if err := h.db.Where("type = ?", ticketType).First(&config).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			errorJSON(c, http.StatusBadRequest, "该工单类型尚未配置默认审批人")
+			return 0, false
+		}
+		errorJSON(c, http.StatusInternalServerError, "查询默认审批人失败")
+		return 0, false
+	}
+	return config.ApproverID, true
+}
+
+func (h *Handler) collaborationTicket(c *gin.Context) (model.Ticket, bool) {
+	id, ok := parseID(c)
+	if !ok {
+		return model.Ticket{}, false
+	}
+	var ticket model.Ticket
+	if err := h.db.First(&ticket, id).Error; err != nil {
+		statusForDBError(c, err, "工单不存在")
+		return model.Ticket{}, false
+	}
+	if !h.canCollaborate(c, ticket) {
+		return model.Ticket{}, false
+	}
+	return ticket, true
+}
+
+func (h *Handler) canCollaborate(c *gin.Context, ticket model.Ticket) bool {
+	user := currentUser(c)
+	if user.Role == model.RoleAdmin || ticket.ApplicantID == user.ID {
+		return true
+	}
+	if ticket.ApproverID != nil && *ticket.ApproverID == user.ID {
+		return true
+	}
+	if ticket.ExecutorID != nil && *ticket.ExecutorID == user.ID {
+		return true
+	}
+	if user.Role == model.RoleAssetManager {
+		return ticket.Status == model.TicketStatusApproved ||
+			ticket.Status == model.TicketStatusInProgress ||
+			ticket.Status == model.TicketStatusDone
+	}
+	errorJSON(c, http.StatusForbidden, "没有权限访问该工单协作内容")
+	return false
+}
+
+func uniqueStoredName(original string) string {
+	var random [8]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		return fmt.Sprintf("%d-%s", time.Now().UnixNano(), filepath.Base(original))
+	}
+	return fmt.Sprintf("%d-%s-%s", time.Now().UnixNano(), hex.EncodeToString(random[:]), filepath.Base(original))
 }
 
 func (h *Handler) issueToken(user model.User) (string, error) {

@@ -55,3 +55,11 @@ type ticketRequest struct {
 	Priority    model.Priority   `json:"priority"`
 	Description string           `json:"description"`
 }
+
+type ticketTypeApproverRequest struct {
+	ApproverID uint `json:"approverId" binding:"required"`
+}
+
+type ticketCommentRequest struct {
+	Content string `json:"content" binding:"required"`
+}

@@ -8,6 +8,7 @@ import (
 type Config struct {
 	HTTPAddr       string
 	DatabasePath   string
+	AttachmentDir  string
 	JWTSecret      string
 	TokenTTL       time.Duration
 	AdminUsername  string
@@ -19,6 +20,7 @@ func Load() Config {
 	return Config{
 		HTTPAddr:       env("HTTP_ADDR", ":8080"),
 		DatabasePath:   env("DATABASE_PATH", "data/assets.db"),
+		AttachmentDir:  env("ATTACHMENT_DIR", "data/attachments"),
 		JWTSecret:      env("JWT_SECRET", "change-me-in-production"),
 		TokenTTL:       24 * time.Hour,
 		AdminUsername:  env("ADMIN_USERNAME", "admin"),

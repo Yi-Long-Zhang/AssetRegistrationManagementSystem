@@ -5,6 +5,11 @@
       <el-button type="primary" :icon="Plus" @click="openCreate">新建工单</el-button>
     </div>
     <div class="panel">
+      <el-tabs v-model="activeView" @tab-change="load">
+        <el-tab-pane label="我的待办" name="todo" />
+        <el-tab-pane label="我提交的" name="submitted" />
+        <el-tab-pane label="全部" name="all" />
+      </el-tabs>
       <el-table :data="items" v-loading="loading">
         <el-table-column prop="id" label="编号" width="80" />
         <el-table-column prop="title" label="标题" min-width="180" />
@@ -47,6 +52,26 @@
             {{ record.actor?.name }} {{ record.action }}：{{ record.remark || '-' }}
           </el-timeline-item>
         </el-timeline>
+        <el-divider>评论</el-divider>
+        <div class="comments">
+          <div v-for="comment in comments" :key="comment.id" class="comment">
+            <strong>{{ comment.actor?.name }}</strong>
+            <span class="muted">{{ comment.createdAt }}</span>
+            <p>{{ comment.content }}</p>
+          </div>
+          <el-input v-model="commentText" type="textarea" :rows="3" placeholder="追加评论" />
+          <el-button class="comment-submit" type="primary" @click="submitComment">发送评论</el-button>
+        </div>
+        <el-divider>附件</el-divider>
+        <el-upload :http-request="uploadAttachment" :show-file-list="false">
+          <el-button>上传附件</el-button>
+        </el-upload>
+        <el-table class="attachments" :data="attachments" size="small">
+          <el-table-column prop="originalName" label="文件名" min-width="180" />
+          <el-table-column prop="size" label="大小" width="100" />
+          <el-table-column label="上传人" width="100"><template #default="{ row }">{{ row.uploader?.name }}</template></el-table-column>
+          <el-table-column label="操作" width="90"><template #default="{ row }"><el-button link type="primary" @click="downloadAttachment(row)">下载</el-button></template></el-table-column>
+        </el-table>
       </template>
     </el-drawer>
   </section>
@@ -61,15 +86,19 @@ import { api } from '../api'
 const user = JSON.parse(localStorage.getItem('user') || 'null')
 const items = ref([])
 const loading = ref(false)
+const activeView = ref('todo')
 const dialogVisible = ref(false)
 const drawerVisible = ref(false)
 const detail = ref(null)
+const comments = ref([])
+const attachments = ref([])
+const commentText = ref('')
 const form = reactive({ type: 'asset_register', title: '', priority: 'normal', description: '' })
 
 async function load() {
   loading.value = true
   try {
-    const { data } = await api.get('/tickets')
+    const { data } = await api.get('/tickets', { params: { view: activeView.value } })
     items.value = data.items
   } finally {
     loading.value = false
@@ -91,7 +120,23 @@ async function save() {
 async function view(row) {
   const { data } = await api.get(`/tickets/${row.id}`)
   detail.value = data
+  comments.value = data.comments || []
+  attachments.value = data.attachments || []
+  commentText.value = ''
+  await Promise.all([loadComments(), loadAttachments()])
   drawerVisible.value = true
+}
+
+async function loadComments() {
+  if (!detail.value) return
+  const { data } = await api.get(`/tickets/${detail.value.id}/comments`)
+  comments.value = data.items
+}
+
+async function loadAttachments() {
+  if (!detail.value) return
+  const { data } = await api.get(`/tickets/${detail.value.id}/attachments`)
+  attachments.value = data.items
 }
 
 function actions(row) {
@@ -107,10 +152,46 @@ function actions(row) {
 }
 
 async function doAction(row, action) {
-  const { value } = await ElMessageBox.prompt('处理备注', '工单操作', { inputType: 'textarea', inputValue: action })
-  await api.post(`/tickets/${row.id}/${action}`, { remark: value, result: action === 'complete' ? value : '' })
-  ElMessage.success('操作成功')
-  load()
+  try {
+    const { value } = await ElMessageBox.prompt('处理备注', '工单操作', { inputType: 'textarea', inputValue: action })
+    await api.post(`/tickets/${row.id}/${action}`, { remark: value, result: action === 'complete' ? value : '' })
+    ElMessage.success('操作成功')
+    load()
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error(error.response?.data?.error || '操作失败')
+  }
+}
+
+async function submitComment() {
+  if (!detail.value || !commentText.value.trim()) return
+  await api.post(`/tickets/${detail.value.id}/comments`, { content: commentText.value })
+  commentText.value = ''
+  ElMessage.success('评论已发送')
+  await loadComments()
+}
+
+async function uploadAttachment(options) {
+  const formData = new FormData()
+  formData.append('file', options.file)
+  try {
+    await api.post(`/tickets/${detail.value.id}/attachments`, formData)
+    ElMessage.success('附件已上传')
+    await loadAttachments()
+    options.onSuccess()
+  } catch (error) {
+    options.onError(error)
+    ElMessage.error(error.response?.data?.error || '上传失败')
+  }
+}
+
+async function downloadAttachment(row) {
+  const { data } = await api.get(`/tickets/${detail.value.id}/attachments/${row.id}/download`, { responseType: 'blob' })
+  const url = URL.createObjectURL(data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = row.originalName
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 onMounted(load)
@@ -119,5 +200,27 @@ onMounted(load)
 <style scoped>
 .timeline {
   margin-top: 24px;
+}
+
+.comments {
+  display: grid;
+  gap: 12px;
+}
+
+.comment {
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 8px;
+}
+
+.comment p {
+  margin: 6px 0 0;
+}
+
+.comment-submit {
+  justify-self: end;
+}
+
+.attachments {
+  margin-top: 12px;
 }
 </style>
