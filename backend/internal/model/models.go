@@ -10,12 +10,34 @@ type User struct {
 	ID           uint           `json:"id" gorm:"primaryKey"`
 	Username     string         `json:"username" gorm:"uniqueIndex;size:64;not null"`
 	Name         string         `json:"name" gorm:"size:128;not null"`
+	DisplayName  string         `json:"displayName" gorm:"size:128"`
+	Email        string         `json:"email" gorm:"size:128"`
+	Department   string         `json:"department" gorm:"size:128"`
 	Role         Role           `json:"role" gorm:"size:32;not null;index"`
 	Status       string         `json:"status" gorm:"size:32;not null;default:active"`
+	AuthSource   string         `json:"authSource" gorm:"size:32;not null;default:local;index"`
+	ADDN         string         `json:"adDn" gorm:"size:512"`
+	LastLoginAt  *time.Time     `json:"lastLoginAt"`
 	PasswordHash string         `json:"-" gorm:"size:255;not null"`
 	CreatedAt    time.Time      `json:"createdAt"`
 	UpdatedAt    time.Time      `json:"updatedAt"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+type ADConfig struct {
+	ID                    uint      `json:"id" gorm:"primaryKey"`
+	Enabled               bool      `json:"enabled" gorm:"not null;default:false"`
+	LDAPURL               string    `json:"ldapUrl" gorm:"size:255;not null"`
+	BaseDN                string    `json:"baseDn" gorm:"size:512;not null"`
+	BindDN                string    `json:"bindDn" gorm:"size:512;not null"`
+	EncryptedBindPassword string    `json:"-" gorm:"type:text"`
+	LoginAttribute        string    `json:"loginAttribute" gorm:"size:64"`
+	FilterUserObject      bool      `json:"filterUserObject"`
+	ExcludeDisabled       bool      `json:"excludeDisabled"`
+	AdvancedFilter        bool      `json:"advancedFilter"`
+	UserFilter            string    `json:"userFilter" gorm:"size:255;not null"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 type Asset struct {

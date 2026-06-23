@@ -7,11 +7,15 @@ import (
 )
 
 type userRequest struct {
-	Username string     `json:"username" binding:"required"`
-	Name     string     `json:"name" binding:"required"`
-	Role     model.Role `json:"role" binding:"required"`
-	Status   string     `json:"status"`
-	Password string     `json:"password"`
+	Username    string     `json:"username" binding:"required"`
+	Name        string     `json:"name" binding:"required"`
+	DisplayName string     `json:"displayName"`
+	Email       string     `json:"email"`
+	Department  string     `json:"department"`
+	Role        model.Role `json:"role" binding:"required"`
+	Status      string     `json:"status"`
+	AuthSource  string     `json:"authSource"`
+	Password    string     `json:"password"`
 }
 
 type assetRequest struct {
@@ -62,4 +66,27 @@ type ticketTypeApproverRequest struct {
 
 type ticketCommentRequest struct {
 	Content string `json:"content" binding:"required"`
+}
+
+type adConfigRequest struct {
+	Enabled          bool   `json:"enabled"`
+	LDAPURL          string `json:"ldapUrl" binding:"required"`
+	BaseDN           string `json:"baseDn" binding:"required"`
+	BindDN           string `json:"bindDn" binding:"required"`
+	BindPassword     string `json:"bindPassword"`
+	LoginAttribute   string `json:"loginAttribute"`
+	FilterUserObject bool   `json:"filterUserObject"`
+	ExcludeDisabled  bool   `json:"excludeDisabled"`
+	AdvancedFilter   bool   `json:"advancedFilter"`
+	UserFilter       string `json:"userFilter"`
+}
+
+type adLookupRequest struct {
+	Username string `json:"username" binding:"required"`
+}
+
+type adImportRequest struct {
+	Username string     `json:"username" binding:"required"`
+	Role     model.Role `json:"role"`
+	Status   string     `json:"status"`
 }

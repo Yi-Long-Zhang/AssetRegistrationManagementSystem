@@ -7,6 +7,8 @@ services:
       DATABASE_PATH: /app/data/assets.db
       ATTACHMENT_DIR: /app/data/attachments
       JWT_SECRET: change-me-in-production
+      AUTH_MODE: mixed
+      CONFIG_ENCRYPTION_KEY: change-me-config-key
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: admin123456
       ALLOWED_ORIGINS: "*"

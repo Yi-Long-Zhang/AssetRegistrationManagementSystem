@@ -11,7 +11,7 @@
         </el-form-item>
         <el-button type="primary" native-type="submit" :loading="loading">登录</el-button>
       </el-form>
-      <p class="muted">默认管理员：admin / admin123456</p>
+      <p class="muted">支持本地账号或已导入的域账号登录</p>
     </section>
   </main>
 </template>

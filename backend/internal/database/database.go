@@ -22,6 +22,7 @@ func Open(path string) (*gorm.DB, error) {
 func Migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.User{},
+		&model.ADConfig{},
 		&model.Asset{},
 		&model.Ticket{},
 		&model.TicketTypeApprover{},

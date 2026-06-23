@@ -10,6 +10,8 @@ type Config struct {
 	DatabasePath   string
 	AttachmentDir  string
 	JWTSecret      string
+	AuthMode       string
+	ConfigKey      string
 	TokenTTL       time.Duration
 	AdminUsername  string
 	AdminPassword  string
@@ -22,6 +24,8 @@ func Load() Config {
 		DatabasePath:   env("DATABASE_PATH", "data/assets.db"),
 		AttachmentDir:  env("ATTACHMENT_DIR", "data/attachments"),
 		JWTSecret:      env("JWT_SECRET", "change-me-in-production"),
+		AuthMode:       env("AUTH_MODE", "mixed"),
+		ConfigKey:      env("CONFIG_ENCRYPTION_KEY", env("APP_SECRET_KEY", "change-me-config-key")),
 		TokenTTL:       24 * time.Hour,
 		AdminUsername:  env("ADMIN_USERNAME", "admin"),
 		AdminPassword:  env("ADMIN_PASSWORD", "admin123456"),

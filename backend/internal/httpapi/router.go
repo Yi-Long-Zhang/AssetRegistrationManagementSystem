@@ -7,6 +7,7 @@ import (
 
 	"asset-registration-management-system/backend/internal/config"
 	"asset-registration-management-system/backend/internal/model"
+	"asset-registration-management-system/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -16,13 +17,18 @@ type Dependencies struct {
 	Config config.Config
 	DB     *gorm.DB
 	Roles  []model.Role
+	AD     service.ADClient
 }
 
 func NewRouter(dep Dependencies) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery(), cors(dep.Config.AllowedOrigins))
 
-	h := NewHandler(dep.Config, dep.DB, dep.Roles)
+	adClient := dep.AD
+	if adClient == nil {
+		adClient = service.LDAPADClient{}
+	}
+	h := NewHandler(dep.Config, dep.DB, dep.Roles, adClient)
 
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now().UTC()})
@@ -36,6 +42,13 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	api.GET("/auth/me", h.AuthRequired(), h.Me)
 
 	api.GET("/roles", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin), h.ListRoles)
+
+	ad := api.Group("/ad", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
+	ad.GET("/config", h.GetADConfig)
+	ad.PUT("/config", h.SaveADConfig)
+	ad.POST("/test", h.TestADConnection)
+	ad.POST("/lookup-user", h.LookupADUser)
+	ad.POST("/import-user", h.ImportADUser)
 
 	users := api.Group("/users", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
 	users.GET("", h.ListUsers)

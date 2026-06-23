@@ -12,6 +12,7 @@ import (
 	"asset-registration-management-system/backend/internal/config"
 	"asset-registration-management-system/backend/internal/database"
 	"asset-registration-management-system/backend/internal/model"
+	"asset-registration-management-system/backend/internal/service"
 )
 
 func TestLoginAndAssetCRUD(t *testing.T) {
@@ -120,6 +121,87 @@ func TestTicketTodoCommentsAndAttachments(t *testing.T) {
 	}
 }
 
+func TestADConfigImportAndLogin(t *testing.T) {
+	router := testRouter(t)
+	token := login(t, router, "admin", "admin123456")
+
+	resp := request(t, router, http.MethodPut, "/api/v1/ad/config", token, map[string]interface{}{
+		"enabled":          true,
+		"ldapUrl":          "ldap://ad.example.com:389",
+		"baseDn":           "dc=example,dc=com",
+		"bindDn":           "cn=svc,dc=example,dc=com",
+		"bindPassword":     "bind-secret",
+		"loginAttribute":   "sAMAccountName",
+		"filterUserObject": true,
+		"excludeDisabled":  true,
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("save ad config status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if bytes.Contains(resp.Body.Bytes(), []byte("bind-secret")) {
+		t.Fatal("response leaked bind password")
+	}
+	if !bytes.Contains(resp.Body.Bytes(), []byte("objectClass=user")) {
+		t.Fatal("response did not include generated user object filter")
+	}
+
+	resp = request(t, router, http.MethodPost, "/api/v1/ad/test", token, nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("test ad status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/ad/lookup-user", token, map[string]string{"username": "zhangsan"})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("lookup ad user status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/ad/import-user", token, map[string]string{"username": "zhangsan", "role": "approver", "status": "active"})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("import ad user status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	_ = login(t, router, "zhangsan", "ad-password")
+}
+
+func TestUnimportedADUserCannotLogin(t *testing.T) {
+	router := testRouter(t)
+	token := login(t, router, "admin", "admin123456")
+	resp := request(t, router, http.MethodPut, "/api/v1/ad/config", token, map[string]interface{}{
+		"enabled":      true,
+		"ldapUrl":      "ldap://ad.example.com:389",
+		"baseDn":       "dc=example,dc=com",
+		"bindDn":       "cn=svc,dc=example,dc=com",
+		"bindPassword": "bind-secret",
+		"userFilter":   "(sAMAccountName=%s)",
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("save ad config status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/auth/login", "", map[string]string{"username": "zhangsan", "password": "ad-password"})
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unimported AD user login to fail, status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestADUserPasswordCannotBeChangedLocally(t *testing.T) {
+	router := testRouter(t)
+	token := login(t, router, "admin", "admin123456")
+	request(t, router, http.MethodPut, "/api/v1/ad/config", token, map[string]interface{}{
+		"enabled": true, "ldapUrl": "ldap://ad.example.com:389", "baseDn": "dc=example,dc=com", "bindDn": "cn=svc,dc=example,dc=com", "bindPassword": "bind-secret",
+	})
+	resp := request(t, router, http.MethodPost, "/api/v1/ad/import-user", token, map[string]string{"username": "zhangsan", "role": "applicant", "status": "active"})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("import ad user status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var user model.User
+	if err := json.Unmarshal(resp.Body.Bytes(), &user); err != nil {
+		t.Fatal(err)
+	}
+	resp = request(t, router, http.MethodPut, "/api/v1/users/"+itoa(user.ID), token, map[string]interface{}{
+		"username": user.Username, "name": user.Name, "role": user.Role, "status": user.Status, "password": "new-local-password",
+	})
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected AD password change to fail, status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
 func testRouter(t *testing.T) http.Handler {
 	t.Helper()
 	dir := t.TempDir()
@@ -139,12 +221,44 @@ func testRouter(t *testing.T) http.Handler {
 			DatabasePath:   "test.db",
 			AttachmentDir:  dir + "/attachments",
 			JWTSecret:      "test-secret",
+			ConfigKey:      "test-config-key",
+			AuthMode:       "mixed",
 			TokenTTL:       time.Hour,
 			AllowedOrigins: "*",
 		},
 		DB:    db,
 		Roles: model.AllRoles(),
+		AD:    fakeADClient{},
 	})
+}
+
+type fakeADClient struct{}
+
+func (fakeADClient) Test(config model.ADConfig, bindPassword string) error {
+	if bindPassword != "bind-secret" {
+		return fmt.Errorf("invalid bind password")
+	}
+	return nil
+}
+
+func (fakeADClient) LookupUser(config model.ADConfig, bindPassword, username string) (service.ADUserInfo, error) {
+	if username != "zhangsan" {
+		return service.ADUserInfo{}, fmt.Errorf("not found")
+	}
+	return service.ADUserInfo{
+		Username:    "zhangsan",
+		DN:          "cn=zhangsan,dc=example,dc=com",
+		DisplayName: "张三",
+		Email:       "zhangsan@example.com",
+		Department:  "运维部",
+	}, nil
+}
+
+func (fakeADClient) Authenticate(config model.ADConfig, bindPassword, username, password string) (service.ADUserInfo, error) {
+	if password != "ad-password" {
+		return service.ADUserInfo{}, fmt.Errorf("invalid credentials")
+	}
+	return fakeADClient{}.LookupUser(config, bindPassword, username)
 }
 
 func configureApprover(t *testing.T, router http.Handler, token, ticketType string, approverID uint) {
