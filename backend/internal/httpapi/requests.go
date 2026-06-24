@@ -19,36 +19,82 @@ type userRequest struct {
 }
 
 type assetRequest struct {
-	AssetNo    string            `json:"assetNo" binding:"required"`
-	Hostname   string            `json:"hostname" binding:"required"`
-	IP         string            `json:"ip" binding:"required"`
-	Location   string            `json:"location"`
-	Rack       string            `json:"rack"`
-	OS         string            `json:"os"`
-	CPU        string            `json:"cpu"`
-	Memory     string            `json:"memory"`
-	Disk       string            `json:"disk"`
-	Owner      string            `json:"owner"`
-	Status     model.AssetStatus `json:"status" binding:"required"`
-	OnlineDate *time.Time        `json:"onlineDate"`
-	Remark     string            `json:"remark"`
+	AssetNo            string            `json:"assetNo"`
+	SequenceNo         string            `json:"sequenceNo"`
+	AssetType          string            `json:"assetType"`
+	Hostname           string            `json:"hostname"`
+	IP                 string            `json:"ip" binding:"required"`
+	MACAddress         string            `json:"macAddress"`
+	ManagementIP       string            `json:"managementIp"`
+	SerialNo           string            `json:"serialNo"`
+	Manufacturer       string            `json:"manufacturer"`
+	Model              string            `json:"model"`
+	Location           string            `json:"location"`
+	Rack               string            `json:"rack"`
+	RackPosition       string            `json:"rackPosition"`
+	OS                 string            `json:"os"`
+	OSVersion          string            `json:"osVersion"`
+	CPU                string            `json:"cpu"`
+	Memory             string            `json:"memory"`
+	Disk               string            `json:"disk"`
+	OpenPorts          string            `json:"openPorts"`
+	RunningServices    string            `json:"runningServices"`
+	AppVersion         string            `json:"appVersion"`
+	Subnet             string            `json:"subnet"`
+	BusinessSystem     string            `json:"businessSystem"`
+	Environment        string            `json:"environment"`
+	Department         string            `json:"department"`
+	Owner              string            `json:"owner"`
+	MaintenanceVendor  string            `json:"maintenanceVendor"`
+	PurchaseDate       *time.Time        `json:"purchaseDate"`
+	WarrantyExpireDate *time.Time        `json:"warrantyExpireDate"`
+	Status             model.AssetStatus `json:"status"`
+	OnlineDate         *time.Time        `json:"onlineDate"`
+	Remark             string            `json:"remark"`
 }
 
 func (r assetRequest) toModel() model.Asset {
+	assetNo := r.AssetNo
+	if assetNo == "" {
+		assetNo = assetNoFromIP(r.IP)
+	}
+	status := r.Status
+	if status == "" {
+		status = model.AssetStatusInUse
+	}
 	return model.Asset{
-		AssetNo:    r.AssetNo,
-		Hostname:   r.Hostname,
-		IP:         r.IP,
-		Location:   r.Location,
-		Rack:       r.Rack,
-		OS:         r.OS,
-		CPU:        r.CPU,
-		Memory:     r.Memory,
-		Disk:       r.Disk,
-		Owner:      r.Owner,
-		Status:     r.Status,
-		OnlineDate: r.OnlineDate,
-		Remark:     r.Remark,
+		AssetNo:            assetNo,
+		SequenceNo:         r.SequenceNo,
+		AssetType:          r.AssetType,
+		Hostname:           r.Hostname,
+		IP:                 r.IP,
+		MACAddress:         r.MACAddress,
+		ManagementIP:       r.ManagementIP,
+		SerialNo:           r.SerialNo,
+		Manufacturer:       r.Manufacturer,
+		Model:              r.Model,
+		Location:           r.Location,
+		Rack:               r.Rack,
+		RackPosition:       r.RackPosition,
+		OS:                 r.OS,
+		OSVersion:          r.OSVersion,
+		CPU:                r.CPU,
+		Memory:             r.Memory,
+		Disk:               r.Disk,
+		OpenPorts:          r.OpenPorts,
+		RunningServices:    r.RunningServices,
+		AppVersion:         r.AppVersion,
+		Subnet:             r.Subnet,
+		BusinessSystem:     r.BusinessSystem,
+		Environment:        r.Environment,
+		Department:         r.Department,
+		Owner:              r.Owner,
+		MaintenanceVendor:  r.MaintenanceVendor,
+		PurchaseDate:       r.PurchaseDate,
+		WarrantyExpireDate: r.WarrantyExpireDate,
+		Status:             status,
+		OnlineDate:         r.OnlineDate,
+		Remark:             r.Remark,
 	}
 }
 

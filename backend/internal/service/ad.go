@@ -166,6 +166,7 @@ func encryptionKey(keyText string) []byte {
 }
 
 func ApplyADInfo(user *model.User, info ADUserInfo) {
+	now := time.Now()
 	user.Username = info.Username
 	user.Name = defaultString(info.DisplayName, info.Username)
 	user.DisplayName = info.DisplayName
@@ -173,7 +174,7 @@ func ApplyADInfo(user *model.User, info ADUserInfo) {
 	user.Department = info.Department
 	user.ADDN = info.DN
 	user.AuthSource = "ad"
-	user.LastLoginAt = new(time.Now())
+	user.LastLoginAt = &now
 }
 
 func defaultString(value, fallback string) string {

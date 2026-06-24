@@ -12,5 +12,17 @@ export const assetsApi = {
   },
   remove(id) {
     return request.delete(`/assets/${id}`).then(unwrap)
+  },
+  import(payload) {
+    return request.post('/assets/import', payload).then(unwrap)
+  },
+  export(params) {
+    return request.get('/assets/export', { params, responseType: 'blob' }).then(unwrap)
+  },
+  stats(params) {
+    return request.get('/assets/stats', { params }).then(unwrap)
+  },
+  template(params) {
+    return request.get('/assets/template', { params, responseType: 'blob' }).then(unwrap)
   }
 }

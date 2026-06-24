@@ -6,8 +6,8 @@
 
 - 后端：Go、Gin、GORM、SQLite、JWT
 - 前端：Vue 3、Vite、Element Plus
-- 部署：Docker Compose，前端 Nginx 反向代理 `/api/` 到后端
-- 附件：后端本地 volume 持久化，默认目录 `data/attachments`
+- 运行方式：本地分别启动后端 API 与前端 Vite 开发服务
+- 附件：后端本地目录存储，默认目录 `backend/data/attachments`
 - 用户体系：支持本地账号和 AD/LDAP 账号混合登录
 
 ## 本地开发
@@ -28,23 +28,27 @@ npm install
 npm run dev
 ```
 
+默认访问地址：
+
+- 前端：http://localhost:5173
+- 后端健康检查：http://localhost:8080/healthz
+- API 文档：http://localhost:8080/swagger/index.html
+
 默认管理员账号：
 
 ```text
 admin / admin123456
 ```
 
-## Docker Compose
+## 资产导入导出
 
-```bash
-docker compose up --build
-```
-
-- 前端：http://localhost:8081
-- 后端健康检查：http://localhost:8080/healthz
-- API 文档：http://localhost:8080/swagger/index.html
-
-SQLite 数据和工单附件通过 `backend-data` volume 持久化。
+- 管理员可在“服务器资产”页面新增、编辑、删除资产。
+- 资产导入支持 CSV / XLSX：先下载 Excel 导入模板，按测绘结果表头填写后上传。
+- 导入模板字段按“全资产详细清单”设计：序号、IP地址、主机名/设备名称、MAC地址、厂商、资产类型、操作系统、开放端口、运行服务/应用、应用版本、资产归属/负责人、所在网段、备注。
+- 导入时系统根据“IP地址”自动生成内部资产编号：编号不存在则新增，编号已存在则更新。
+- 批量导出使用 CSV，导出字段与导入模板一致。
+- 导入模板和导出文件不包含“风险等级”字段。
+- 仓库内提供可直接使用的模板文件：`templates/asset-import-template.xlsx`。
 
 ## v2.1 工单增强
 

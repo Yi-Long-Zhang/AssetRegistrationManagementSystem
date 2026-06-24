@@ -41,23 +41,42 @@ type ADConfig struct {
 }
 
 type Asset struct {
-	ID         uint           `json:"id" gorm:"primaryKey"`
-	AssetNo    string         `json:"assetNo" gorm:"uniqueIndex;size:64;not null"`
-	Hostname   string         `json:"hostname" gorm:"size:128;not null"`
-	IP         string         `json:"ip" gorm:"size:64;not null;index"`
-	Location   string         `json:"location" gorm:"size:128"`
-	Rack       string         `json:"rack" gorm:"size:128"`
-	OS         string         `json:"os" gorm:"size:128"`
-	CPU        string         `json:"cpu" gorm:"size:128"`
-	Memory     string         `json:"memory" gorm:"size:128"`
-	Disk       string         `json:"disk" gorm:"size:128"`
-	Owner      string         `json:"owner" gorm:"size:128"`
-	Status     AssetStatus    `json:"status" gorm:"size:32;not null;index"`
-	OnlineDate *time.Time     `json:"onlineDate"`
-	Remark     string         `json:"remark" gorm:"type:text"`
-	CreatedAt  time.Time      `json:"createdAt"`
-	UpdatedAt  time.Time      `json:"updatedAt"`
-	DeletedAt  gorm.DeletedAt `json:"-" gorm:"index"`
+	ID                 uint           `json:"id" gorm:"primaryKey"`
+	AssetNo            string         `json:"assetNo" gorm:"uniqueIndex;size:64;not null"`
+	SequenceNo         string         `json:"sequenceNo" gorm:"size:64"`
+	AssetType          string         `json:"assetType" gorm:"size:64"`
+	Hostname           string         `json:"hostname" gorm:"size:128;not null"`
+	IP                 string         `json:"ip" gorm:"size:64;not null;index"`
+	MACAddress         string         `json:"macAddress" gorm:"size:128;index"`
+	ManagementIP       string         `json:"managementIp" gorm:"size:64"`
+	SerialNo           string         `json:"serialNo" gorm:"size:128;index"`
+	Manufacturer       string         `json:"manufacturer" gorm:"size:128"`
+	Model              string         `json:"model" gorm:"size:128"`
+	Location           string         `json:"location" gorm:"size:128"`
+	Rack               string         `json:"rack" gorm:"size:128"`
+	RackPosition       string         `json:"rackPosition" gorm:"size:64"`
+	OS                 string         `json:"os" gorm:"size:128"`
+	OSVersion          string         `json:"osVersion" gorm:"size:128"`
+	CPU                string         `json:"cpu" gorm:"size:128"`
+	Memory             string         `json:"memory" gorm:"size:128"`
+	Disk               string         `json:"disk" gorm:"size:128"`
+	OpenPorts          string         `json:"openPorts" gorm:"type:text"`
+	RunningServices    string         `json:"runningServices" gorm:"type:text"`
+	AppVersion         string         `json:"appVersion" gorm:"type:text"`
+	Subnet             string         `json:"subnet" gorm:"size:128;index"`
+	BusinessSystem     string         `json:"businessSystem" gorm:"size:128;index"`
+	Environment        string         `json:"environment" gorm:"size:64"`
+	Department         string         `json:"department" gorm:"size:128"`
+	Owner              string         `json:"owner" gorm:"size:128"`
+	MaintenanceVendor  string         `json:"maintenanceVendor" gorm:"size:128"`
+	PurchaseDate       *time.Time     `json:"purchaseDate"`
+	WarrantyExpireDate *time.Time     `json:"warrantyExpireDate"`
+	Status             AssetStatus    `json:"status" gorm:"size:32;not null;index"`
+	OnlineDate         *time.Time     `json:"onlineDate"`
+	Remark             string         `json:"remark" gorm:"type:text"`
+	CreatedAt          time.Time      `json:"createdAt"`
+	UpdatedAt          time.Time      `json:"updatedAt"`
+	DeletedAt          gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 type Ticket struct {

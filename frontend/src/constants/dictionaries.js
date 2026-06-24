@@ -16,9 +16,11 @@ export const AUTH_SOURCE_MAP = {
 }
 
 export const ASSET_STATUS_MAP = {
+  pending: { label: '待上线', type: 'warning' },
   in_use: { label: '使用中', type: 'success' },
   maintenance: { label: '维护中', type: 'warning' },
-  retired: { label: '已退役', type: 'info' }
+  retired: { label: '已退役', type: 'info' },
+  decommissioned: { label: '已下线', type: 'info' }
 }
 
 export const TICKET_STATUS_MAP = {

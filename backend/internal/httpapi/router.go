@@ -61,7 +61,11 @@ func NewRouter(dep Dependencies) *gin.Engine {
 
 	assets := api.Group("/assets", h.AuthRequired())
 	assets.GET("", h.ListAssets)
+	assets.GET("/stats", h.AssetStats)
 	assets.POST("", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.CreateAsset)
+	assets.GET("/export", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.ExportAssets)
+	assets.GET("/template", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.DownloadAssetImportTemplate)
+	assets.POST("/import", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.ImportAssets)
 	assets.GET("/:id", h.GetAsset)
 	assets.PUT("/:id", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.UpdateAsset)
 	assets.DELETE("/:id", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.DeleteAsset)

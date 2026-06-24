@@ -313,17 +313,55 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 
 func (h *Handler) ListAssets(c *gin.Context) {
 	var assets []model.Asset
-	q := strings.TrimSpace(c.Query("q"))
-	db := h.db.Order("id desc")
-	if q != "" {
-		like := "%" + q + "%"
-		db = db.Where("asset_no LIKE ? OR hostname LIKE ? OR ip LIKE ? OR owner LIKE ?", like, like, like, like)
+	page, pageSize := assetPagination(c)
+	db := applyAssetFilters(h.db.Model(&model.Asset{}), c)
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "查询资产失败")
+		return
 	}
+	db = applyAssetSort(db, c).Offset((page - 1) * pageSize).Limit(pageSize)
 	if err := db.Find(&assets).Error; err != nil {
 		errorJSON(c, http.StatusInternalServerError, "查询资产失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": assets})
+	c.JSON(http.StatusOK, gin.H{"items": assets, "total": total, "page": page, "pageSize": pageSize})
+}
+
+func (h *Handler) AssetStats(c *gin.Context) {
+	base := applyAssetFilters(h.db.Model(&model.Asset{}), c)
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "查询资产统计失败")
+		return
+	}
+	var assets []model.Asset
+	if err := applyAssetFilters(h.db.Model(&model.Asset{}), c).Select("open_ports", "running_services").Find(&assets).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "查询资产统计失败")
+		return
+	}
+	openPortValues := make([]string, 0, len(assets))
+	serviceValues := make([]string, 0, len(assets))
+	openPortAssetCount := int64(0)
+	for _, asset := range assets {
+		if strings.TrimSpace(asset.OpenPorts) != "" {
+			openPortAssetCount++
+			openPortValues = append(openPortValues, asset.OpenPorts)
+		}
+		if strings.TrimSpace(asset.RunningServices) != "" {
+			serviceValues = append(serviceValues, asset.RunningServices)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"total":              total,
+		"subnetCount":        len(assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "subnet", 1000000)),
+		"openPortAssetCount": openPortAssetCount,
+		"byAssetType":        assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "asset_type", 10),
+		"bySubnet":           assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "subnet", 10),
+		"byOwner":            assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "owner", 10),
+		"topOpenPorts":       topAssetTokens(openPortValues, 10, true),
+		"topServices":        topAssetTokens(serviceValues, 10, false),
+	})
 }
 
 func (h *Handler) CreateAsset(c *gin.Context) {
@@ -749,7 +787,8 @@ func (h *Handler) authenticate(username, password string) (model.User, bool) {
 		if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
 			return model.User{}, false
 		}
-		user.LastLoginAt = new(time.Now())
+		now := time.Now()
+		user.LastLoginAt = &now
 		_ = h.db.Save(&user).Error
 		return user, true
 	}

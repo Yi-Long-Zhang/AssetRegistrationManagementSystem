@@ -11,6 +11,11 @@ backend/.gotmp/
 frontend/node_modules/
 frontend/dist/
 
+# Release packages and generated inspection caches
+release/
+release.zip
+*.inspect.ndjson
+
 # Local env
 .env
 .env.*
