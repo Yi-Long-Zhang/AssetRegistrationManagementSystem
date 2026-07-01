@@ -95,6 +95,22 @@
   - `feat: add ticket attachments`
   - `fix: align cancelled ticket status`
   - `chore: update backend dependencies`
+- 提交必须包含更改内容摘要，不能只有一句提交标题；提交正文至少写明：
+  - `Changes:` 本次修改的核心模块和行为变化。
+  - `Validation:` 已执行的测试、构建或无法执行的原因。
+  - 示例：
+    ```text
+    feat: add ticket archive downloads
+
+    Changes:
+    - add single and batch ticket archive download APIs
+    - enforce participant permission checks for every archive
+
+    Validation:
+    - go test ./...
+    - go build ./...
+    - frontend Vite build
+    ```
 - 提交前检查：
   - 后端改动：`gofmt` + `go test ./...`，必要时加 `go build ./...`、`go vet ./...`。
   - 前端改动：`npm run build`。
