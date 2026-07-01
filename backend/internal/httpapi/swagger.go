@@ -47,6 +47,8 @@ func (h *Handler) OpenAPISpec(c *gin.Context) {
 			"/ad/test":                      gin.H{"post": gin.H{"summary": "测试 AD 连接"}},
 			"/ad/lookup-user":               gin.H{"post": gin.H{"summary": "查询 AD 用户"}},
 			"/ad/import-user":               gin.H{"post": gin.H{"summary": "导入 AD 用户"}},
+			"/settings/mail":                gin.H{"get": gin.H{"summary": "邮件配置详情"}, "put": gin.H{"summary": "保存邮件配置"}},
+			"/settings/mail/test":           gin.H{"post": gin.H{"summary": "测试邮件发送"}},
 			"/roles":                        gin.H{"get": gin.H{"summary": "角色列表"}},
 			"/ticket-type-approvers":        gin.H{"get": gin.H{"summary": "工单类型审批配置列表"}},
 			"/ticket-type-approvers/{type}": gin.H{"put": gin.H{"summary": "设置工单类型默认审批人"}},

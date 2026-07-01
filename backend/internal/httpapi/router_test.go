@@ -334,6 +334,84 @@ func TestTicketTodoCommentsAndAttachments(t *testing.T) {
 	}
 }
 
+func TestMailConfigAndSubmitNotification(t *testing.T) {
+	router := testRouter(t)
+	token := login(t, router, "admin", "admin123456")
+
+	resp := request(t, router, http.MethodPost, "/api/v1/users", token, map[string]interface{}{
+		"username": "approver1",
+		"name":     "审批人一",
+		"email":    "approver1@example.com",
+		"role":     "approver",
+		"status":   "active",
+		"password": "password123",
+	})
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create approver status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var approver model.User
+	if err := json.Unmarshal(resp.Body.Bytes(), &approver); err != nil {
+		t.Fatal(err)
+	}
+
+	resp = request(t, router, http.MethodPut, "/api/v1/settings/mail", token, map[string]interface{}{
+		"enabled":     true,
+		"smtpHost":    "smtp.example.com",
+		"smtpPort":    587,
+		"username":    "smtp-user",
+		"password":    "smtp-secret",
+		"fromAddress": "asset-system@example.com",
+		"fromName":    "资产管理系统",
+		"startTls":    true,
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("save mail config status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if bytes.Contains(resp.Body.Bytes(), []byte("smtp-secret")) {
+		t.Fatal("response leaked smtp password")
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/settings/mail/test", token, map[string]string{"recipient": "admin@example.com"})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("test mail status=%d body=%s", resp.Code, resp.Body.String())
+	}
+
+	configureWorkflow(t, router, token, "maintenance", []string{"IT运维主管审核"}, approver.ID)
+	resp = request(t, router, http.MethodPost, "/api/v1/tickets", token, map[string]interface{}{
+		"type":        "maintenance",
+		"title":       "维护窗口申请",
+		"description": "需要审批通知",
+	})
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create ticket status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var ticket model.Ticket
+	if err := json.Unmarshal(resp.Body.Bytes(), &ticket); err != nil {
+		t.Fatal(err)
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/tickets/"+itoa(ticket.ID)+"/submit", token, map[string]string{"remark": "submit"})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("submit ticket status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	resp = request(t, router, http.MethodGet, "/api/v1/tickets/"+itoa(ticket.ID), token, nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("detail ticket status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var detail model.Ticket
+	if err := json.Unmarshal(resp.Body.Bytes(), &detail); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, record := range detail.Records {
+		if record.Action == "mail_sent" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected mail_sent record, got %+v", detail.Records)
+	}
+}
+
 func TestADConfigImportAndLogin(t *testing.T) {
 	router := testRouter(t)
 	token := login(t, router, "admin", "admin123456")
@@ -453,6 +531,7 @@ func testRouter(t *testing.T) http.Handler {
 		Roles:    model.AllRoles(),
 		AD:       fakeADClient{},
 		Archiver: fakeArchiver{},
+		Mail:     fakeMailSender{},
 	})
 }
 
@@ -468,6 +547,21 @@ func (fakeArchiver) Generate(_ context.Context, data service.TicketArchiveData, 
 		return "", "", err
 	}
 	return archiveNo, archivePath, nil
+}
+
+type fakeMailSender struct{}
+
+func (fakeMailSender) Send(config model.MailConfig, password string, message service.MailMessage) error {
+	if config.SMTPHost != "smtp.example.com" {
+		return fmt.Errorf("invalid smtp host")
+	}
+	if password != "smtp-secret" {
+		return fmt.Errorf("invalid smtp password")
+	}
+	if len(message.To) == 0 {
+		return fmt.Errorf("empty recipients")
+	}
+	return nil
 }
 
 type fakeADClient struct{}

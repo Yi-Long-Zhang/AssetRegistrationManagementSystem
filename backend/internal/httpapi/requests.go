@@ -153,6 +153,22 @@ type adConfigRequest struct {
 	UserFilter       string `json:"userFilter"`
 }
 
+type mailConfigRequest struct {
+	Enabled     bool   `json:"enabled"`
+	SMTPHost    string `json:"smtpHost"`
+	SMTPPort    int    `json:"smtpPort"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	FromAddress string `json:"fromAddress"`
+	FromName    string `json:"fromName"`
+	UseTLS      bool   `json:"useTls"`
+	StartTLS    bool   `json:"startTls"`
+}
+
+type mailTestRequest struct {
+	Recipient string `json:"recipient"`
+}
+
 type adLookupRequest struct {
 	Username string `json:"username" binding:"required"`
 }

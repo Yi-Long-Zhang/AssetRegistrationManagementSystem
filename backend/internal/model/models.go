@@ -40,6 +40,21 @@ type ADConfig struct {
 	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
+type MailConfig struct {
+	ID                uint      `json:"id" gorm:"primaryKey"`
+	Enabled           bool      `json:"enabled" gorm:"not null;default:false"`
+	SMTPHost          string    `json:"smtpHost" gorm:"size:255;not null"`
+	SMTPPort          int       `json:"smtpPort" gorm:"not null;default:25"`
+	Username          string    `json:"username" gorm:"size:255"`
+	EncryptedPassword string    `json:"-" gorm:"type:text"`
+	FromAddress       string    `json:"fromAddress" gorm:"size:255;not null"`
+	FromName          string    `json:"fromName" gorm:"size:128"`
+	UseTLS            bool      `json:"useTls" gorm:"not null;default:false"`
+	StartTLS          bool      `json:"startTls" gorm:"not null;default:true"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+}
+
 type Asset struct {
 	ID                 uint           `json:"id" gorm:"primaryKey"`
 	AssetNo            string         `json:"assetNo" gorm:"uniqueIndex;size:64;not null"`

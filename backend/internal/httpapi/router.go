@@ -19,6 +19,7 @@ type Dependencies struct {
 	Roles    []model.Role
 	AD       service.ADClient
 	Archiver service.TicketArchiver
+	Mail     service.MailSender
 }
 
 func NewRouter(dep Dependencies) *gin.Engine {
@@ -33,7 +34,11 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	if archiver == nil {
 		archiver = service.LibreOfficeTicketArchiver{}
 	}
-	h := NewHandler(dep.Config, dep.DB, dep.Roles, adClient, archiver)
+	mailSender := dep.Mail
+	if mailSender == nil {
+		mailSender = service.SMTPMailSender{}
+	}
+	h := NewHandler(dep.Config, dep.DB, dep.Roles, adClient, archiver, mailSender)
 
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now().UTC()})
@@ -54,6 +59,11 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	ad.POST("/test", h.TestADConnection)
 	ad.POST("/lookup-user", h.LookupADUser)
 	ad.POST("/import-user", h.ImportADUser)
+
+	settings := api.Group("/settings", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
+	settings.GET("/mail", h.GetMailConfig)
+	settings.PUT("/mail", h.SaveMailConfig)
+	settings.POST("/mail/test", h.TestMailConfig)
 
 	users := api.Group("/users", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
 	users.GET("", h.ListUsers)

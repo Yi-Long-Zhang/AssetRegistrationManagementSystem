@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/mail"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -30,6 +31,7 @@ type Handler struct {
 	roles    []model.Role
 	ad       service.ADClient
 	archiver service.TicketArchiver
+	mail     service.MailSender
 }
 
 type claims struct {
@@ -38,8 +40,8 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-func NewHandler(cfg config.Config, db *gorm.DB, roles []model.Role, ad service.ADClient, archiver service.TicketArchiver) *Handler {
-	return &Handler{cfg: cfg, db: db, roles: roles, ad: ad, archiver: archiver}
+func NewHandler(cfg config.Config, db *gorm.DB, roles []model.Role, ad service.ADClient, archiver service.TicketArchiver, mailSender service.MailSender) *Handler {
+	return &Handler{cfg: cfg, db: db, roles: roles, ad: ad, archiver: archiver, mail: mailSender}
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -185,6 +187,80 @@ func (h *Handler) ImportADUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, user)
+}
+
+func (h *Handler) GetMailConfig(c *gin.Context) {
+	mailConfig := h.currentMailConfig()
+	c.JSON(http.StatusOK, h.mailConfigResponse(mailConfig))
+}
+
+func (h *Handler) SaveMailConfig(c *gin.Context) {
+	var req mailConfigRequest
+	if !bind(c, &req) {
+		return
+	}
+	mailConfig := h.currentMailConfig()
+	mailConfig.Enabled = req.Enabled
+	mailConfig.SMTPHost = strings.TrimSpace(req.SMTPHost)
+	mailConfig.SMTPPort = req.SMTPPort
+	if mailConfig.SMTPPort == 0 {
+		mailConfig.SMTPPort = 25
+	}
+	mailConfig.Username = strings.TrimSpace(req.Username)
+	mailConfig.FromAddress = strings.TrimSpace(req.FromAddress)
+	mailConfig.FromName = strings.TrimSpace(defaultString(req.FromName, "资产管理系统"))
+	mailConfig.UseTLS = req.UseTLS
+	mailConfig.StartTLS = req.StartTLS
+	if mailConfig.Enabled {
+		if mailConfig.SMTPHost == "" || mailConfig.FromAddress == "" {
+			errorJSON(c, http.StatusBadRequest, "启用邮件通知必须填写 SMTP 地址和发件邮箱")
+			return
+		}
+		if _, err := mail.ParseAddress(mailConfig.FromAddress); err != nil {
+			errorJSON(c, http.StatusBadRequest, "发件邮箱格式无效")
+			return
+		}
+	}
+	if req.Password != "" {
+		encrypted, err := service.EncryptString(req.Password, h.cfg.ConfigKey)
+		if err != nil {
+			errorJSON(c, http.StatusInternalServerError, "加密 SMTP 密码失败")
+			return
+		}
+		mailConfig.EncryptedPassword = encrypted
+	}
+	if err := h.db.Save(&mailConfig).Error; err != nil {
+		errorJSON(c, http.StatusBadRequest, "保存邮件配置失败: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, h.mailConfigResponse(mailConfig))
+}
+
+func (h *Handler) TestMailConfig(c *gin.Context) {
+	var req mailTestRequest
+	_ = c.ShouldBindJSON(&req)
+	mailConfig, password, ok := h.readyMailConfig(c)
+	if !ok {
+		return
+	}
+	recipient := strings.TrimSpace(req.Recipient)
+	if recipient == "" {
+		recipient = mailConfig.FromAddress
+	}
+	address, err := mail.ParseAddress(recipient)
+	if err != nil {
+		errorJSON(c, http.StatusBadRequest, "测试收件邮箱格式无效")
+		return
+	}
+	if err := h.mail.Send(mailConfig, password, service.MailMessage{
+		To:      []mail.Address{*address},
+		Subject: "资产管理系统邮件测试",
+		Body:    "这是一封来自资产管理系统的邮件测试。收到此邮件表示 SMTP 配置可用。",
+	}); err != nil {
+		errorJSON(c, http.StatusBadRequest, "邮件发送测试失败: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 func (h *Handler) ListTicketTypeApprovers(c *gin.Context) {
@@ -565,6 +641,7 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 				return
 			}
 			h.addRecord(ticket.ID, user.ID, action, model.TicketStatusDraft, ticket.Status, req.Remark)
+			h.notifyCurrentApprovers(ticket.ID)
 			c.JSON(http.StatusOK, ticket)
 			return
 		}
@@ -1109,6 +1186,66 @@ func (h *Handler) adConfigResponse(adConfig model.ADConfig) gin.H {
 	}
 }
 
+func (h *Handler) currentMailConfig() model.MailConfig {
+	var mailConfig model.MailConfig
+	if err := h.db.First(&mailConfig).Error; err != nil {
+		return defaultMailConfig()
+	}
+	if mailConfig.SMTPPort == 0 {
+		mailConfig.SMTPPort = 25
+	}
+	if mailConfig.FromName == "" {
+		mailConfig.FromName = "资产管理系统"
+	}
+	return mailConfig
+}
+
+func defaultMailConfig() model.MailConfig {
+	return model.MailConfig{
+		SMTPPort: 25,
+		FromName: "资产管理系统",
+		StartTLS: true,
+	}
+}
+
+func (h *Handler) readyMailConfig(c *gin.Context) (model.MailConfig, string, bool) {
+	mailConfig := h.currentMailConfig()
+	if mailConfig.ID == 0 || !mailConfig.Enabled {
+		errorJSON(c, http.StatusBadRequest, "邮件配置未启用")
+		return model.MailConfig{}, "", false
+	}
+	password, err := h.mailConfigPassword(mailConfig)
+	if err != nil {
+		errorJSON(c, http.StatusBadRequest, "SMTP 密码解密失败")
+		return model.MailConfig{}, "", false
+	}
+	return mailConfig, password, true
+}
+
+func (h *Handler) mailConfigPassword(mailConfig model.MailConfig) (string, error) {
+	if mailConfig.EncryptedPassword == "" {
+		return "", nil
+	}
+	return service.DecryptString(mailConfig.EncryptedPassword, h.cfg.ConfigKey)
+}
+
+func (h *Handler) mailConfigResponse(mailConfig model.MailConfig) gin.H {
+	return gin.H{
+		"id":          mailConfig.ID,
+		"enabled":     mailConfig.Enabled,
+		"smtpHost":    mailConfig.SMTPHost,
+		"smtpPort":    mailConfig.SMTPPort,
+		"username":    mailConfig.Username,
+		"fromAddress": mailConfig.FromAddress,
+		"fromName":    mailConfig.FromName,
+		"useTls":      mailConfig.UseTLS,
+		"startTls":    mailConfig.StartTLS,
+		"hasPassword": mailConfig.EncryptedPassword != "",
+		"createdAt":   mailConfig.CreatedAt,
+		"updatedAt":   mailConfig.UpdatedAt,
+	}
+}
+
 func defaultADConfig() model.ADConfig {
 	return model.ADConfig{
 		LoginAttribute:   "sAMAccountName",
@@ -1237,6 +1374,85 @@ func (h *Handler) addRecord(ticketID, actorID uint, action string, from, to mode
 		ToStatus:   to,
 		Remark:     remark,
 	}).Error
+}
+
+func (h *Handler) notifyCurrentApprovers(ticketID uint) {
+	mailConfig := h.currentMailConfig()
+	if mailConfig.ID == 0 || !mailConfig.Enabled {
+		return
+	}
+	password, err := h.mailConfigPassword(mailConfig)
+	if err != nil {
+		h.addSystemRecord(ticketID, "mail_failed", "SMTP 密码解密失败")
+		return
+	}
+	var ticket model.Ticket
+	if err := h.db.Preload("Applicant").Preload("Asset").First(&ticket, ticketID).Error; err != nil {
+		return
+	}
+	if ticket.CurrentWorkflowStepID == nil {
+		return
+	}
+	var step model.TicketWorkflowStep
+	if err := h.db.Preload("Approvers.User").First(&step, *ticket.CurrentWorkflowStepID).Error; err != nil {
+		return
+	}
+	recipients := make([]mail.Address, 0, len(step.Approvers))
+	for _, approver := range step.Approvers {
+		address, err := mail.ParseAddress(strings.TrimSpace(approver.User.Email))
+		if err != nil {
+			continue
+		}
+		if approver.User.Name != "" {
+			address.Name = approver.User.Name
+		}
+		recipients = append(recipients, *address)
+	}
+	if len(recipients) == 0 {
+		h.addSystemRecord(ticketID, "mail_skipped", "当前审批节点没有可用审批人邮箱")
+		return
+	}
+	message := service.MailMessage{
+		To:      recipients,
+		Subject: fmt.Sprintf("待审批工单 #%d：%s", ticket.ID, ticket.Title),
+		Body:    approvalMailBody(ticket, step),
+	}
+	if err := h.mail.Send(mailConfig, password, message); err != nil {
+		h.addSystemRecord(ticketID, "mail_failed", "审批通知邮件发送失败: "+err.Error())
+		return
+	}
+	h.addSystemRecord(ticketID, "mail_sent", fmt.Sprintf("已通知审批节点 %s，共 %d 人", step.Name, len(recipients)))
+}
+
+func (h *Handler) addSystemRecord(ticketID uint, action, remark string) {
+	var ticket model.Ticket
+	if err := h.db.First(&ticket, ticketID).Error; err != nil {
+		return
+	}
+	h.addRecord(ticketID, ticket.ApplicantID, action, ticket.Status, ticket.Status, remark)
+}
+
+func approvalMailBody(ticket model.Ticket, step model.TicketWorkflowStep) string {
+	lines := []string{
+		"您好，",
+		"",
+		"有一张工单等待您审批。",
+		"",
+		fmt.Sprintf("工单编号：#%d", ticket.ID),
+		"工单标题：" + ticket.Title,
+		"审批节点：" + step.Name,
+		"工单类型：" + string(ticket.Type),
+		"优先级：" + string(ticket.Priority),
+		"申请人：" + defaultString(ticket.Applicant.Name, ticket.Applicant.Username),
+	}
+	if ticket.Asset != nil {
+		lines = append(lines, "关联资产："+defaultString(ticket.Asset.Hostname, ticket.Asset.IP))
+	}
+	if strings.TrimSpace(ticket.Description) != "" {
+		lines = append(lines, "", "申请说明：", ticket.Description)
+	}
+	lines = append(lines, "", "请登录资产管理系统处理。")
+	return strings.Join(lines, "\n")
 }
 
 func (h *Handler) audit(actorID uint, entity string, entityID uint, action, detail string) {

@@ -49,7 +49,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, Expand, Fold, Menu, Monitor, Tickets, User } from '@element-plus/icons-vue'
+import { ArrowDown, Expand, Fold, Menu, Monitor, Operation, Setting, Tickets, User } from '@element-plus/icons-vue'
 import RoleTag from '../components/common/RoleTag.vue'
 import { useAppStore } from '../stores/app'
 import { useAuthStore } from '../stores/auth'
@@ -58,7 +58,7 @@ const router = useRouter()
 const app = useAppStore()
 const auth = useAuthStore()
 
-const iconMap = { Monitor, Tickets, User }
+const iconMap = { Monitor, Operation, Setting, Tickets, User }
 const menus = computed(() =>
   router
     .getRoutes()

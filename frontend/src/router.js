@@ -6,6 +6,7 @@ import AssetsView from './views/AssetsView.vue'
 import TicketsView from './views/TicketsView.vue'
 import UsersView from './views/UsersView.vue'
 import WorkflowsView from './views/WorkflowsView.vue'
+import SettingsView from './views/SettingsView.vue'
 import { useAppStore } from './stores/app'
 import { useAuthStore } from './stores/auth'
 
@@ -22,7 +23,8 @@ const router = createRouter({
         { path: 'assets', component: AssetsView, meta: { auth: true, menu: true, title: '服务器资产', icon: 'Monitor', order: 10 } },
         { path: 'tickets', component: TicketsView, meta: { auth: true, menu: true, title: '工单流程', icon: 'Tickets', order: 20 } },
         { path: 'workflows', component: WorkflowsView, meta: { auth: true, menu: true, title: '流程配置', icon: 'Operation', roles: ['admin'], order: 30 } },
-        { path: 'users', component: UsersView, meta: { auth: true, menu: true, title: '用户角色', icon: 'User', roles: ['admin'], order: 40 } }
+        { path: 'users', component: UsersView, meta: { auth: true, menu: true, title: '用户管理', icon: 'User', roles: ['admin'], order: 40 } },
+        { path: 'settings', component: SettingsView, meta: { auth: true, menu: true, title: '系统配置', icon: 'Setting', roles: ['admin'], order: 50 } }
       ]
     }
   ]
