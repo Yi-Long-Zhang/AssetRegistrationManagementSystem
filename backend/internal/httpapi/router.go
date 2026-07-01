@@ -5,11 +5,14 @@ import (
 	"strings"
 	"time"
 
+	_ "asset-registration-management-system/backend/docs"
 	"asset-registration-management-system/backend/internal/config"
 	"asset-registration-management-system/backend/internal/model"
 	"asset-registration-management-system/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +27,7 @@ type Dependencies struct {
 
 func NewRouter(dep Dependencies) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery(), cors(dep.Config.AllowedOrigins))
+	router.Use(gin.Logger(), gin.Recovery(), cors(dep.Config.CORS.AllowedOrigins))
 
 	adClient := dep.AD
 	if adClient == nil {
@@ -43,8 +46,9 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now().UTC()})
 	})
-	router.GET("/swagger/index.html", h.SwaggerIndex)
-	router.GET("/swagger/doc.json", h.OpenAPISpec)
+	if dep.Config.Swagger.Enabled {
+		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	api := router.Group("/api/v1")
 	api.POST("/auth/login", h.Login)

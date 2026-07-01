@@ -1,0 +1,29 @@
+app:
+  env: development
+
+http:
+  addr: :8080
+
+storage:
+  database_path: data/assets.db
+  attachment_dir: data/attachments
+  ticket_archive_dir: data/ticket-archives
+  ticket_template_path: ../templates/ticket-it-change-template.docx
+  libreoffice_bin: soffice
+
+security:
+  jwt_secret: change-me-in-production
+  config_encryption_key: change-me-config-key
+
+auth:
+  mode: mixed
+
+swagger:
+  enabled: true
+
+admin:
+  username: admin
+  password: admin123456
+
+cors:
+  allowed_origins: "*"

@@ -1,47 +1,192 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
+)
+
+const (
+	EnvDevelopment = "development"
+	EnvTest        = "test"
+	EnvProduction  = "production"
+
+	DefaultJWTSecret = "change-me-in-production"
+	DefaultConfigKey = "change-me-config-key"
 )
 
 type Config struct {
-	HTTPAddr       string
-	DatabasePath   string
-	AttachmentDir  string
-	ArchiveDir     string
-	TicketTemplate string
-	LibreOfficeBin string
-	JWTSecret      string
-	AuthMode       string
-	ConfigKey      string
-	TokenTTL       time.Duration
-	AdminUsername  string
-	AdminPassword  string
-	AllowedOrigins string
+	App      AppConfig      `yaml:"app"`
+	HTTP     HTTPConfig     `yaml:"http"`
+	Storage  StorageConfig  `yaml:"storage"`
+	Security SecurityConfig `yaml:"security"`
+	Auth     AuthConfig     `yaml:"auth"`
+	Swagger  SwaggerConfig  `yaml:"swagger"`
+	Admin    AdminConfig    `yaml:"admin"`
+	CORS     CORSConfig     `yaml:"cors"`
+	TokenTTL time.Duration  `yaml:"-"`
 }
 
-func Load() Config {
+type AppConfig struct {
+	Env string `yaml:"env"`
+}
+
+type HTTPConfig struct {
+	Addr string `yaml:"addr"`
+}
+
+type StorageConfig struct {
+	DatabasePath       string `yaml:"database_path"`
+	AttachmentDir      string `yaml:"attachment_dir"`
+	TicketArchiveDir   string `yaml:"ticket_archive_dir"`
+	TicketTemplatePath string `yaml:"ticket_template_path"`
+	LibreOfficeBin     string `yaml:"libreoffice_bin"`
+}
+
+type SecurityConfig struct {
+	JWTSecret           string `yaml:"jwt_secret"`
+	ConfigEncryptionKey string `yaml:"config_encryption_key"`
+}
+
+type AuthConfig struct {
+	Mode string `yaml:"mode"`
+}
+
+type SwaggerConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type AdminConfig struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+}
+
+type CORSConfig struct {
+	AllowedOrigins string `yaml:"allowed_origins"`
+}
+
+func Load() (Config, error) {
+	return LoadFile(os.Getenv("CONFIG_FILE"))
+}
+
+func LoadFile(path string) (Config, error) {
+	useDefaultPath := strings.TrimSpace(path) == ""
+	if strings.TrimSpace(path) == "" {
+		path = "config.yaml"
+	}
+	cfg := Default()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) && useDefaultPath {
+			return cfg, nil
+		}
+		return Config{}, err
+	}
+	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+		return Config{}, err
+	}
+	cfg.applyDefaults()
+	return cfg, nil
+}
+
+func Default() Config {
+	return defaultConfig()
+}
+
+func defaultConfig() Config {
 	return Config{
-		HTTPAddr:       env("HTTP_ADDR", ":8080"),
-		DatabasePath:   env("DATABASE_PATH", "data/assets.db"),
-		AttachmentDir:  env("ATTACHMENT_DIR", "data/attachments"),
-		ArchiveDir:     env("TICKET_ARCHIVE_DIR", "data/ticket-archives"),
-		TicketTemplate: env("TICKET_TEMPLATE_PATH", "../templates/ticket-it-change-template.docx"),
-		LibreOfficeBin: env("LIBREOFFICE_BIN", "soffice"),
-		JWTSecret:      env("JWT_SECRET", "change-me-in-production"),
-		AuthMode:       env("AUTH_MODE", "mixed"),
-		ConfigKey:      env("CONFIG_ENCRYPTION_KEY", env("APP_SECRET_KEY", "change-me-config-key")),
-		TokenTTL:       24 * time.Hour,
-		AdminUsername:  env("ADMIN_USERNAME", "admin"),
-		AdminPassword:  env("ADMIN_PASSWORD", "admin123456"),
-		AllowedOrigins: env("ALLOWED_ORIGINS", "*"),
+		App: AppConfig{
+			Env: EnvDevelopment,
+		},
+		HTTP: HTTPConfig{
+			Addr: ":8080",
+		},
+		Storage: StorageConfig{
+			DatabasePath:       "data/assets.db",
+			AttachmentDir:      "data/attachments",
+			TicketArchiveDir:   "data/ticket-archives",
+			TicketTemplatePath: "../templates/ticket-it-change-template.docx",
+			LibreOfficeBin:     "soffice",
+		},
+		Security: SecurityConfig{
+			JWTSecret:           DefaultJWTSecret,
+			ConfigEncryptionKey: DefaultConfigKey,
+		},
+		Auth: AuthConfig{
+			Mode: "mixed",
+		},
+		Swagger: SwaggerConfig{
+			Enabled: false,
+		},
+		Admin: AdminConfig{
+			Username: "admin",
+			Password: "admin123456",
+		},
+		CORS: CORSConfig{
+			AllowedOrigins: "*",
+		},
+		TokenTTL: 24 * time.Hour,
 	}
 }
 
-func env(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func (c *Config) applyDefaults() {
+	defaults := defaultConfig()
+	if c.App.Env == "" {
+		c.App.Env = defaults.App.Env
 	}
-	return fallback
+	if c.HTTP.Addr == "" {
+		c.HTTP.Addr = defaults.HTTP.Addr
+	}
+	if c.Storage.DatabasePath == "" {
+		c.Storage.DatabasePath = defaults.Storage.DatabasePath
+	}
+	if c.Storage.AttachmentDir == "" {
+		c.Storage.AttachmentDir = defaults.Storage.AttachmentDir
+	}
+	if c.Storage.TicketArchiveDir == "" {
+		c.Storage.TicketArchiveDir = defaults.Storage.TicketArchiveDir
+	}
+	if c.Storage.TicketTemplatePath == "" {
+		c.Storage.TicketTemplatePath = defaults.Storage.TicketTemplatePath
+	}
+	if c.Storage.LibreOfficeBin == "" {
+		c.Storage.LibreOfficeBin = defaults.Storage.LibreOfficeBin
+	}
+	if c.Security.JWTSecret == "" {
+		c.Security.JWTSecret = defaults.Security.JWTSecret
+	}
+	if c.Security.ConfigEncryptionKey == "" {
+		c.Security.ConfigEncryptionKey = defaults.Security.ConfigEncryptionKey
+	}
+	if c.Auth.Mode == "" {
+		c.Auth.Mode = defaults.Auth.Mode
+	}
+	if c.Admin.Username == "" {
+		c.Admin.Username = defaults.Admin.Username
+	}
+	if c.Admin.Password == "" {
+		c.Admin.Password = defaults.Admin.Password
+	}
+	if c.CORS.AllowedOrigins == "" {
+		c.CORS.AllowedOrigins = defaults.CORS.AllowedOrigins
+	}
+	if c.TokenTTL == 0 {
+		c.TokenTTL = defaults.TokenTTL
+	}
+}
+
+func (c Config) Validate() error {
+	if strings.EqualFold(c.App.Env, EnvProduction) {
+		if c.Security.JWTSecret == "" || c.Security.JWTSecret == DefaultJWTSecret {
+			return fmt.Errorf("security.jwt_secret must be set to a non-default value in production")
+		}
+		if c.Security.ConfigEncryptionKey == "" || c.Security.ConfigEncryptionKey == DefaultConfigKey {
+			return fmt.Errorf("security.config_encryption_key must be set to a non-default value in production")
+		}
+	}
+	return nil
 }

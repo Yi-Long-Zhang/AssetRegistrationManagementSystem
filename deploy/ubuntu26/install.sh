@@ -5,7 +5,8 @@ APP_NAME="asset-management"
 APP_USER="assetmgmt"
 APP_DIR="${APP_DIR:-/opt/asset-management}"
 PACKAGE_DIR="$(cd "$(dirname "$0")" && pwd)"
-ENV_SOURCE="$PACKAGE_DIR/config/asset-management.env"
+CONFIG_SOURCE="$PACKAGE_DIR/config/asset-management.yaml"
+CONFIG_TARGET="$APP_DIR/config.yaml"
 ENV_TARGET="$APP_DIR/.env"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -13,9 +14,9 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-if [ ! -f "$ENV_SOURCE" ] && [ ! -f "$ENV_TARGET" ]; then
-  echo "未找到 $ENV_SOURCE，且 $ENV_TARGET 不存在。"
-  echo "首次安装请先复制 config/asset-management.env.example 为 config/asset-management.env 并修改密钥和管理员密码。"
+if [ ! -f "$CONFIG_SOURCE" ] && [ ! -f "$CONFIG_TARGET" ]; then
+  echo "未找到 $CONFIG_SOURCE，且 $CONFIG_TARGET 不存在。"
+  echo "首次安装请先复制 config/asset-management.yaml.example 为 config/asset-management.yaml 并修改密钥和管理员密码。"
   exit 1
 fi
 
@@ -45,14 +46,15 @@ rsync -a --delete "$PACKAGE_DIR/frontend/" "$APP_DIR/frontend/"
 if [ -d "$PACKAGE_DIR/templates" ]; then
   rsync -a --delete "$PACKAGE_DIR/templates/" "$APP_DIR/templates/"
 fi
-if [ -f "$ENV_SOURCE" ]; then
-  install -m 0640 "$ENV_SOURCE" "$ENV_TARGET"
+if [ -f "$CONFIG_SOURCE" ]; then
+  install -m 0640 "$CONFIG_SOURCE" "$CONFIG_TARGET"
 fi
+printf 'CONFIG_FILE=%s\n' "$CONFIG_TARGET" > "$ENV_TARGET"
 install -m 0755 "$PACKAGE_DIR/scripts/backup.sh" "$APP_DIR/scripts/backup.sh"
 
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 chmod 0750 "$APP_DIR/data" "$APP_DIR/data/attachments" "$APP_DIR/data/ticket-archives" "$APP_DIR/backups"
-chmod 0640 "$ENV_TARGET"
+chmod 0640 "$CONFIG_TARGET" "$ENV_TARGET"
 
 install -m 0644 "$PACKAGE_DIR/systemd/asset-management.service" "/etc/systemd/system/$APP_NAME.service"
 install -m 0644 "$PACKAGE_DIR/nginx/asset-management.conf" "/etc/nginx/sites-available/$APP_NAME.conf"

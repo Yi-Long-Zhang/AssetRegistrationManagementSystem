@@ -6,6 +6,15 @@ import (
 	"asset-registration-management-system/backend/internal/model"
 )
 
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+type loginRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
 type userRequest struct {
 	Username    string     `json:"username" binding:"required"`
 	Name        string     `json:"name" binding:"required"`
@@ -138,6 +147,12 @@ type ticketCommentRequest struct {
 
 type ticketArchiveBatchRequest struct {
 	IDs []uint `json:"ids" binding:"required"`
+}
+
+type ticketActionRequest struct {
+	Remark           string `json:"remark"`
+	Result           string `json:"result"`
+	AcceptanceResult string `json:"acceptanceResult"`
 }
 
 type adConfigRequest struct {

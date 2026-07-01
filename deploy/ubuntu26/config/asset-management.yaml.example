@@ -1,0 +1,29 @@
+app:
+  env: production
+
+http:
+  addr: 127.0.0.1:8080
+
+storage:
+  database_path: /opt/asset-management/data/assets.db
+  attachment_dir: /opt/asset-management/data/attachments
+  ticket_archive_dir: /opt/asset-management/data/ticket-archives
+  ticket_template_path: /opt/asset-management/templates/ticket-it-change-template.docx
+  libreoffice_bin: soffice
+
+security:
+  jwt_secret: change-me-to-a-random-secret
+  config_encryption_key: change-me-to-a-random-config-key
+
+auth:
+  mode: mixed
+
+swagger:
+  enabled: false
+
+admin:
+  username: admin
+  password: change-me-admin-password
+
+cors:
+  allowed_origins: "*"

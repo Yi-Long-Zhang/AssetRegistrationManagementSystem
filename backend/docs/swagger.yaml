@@ -1,0 +1,1823 @@
+basePath: /api/v1
+definitions:
+  asset-registration-management-system_backend_internal_model.Asset:
+    properties:
+      appVersion:
+        type: string
+      assetNo:
+        type: string
+      assetType:
+        type: string
+      businessSystem:
+        type: string
+      cpu:
+        type: string
+      createdAt:
+        type: string
+      department:
+        type: string
+      disk:
+        type: string
+      environment:
+        type: string
+      hostname:
+        type: string
+      id:
+        type: integer
+      ip:
+        type: string
+      location:
+        type: string
+      macAddress:
+        type: string
+      maintenanceVendor:
+        type: string
+      managementIp:
+        type: string
+      manufacturer:
+        type: string
+      memory:
+        type: string
+      model:
+        type: string
+      onlineDate:
+        type: string
+      openPorts:
+        type: string
+      os:
+        type: string
+      osVersion:
+        type: string
+      owner:
+        type: string
+      purchaseDate:
+        type: string
+      rack:
+        type: string
+      rackPosition:
+        type: string
+      remark:
+        type: string
+      runningServices:
+        type: string
+      sequenceNo:
+        type: string
+      serialNo:
+        type: string
+      status:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.AssetStatus'
+      subnet:
+        type: string
+      updatedAt:
+        type: string
+      warrantyExpireDate:
+        type: string
+    type: object
+  asset-registration-management-system_backend_internal_model.AssetStatus:
+    enum:
+    - pending
+    - in_use
+    - maintenance
+    - retired
+    - decommissioned
+    type: string
+    x-enum-varnames:
+    - AssetStatusPending
+    - AssetStatusInUse
+    - AssetStatusMaintenance
+    - AssetStatusRetired
+    - AssetStatusDecommission
+  asset-registration-management-system_backend_internal_model.Priority:
+    enum:
+    - low
+    - normal
+    - high
+    - urgent
+    type: string
+    x-enum-varnames:
+    - PriorityLow
+    - PriorityNormal
+    - PriorityHigh
+    - PriorityUrgent
+  asset-registration-management-system_backend_internal_model.Role:
+    enum:
+    - admin
+    - asset_manager
+    - approver
+    - applicant
+    type: string
+    x-enum-varnames:
+    - RoleAdmin
+    - RoleAssetManager
+    - RoleApprover
+    - RoleApplicant
+  asset-registration-management-system_backend_internal_model.Ticket:
+    properties:
+      acceptanceResult:
+        type: string
+      antivirus:
+        type: string
+      appVersion:
+        type: string
+      applicant:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      applicantId:
+        type: integer
+      approver:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      approverId:
+        type: integer
+      archiveNo:
+        type: string
+      archivedAt:
+        type: string
+      asset:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+      assetId:
+        type: integer
+      attachments:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketAttachment'
+        type: array
+      changeContent:
+        type: string
+      comments:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketComment'
+        type: array
+      createdAt:
+        type: string
+      currentWorkflowStepId:
+        type: integer
+      currentWorkflowStepName:
+        type: string
+      description:
+        type: string
+      deviceName:
+        type: string
+      deviceType:
+        type: string
+      executor:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      executorId:
+        type: integer
+      id:
+        type: integer
+      impact:
+        type: string
+      ipAddress:
+        type: string
+      manufacturer:
+        type: string
+      openPorts:
+        type: string
+      priority:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Priority'
+      records:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketRecord'
+        type: array
+      remark:
+        type: string
+      result:
+        type: string
+      runningServices:
+        type: string
+      status:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketStatus'
+      title:
+        type: string
+      type:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketType'
+      updatedAt:
+        type: string
+      workflowSteps:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketWorkflowStep'
+        type: array
+    type: object
+  asset-registration-management-system_backend_internal_model.TicketAttachment:
+    properties:
+      contentType:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      originalName:
+        type: string
+      size:
+        type: integer
+      storedName:
+        type: string
+      ticketId:
+        type: integer
+      uploader:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      uploaderId:
+        type: integer
+    type: object
+  asset-registration-management-system_backend_internal_model.TicketComment:
+    properties:
+      actor:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      actorId:
+        type: integer
+      content:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      ticketId:
+        type: integer
+    type: object
+  asset-registration-management-system_backend_internal_model.TicketRecord:
+    properties:
+      action:
+        type: string
+      actor:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      actorId:
+        type: integer
+      createdAt:
+        type: string
+      fromStatus:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketStatus'
+      id:
+        type: integer
+      remark:
+        type: string
+      ticketId:
+        type: integer
+      toStatus:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketStatus'
+    type: object
+  asset-registration-management-system_backend_internal_model.TicketStatus:
+    enum:
+    - draft
+    - pending_approval
+    - approved
+    - rejected
+    - in_progress
+    - pending_acceptance
+    - closed
+    - cancelled
+    type: string
+    x-enum-varnames:
+    - TicketStatusDraft
+    - TicketStatusPendingApproval
+    - TicketStatusApproved
+    - TicketStatusRejected
+    - TicketStatusInProgress
+    - TicketStatusPendingAcceptance
+    - TicketStatusClosed
+    - TicketStatusCancelled
+  asset-registration-management-system_backend_internal_model.TicketType:
+    enum:
+    - asset_register
+    - asset_change
+    - asset_retire
+    - maintenance
+    type: string
+    x-enum-varnames:
+    - TicketTypeAssetRegister
+    - TicketTypeAssetChange
+    - TicketTypeAssetRetire
+    - TicketTypeMaintenance
+  asset-registration-management-system_backend_internal_model.TicketWorkflow:
+    properties:
+      createdAt:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: integer
+      name:
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketWorkflowNode'
+        type: array
+      type:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketType'
+      updatedAt:
+        type: string
+    type: object
+  asset-registration-management-system_backend_internal_model.TicketWorkflowNode:
+    properties:
+      approvers:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketWorkflowNodeApprover'
+        type: array
+      createdAt:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      sortOrder:
+        type: integer
+      updatedAt:
+        type: string
+      workflowId:
+        type: integer
+    type: object
+  asset-registration-management-system_backend_internal_model.TicketWorkflowNodeApprover:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      nodeId:
+        type: integer
+      user:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      userId:
+        type: integer
+    type: object
+  asset-registration-management-system_backend_internal_model.TicketWorkflowStep:
+    properties:
+      actedAt:
+        type: string
+      actor:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      actorId:
+        type: integer
+      approvers:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketWorkflowStepApprover'
+        type: array
+      createdAt:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      remark:
+        type: string
+      sortOrder:
+        type: integer
+      status:
+        type: string
+      ticketId:
+        type: integer
+      updatedAt:
+        type: string
+    type: object
+  asset-registration-management-system_backend_internal_model.TicketWorkflowStepApprover:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      stepId:
+        type: integer
+      user:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      userId:
+        type: integer
+    type: object
+  asset-registration-management-system_backend_internal_model.User:
+    properties:
+      adDn:
+        type: string
+      authSource:
+        type: string
+      createdAt:
+        type: string
+      department:
+        type: string
+      displayName:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      lastLoginAt:
+        type: string
+      name:
+        type: string
+      role:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Role'
+      status:
+        type: string
+      updatedAt:
+        type: string
+      username:
+        type: string
+    type: object
+  asset-registration-management-system_backend_internal_service.ADUserInfo:
+    properties:
+      department:
+        type: string
+      displayName:
+        type: string
+      dn:
+        type: string
+      email:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_httpapi.adConfigRequest:
+    properties:
+      advancedFilter:
+        type: boolean
+      baseDn:
+        type: string
+      bindDn:
+        type: string
+      bindPassword:
+        type: string
+      enabled:
+        type: boolean
+      excludeDisabled:
+        type: boolean
+      filterUserObject:
+        type: boolean
+      ldapUrl:
+        type: string
+      loginAttribute:
+        type: string
+      userFilter:
+        type: string
+    required:
+    - baseDn
+    - bindDn
+    - ldapUrl
+    type: object
+  internal_httpapi.adImportRequest:
+    properties:
+      role:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Role'
+      status:
+        type: string
+      username:
+        type: string
+    required:
+    - username
+    type: object
+  internal_httpapi.adLookupRequest:
+    properties:
+      username:
+        type: string
+    required:
+    - username
+    type: object
+  internal_httpapi.assetRequest:
+    properties:
+      appVersion:
+        type: string
+      assetNo:
+        type: string
+      assetType:
+        type: string
+      businessSystem:
+        type: string
+      cpu:
+        type: string
+      department:
+        type: string
+      disk:
+        type: string
+      environment:
+        type: string
+      hostname:
+        type: string
+      ip:
+        type: string
+      location:
+        type: string
+      macAddress:
+        type: string
+      maintenanceVendor:
+        type: string
+      managementIp:
+        type: string
+      manufacturer:
+        type: string
+      memory:
+        type: string
+      model:
+        type: string
+      onlineDate:
+        type: string
+      openPorts:
+        type: string
+      os:
+        type: string
+      osVersion:
+        type: string
+      owner:
+        type: string
+      purchaseDate:
+        type: string
+      rack:
+        type: string
+      rackPosition:
+        type: string
+      remark:
+        type: string
+      runningServices:
+        type: string
+      sequenceNo:
+        type: string
+      serialNo:
+        type: string
+      status:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.AssetStatus'
+      subnet:
+        type: string
+      warrantyExpireDate:
+        type: string
+    required:
+    - ip
+    type: object
+  internal_httpapi.errorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  internal_httpapi.loginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  internal_httpapi.mailConfigRequest:
+    properties:
+      enabled:
+        type: boolean
+      fromAddress:
+        type: string
+      fromName:
+        type: string
+      password:
+        type: string
+      smtpHost:
+        type: string
+      smtpPort:
+        type: integer
+      startTls:
+        type: boolean
+      useTls:
+        type: boolean
+      username:
+        type: string
+    type: object
+  internal_httpapi.mailTestRequest:
+    properties:
+      recipient:
+        type: string
+    type: object
+  internal_httpapi.ticketActionRequest:
+    properties:
+      acceptanceResult:
+        type: string
+      remark:
+        type: string
+      result:
+        type: string
+    type: object
+  internal_httpapi.ticketArchiveBatchRequest:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - ids
+    type: object
+  internal_httpapi.ticketCommentRequest:
+    properties:
+      content:
+        type: string
+    required:
+    - content
+    type: object
+  internal_httpapi.ticketRequest:
+    properties:
+      antivirus:
+        type: string
+      appVersion:
+        type: string
+      assetId:
+        type: integer
+      changeContent:
+        type: string
+      description:
+        type: string
+      deviceName:
+        type: string
+      deviceType:
+        type: string
+      impact:
+        type: string
+      ipAddress:
+        type: string
+      manufacturer:
+        type: string
+      openPorts:
+        type: string
+      priority:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Priority'
+      remark:
+        type: string
+      runningServices:
+        type: string
+      title:
+        type: string
+      type:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketType'
+    required:
+    - title
+    - type
+    type: object
+  internal_httpapi.userRequest:
+    properties:
+      authSource:
+        type: string
+      department:
+        type: string
+      displayName:
+        type: string
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+      role:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Role'
+      status:
+        type: string
+      username:
+        type: string
+    required:
+    - name
+    - role
+    - username
+    type: object
+  internal_httpapi.workflowNodeRequest:
+    properties:
+      approverIds:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+    required:
+    - approverIds
+    - name
+    type: object
+  internal_httpapi.workflowRequest:
+    properties:
+      enabled:
+        type: boolean
+      name:
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/internal_httpapi.workflowNodeRequest'
+        type: array
+    required:
+    - nodes
+    type: object
+info:
+  contact: {}
+  description: 企业内部服务器资产台账与工单流程管理系统 REST API。
+  title: Asset Registration Management System API
+  version: "1.0"
+paths:
+  /ad/config:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: AD 配置详情
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: AD 配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.adConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 保存 AD 配置
+      tags:
+      - settings
+  /ad/import-user:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 导入参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.adImportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 导入 AD 用户
+      tags:
+      - settings
+  /ad/lookup-user:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 查询参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.adLookupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_service.ADUserInfo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 查询 AD 用户
+      tags:
+      - settings
+  /ad/test:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 测试 AD 连接
+      tags:
+      - settings
+  /assets:
+    get:
+      parameters:
+      - description: 关键词
+        in: query
+        name: q
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 资产列表
+      tags:
+      - assets
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 资产信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.assetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建资产
+      tags:
+      - assets
+  /assets/{id}:
+    delete:
+      parameters:
+      - description: 资产 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除资产
+      tags:
+      - assets
+    get:
+      parameters:
+      - description: 资产 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 资产详情
+      tags:
+      - assets
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 资产 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 资产信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.assetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新资产
+      tags:
+      - assets
+  /assets/export:
+    get:
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: 导出资产 CSV
+      tags:
+      - assets
+  /assets/import:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: CSV 或 XLSX 文件
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 导入资产
+      tags:
+      - assets
+  /assets/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 资产统计
+      tags:
+      - assets
+  /assets/template:
+    get:
+      parameters:
+      - description: 模板格式 csv 或 xlsx
+        in: query
+        name: format
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: 下载资产导入模板
+      tags:
+      - assets
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 登录参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      summary: 用户登录
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 用户退出
+      tags:
+      - auth
+  /auth/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 当前用户
+      tags:
+      - auth
+  /roles:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 角色列表
+      tags:
+      - users
+  /settings/mail:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 邮件配置详情
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 邮件配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.mailConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 保存邮件配置
+      tags:
+      - settings
+  /settings/mail/test:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 测试参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.mailTestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 测试邮件发送
+      tags:
+      - settings
+  /tickets:
+    get:
+      parameters:
+      - description: 视图 todo/submitted/all
+        in: query
+        name: view
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 工单列表
+      tags:
+      - tickets
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建工单
+      tags:
+      - tickets
+  /tickets/{id}:
+    get:
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 工单详情
+      tags:
+      - tickets
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 工单信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新工单
+      tags:
+      - tickets
+  /tickets/{id}/accept:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 验收结果
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+      security:
+      - BearerAuth: []
+      summary: 验收通过并归档
+      tags:
+      - tickets
+  /tickets/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 处理意见
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 审批通过
+      tags:
+      - tickets
+  /tickets/{id}/archive/download:
+    get:
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 下载工单归档 PDF
+      tags:
+      - tickets
+  /tickets/{id}/attachments:
+    get:
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 工单附件列表
+      tags:
+      - tickets
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 附件
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketAttachment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 上传工单附件
+      tags:
+      - tickets
+  /tickets/{id}/attachments/{attachmentId}/download:
+    get:
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 附件 ID
+        in: path
+        name: attachmentId
+        required: true
+        type: integer
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: 下载工单附件
+      tags:
+      - tickets
+  /tickets/{id}/cancel:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 取消原因
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+      security:
+      - BearerAuth: []
+      summary: 取消工单
+      tags:
+      - tickets
+  /tickets/{id}/comments:
+    get:
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 工单评论列表
+      tags:
+      - tickets
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 评论
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketComment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建工单评论
+      tags:
+      - tickets
+  /tickets/{id}/complete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 执行结果
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+      security:
+      - BearerAuth: []
+      summary: 执行完成
+      tags:
+      - tickets
+  /tickets/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 处理意见
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 审批驳回
+      tags:
+      - tickets
+  /tickets/{id}/start:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 处理意见
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+      security:
+      - BearerAuth: []
+      summary: 开始执行
+      tags:
+      - tickets
+  /tickets/{id}/submit:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 处理意见
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 提交工单
+      tags:
+      - tickets
+  /tickets/archives/download:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.ticketArchiveBatchRequest'
+      produces:
+      - application/zip
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 批量下载工单归档 ZIP
+      tags:
+      - tickets
+  /users:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 用户列表
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.userRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建用户
+      tags:
+      - users
+  /users/{id}:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.userRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新用户
+      tags:
+      - users
+  /workflows:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 流程配置列表
+      tags:
+      - workflows
+  /workflows/{type}:
+    get:
+      parameters:
+      - description: 工单类型
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketWorkflow'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 工单类型流程配置
+      tags:
+      - workflows
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 工单类型
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: 流程配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.workflowRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketWorkflow'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 保存工单类型流程配置
+      tags:
+      - workflows
+  /workflows/{type}/enable:
+    post:
+      parameters:
+      - description: 工单类型
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketWorkflow'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 启用工单类型流程
+      tags:
+      - workflows
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

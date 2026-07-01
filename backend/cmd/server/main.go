@@ -9,10 +9,23 @@ import (
 	"asset-registration-management-system/backend/internal/model"
 )
 
+// @title Asset Registration Management System API
+// @version 1.0
+// @description 企业内部服务器资产台账与工单流程管理系统 REST API。
+// @BasePath /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("invalid config: %v", err)
+	}
 
-	db, err := database.Open(cfg.DatabasePath)
+	db, err := database.Open(cfg.Storage.DatabasePath)
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
@@ -21,7 +34,7 @@ func main() {
 		log.Fatalf("migrate database: %v", err)
 	}
 
-	if err := database.SeedAdmin(db, cfg.AdminUsername, cfg.AdminPassword); err != nil {
+	if err := database.SeedAdmin(db, cfg.Admin.Username, cfg.Admin.Password); err != nil {
 		log.Fatalf("seed admin: %v", err)
 	}
 
@@ -31,8 +44,8 @@ func main() {
 		Roles:  model.AllRoles(),
 	})
 
-	log.Printf("asset registration management backend listening on %s", cfg.HTTPAddr)
-	if err := router.Run(cfg.HTTPAddr); err != nil {
+	log.Printf("asset registration management backend listening on %s", cfg.HTTP.Addr)
+	if err := router.Run(cfg.HTTP.Addr); err != nil {
 		log.Fatalf("run server: %v", err)
 	}
 }

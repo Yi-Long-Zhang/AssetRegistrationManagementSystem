@@ -1,6 +1,6 @@
 # 企业内部服务器资产管理系统 Ubuntu 26 部署手册
 
-本文档适用于 Ubuntu 26.x amd64 服务器，采用 systemd 运行 Go 后端，Nginx 托管 Vue 前端并反向代理 `/api/`、`/swagger/`、`/healthz` 到后端。
+本文档适用于 Ubuntu 26.x amd64 服务器，采用 systemd 运行 Go 后端，Nginx 托管 Vue 前端并反向代理 `/api/`、`/swagger/`、`/healthz` 到后端。生产环境默认关闭 Swagger，未显式开启时 `/swagger/` 返回 404。
 
 ## 1. 部署目录
 
@@ -21,6 +21,7 @@
 ├── data/ticket-archives/
 ├── templates/ticket-it-change-template.docx
 ├── backups/
+├── config.yaml
 └── .env
 ```
 
@@ -53,31 +54,40 @@ cd asset-management-ubuntu26
 
 ## 4. 修改配置
 
-复制并编辑环境变量：
+复制并编辑 YAML 配置：
 
 ```bash
-cp config/asset-management.env.example config/asset-management.env
-nano config/asset-management.env
+cp config/asset-management.yaml.example config/asset-management.yaml
+nano config/asset-management.yaml
 ```
 
 必须修改：
 
-```text
-JWT_SECRET=请改成高强度随机字符串
-CONFIG_ENCRYPTION_KEY=请改成高强度随机字符串
-ADMIN_PASSWORD=请改成强密码
+```yaml
+security:
+  jwt_secret: 请改成高强度随机字符串
+  config_encryption_key: 请改成高强度随机字符串
+admin:
+  password: 请改成强密码
 ```
 
 可选修改：
 
-```text
-HTTP_ADDR=127.0.0.1:8080
-DATABASE_PATH=/opt/asset-management/data/assets.db
-ATTACHMENT_DIR=/opt/asset-management/data/attachments
-TICKET_ARCHIVE_DIR=/opt/asset-management/data/ticket-archives
-TICKET_TEMPLATE_PATH=/opt/asset-management/templates/ticket-it-change-template.docx
-LIBREOFFICE_BIN=soffice
-AUTH_MODE=mixed
+```yaml
+app:
+  env: production
+http:
+  addr: 127.0.0.1:8080
+storage:
+  database_path: /opt/asset-management/data/assets.db
+  attachment_dir: /opt/asset-management/data/attachments
+  ticket_archive_dir: /opt/asset-management/data/ticket-archives
+  ticket_template_path: /opt/asset-management/templates/ticket-it-change-template.docx
+  libreoffice_bin: soffice
+auth:
+  mode: mixed
+swagger:
+  enabled: false
 ```
 
 生成随机密钥示例：
@@ -98,7 +108,8 @@ sudo bash install.sh
 
 - 创建系统用户 `assetmgmt`
 - 安装后端二进制和前端静态文件
-- 写入 `/opt/asset-management/.env`
+- 写入 `/opt/asset-management/config.yaml`
+- 写入 `/opt/asset-management/.env`，仅用于指定 `CONFIG_FILE=/opt/asset-management/config.yaml`
 - 创建 SQLite 与附件目录
 - 创建工单 PDF 归档目录
 - 安装 systemd 服务
@@ -120,10 +131,23 @@ curl http://127.0.0.1:8080/healthz
 curl http://服务器IP/healthz
 ```
 
+Swagger 文档默认关闭。如需在测试环境临时开启，修改 `/opt/asset-management/config.yaml`：
+
+```yaml
+swagger:
+  enabled: true
+```
+
+然后重启后端服务并访问：
+
+```text
+http://服务器IP/swagger/index.html
+```
+
 默认管理员：
 
 ```text
-admin / 你在 config/asset-management.env 中设置的 ADMIN_PASSWORD
+admin / 你在 config/asset-management.yaml 中设置的 admin.password
 ```
 
 ## 7. 迁移现有数据库
@@ -204,12 +228,12 @@ cd /tmp/asset-management-ubuntu26
 sudo bash install.sh
 ```
 
-脚本会保留 `/opt/asset-management/data` 和 `/opt/asset-management/.env`，覆盖后端二进制和前端静态文件。
+脚本会保留 `/opt/asset-management/data`，如部署包中未提供新配置则保留 `/opt/asset-management/config.yaml`，覆盖后端二进制和前端静态文件。
 
 ## 10. 常见问题
 
 - 页面能打开但接口失败：检查 Nginx 配置是否启用，执行 `sudo nginx -t && sudo systemctl reload nginx`。
 - 后端启动失败：执行 `sudo journalctl -u asset-management -n 100 --no-pager` 查看错误。
 - 数据库无权限：确认 `/opt/asset-management/data` 属主为 `assetmgmt:assetmgmt`。
-- AD 配置保存失败：确认 `CONFIG_ENCRYPTION_KEY` 已设置且保持不变，修改密钥会导致已保存的 Bind 密码无法解密。
-- 工单验收关闭时 PDF 生成失败：确认已安装 `libreoffice-writer` 和 `fonts-noto-cjk`，并检查 `TICKET_TEMPLATE_PATH` 指向的 DOCX 模板是否存在。
+- AD 配置保存失败：确认 `security.config_encryption_key` 已设置且保持不变，修改密钥会导致已保存的 Bind 密码无法解密。
+- 工单验收关闭时 PDF 生成失败：确认已安装 `libreoffice-writer` 和 `fonts-noto-cjk`，并检查 `storage.ticket_template_path` 指向的 DOCX 模板是否存在。

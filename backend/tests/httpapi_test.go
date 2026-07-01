@@ -1,29 +1,17 @@
-package httpapi
+package tests
 
 import (
-	"archive/zip"
 	"bytes"
-	"context"
 	"encoding/json"
-	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
-	"time"
 
 	"asset-registration-management-system/backend/internal/config"
-	"asset-registration-management-system/backend/internal/database"
 	"asset-registration-management-system/backend/internal/model"
-	"asset-registration-management-system/backend/internal/service"
 )
 
 func TestLoginAndAssetCRUD(t *testing.T) {
 	router := testRouter(t)
-
 	token := login(t, router, "admin", "admin123456")
 
 	body := map[string]interface{}{
@@ -41,6 +29,20 @@ func TestLoginAndAssetCRUD(t *testing.T) {
 	resp = request(t, router, http.MethodGet, "/api/v1/assets", token, nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("list assets status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestSwaggerRouteRequiresExplicitEnable(t *testing.T) {
+	router := testRouter(t)
+	resp := request(t, router, http.MethodGet, "/swagger/index.html", "", nil)
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("expected swagger disabled by default, status=%d body=%s", resp.Code, resp.Body.String())
+	}
+
+	router = testRouterWithConfig(t, config.Config{Swagger: config.SwaggerConfig{Enabled: true}})
+	resp = request(t, router, http.MethodGet, "/swagger/index.html", "", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected swagger enabled, status=%d body=%s", resp.Code, resp.Body.String())
 	}
 }
 
@@ -491,267 +493,4 @@ func TestADUserPasswordCannotBeChangedLocally(t *testing.T) {
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("expected AD password change to fail, status=%d body=%s", resp.Code, resp.Body.String())
 	}
-}
-
-func testRouter(t *testing.T) http.Handler {
-	t.Helper()
-	dir := t.TempDir()
-	db, err := database.Open(dir + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := sqlDB.Close(); err != nil {
-			t.Errorf("close test database: %v", err)
-		}
-	})
-	if err := database.Migrate(db); err != nil {
-		t.Fatal(err)
-	}
-	if err := database.SeedAdmin(db, "admin", "admin123456"); err != nil {
-		t.Fatal(err)
-	}
-	return NewRouter(Dependencies{
-		Config: config.Config{
-			HTTPAddr:       ":0",
-			DatabasePath:   "test.db",
-			AttachmentDir:  dir + "/attachments",
-			JWTSecret:      "test-secret",
-			ConfigKey:      "test-config-key",
-			AuthMode:       "mixed",
-			TokenTTL:       time.Hour,
-			AllowedOrigins: "*",
-			ArchiveDir:     dir + "/archives",
-		},
-		DB:       db,
-		Roles:    model.AllRoles(),
-		AD:       fakeADClient{},
-		Archiver: fakeArchiver{},
-		Mail:     fakeMailSender{},
-	})
-}
-
-type fakeArchiver struct{}
-
-func (fakeArchiver) Generate(_ context.Context, data service.TicketArchiveData, _ string, archiveDir string, _ string) (string, string, error) {
-	if err := os.MkdirAll(archiveDir, 0o755); err != nil {
-		return "", "", err
-	}
-	archiveNo := fmt.Sprintf("ITCFG-TEST-%06d", data.Ticket.ID)
-	archivePath := filepath.Join(archiveDir, archiveNo+".pdf")
-	if err := os.WriteFile(archivePath, []byte("%PDF-1.4\n% test archive\n"), 0o644); err != nil {
-		return "", "", err
-	}
-	return archiveNo, archivePath, nil
-}
-
-type fakeMailSender struct{}
-
-func (fakeMailSender) Send(config model.MailConfig, password string, message service.MailMessage) error {
-	if config.SMTPHost != "smtp.example.com" {
-		return fmt.Errorf("invalid smtp host")
-	}
-	if password != "smtp-secret" {
-		return fmt.Errorf("invalid smtp password")
-	}
-	if len(message.To) == 0 {
-		return fmt.Errorf("empty recipients")
-	}
-	return nil
-}
-
-type fakeADClient struct{}
-
-func (fakeADClient) Test(_ model.ADConfig, bindPassword string) error {
-	if bindPassword != "bind-secret" {
-		return fmt.Errorf("invalid bind password")
-	}
-	return nil
-}
-
-func (fakeADClient) LookupUser(_ model.ADConfig, _ string, username string) (service.ADUserInfo, error) {
-	if username != "zhangsan" {
-		return service.ADUserInfo{}, fmt.Errorf("not found")
-	}
-	return service.ADUserInfo{
-		Username:    "zhangsan",
-		DN:          "cn=zhangsan,dc=example,dc=com",
-		DisplayName: "张三",
-		Email:       "zhangsan@example.com",
-		Department:  "运维部",
-	}, nil
-}
-
-func (fakeADClient) Authenticate(config model.ADConfig, bindPassword, username, password string) (service.ADUserInfo, error) {
-	if password != "ad-password" {
-		return service.ADUserInfo{}, fmt.Errorf("invalid credentials")
-	}
-	return fakeADClient{}.LookupUser(config, bindPassword, username)
-}
-
-func configureApprover(t *testing.T, router http.Handler, token, ticketType string, approverID uint) {
-	t.Helper()
-	resp := request(t, router, http.MethodPut, "/api/v1/ticket-type-approvers/"+ticketType, token, map[string]uint{"approverId": approverID})
-	if resp.Code != http.StatusOK {
-		t.Fatalf("configure approver status=%d body=%s", resp.Code, resp.Body.String())
-	}
-}
-
-func configureWorkflow(t *testing.T, router http.Handler, token, ticketType string, nodeNames []string, approverID uint) {
-	t.Helper()
-	nodes := make([]map[string]interface{}, 0, len(nodeNames))
-	for _, name := range nodeNames {
-		nodes = append(nodes, map[string]interface{}{"name": name, "approverIds": []uint{approverID}})
-	}
-	resp := request(t, router, http.MethodPut, "/api/v1/workflows/"+ticketType, token, map[string]interface{}{
-		"name":    ticketType + " 流程",
-		"enabled": true,
-		"nodes":   nodes,
-	})
-	if resp.Code != http.StatusOK {
-		t.Fatalf("configure workflow status=%d body=%s", resp.Code, resp.Body.String())
-	}
-}
-
-func login(t *testing.T, router http.Handler, username, password string) string {
-	t.Helper()
-	resp := request(t, router, http.MethodPost, "/api/v1/auth/login", "", map[string]string{
-		"username": username,
-		"password": password,
-	})
-	if resp.Code != http.StatusOK {
-		t.Fatalf("login status=%d body=%s", resp.Code, resp.Body.String())
-	}
-	var data struct {
-		Token string `json:"token"`
-	}
-	if err := json.Unmarshal(resp.Body.Bytes(), &data); err != nil {
-		t.Fatal(err)
-	}
-	if data.Token == "" {
-		t.Fatal("empty token")
-	}
-	return data.Token
-}
-
-func multipartRequest(t *testing.T, router http.Handler, path, token, field, filename, content string) *httptest.ResponseRecorder {
-	t.Helper()
-	return multipartBytesRequest(t, router, path, token, field, filename, []byte(content))
-}
-
-func multipartBytesRequest(t *testing.T, router http.Handler, path, token, field, filename string, content []byte) *httptest.ResponseRecorder {
-	t.Helper()
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	part, err := writer.CreateFormFile(field, filename)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := part.Write(content); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest(http.MethodPost, path, &body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, req)
-	return resp
-}
-
-func buildTestXLSX(rows [][]string) []byte {
-	var body bytes.Buffer
-	zipWriter := zip.NewWriter(&body)
-	sheet, _ := zipWriter.Create("xl/worksheets/sheet1.xml")
-	_, _ = sheet.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>`))
-	for rowIndex, row := range rows {
-		_, _ = sheet.Write([]byte(fmt.Sprintf(`<row r="%d">`, rowIndex+1)))
-		for colIndex, value := range row {
-			cellRef := fmt.Sprintf("%s%d", excelColumnName(colIndex), rowIndex+1)
-			_, _ = sheet.Write([]byte(fmt.Sprintf(`<c r="%s" t="inlineStr"><is><t>%s</t></is></c>`, cellRef, value)))
-		}
-		_, _ = sheet.Write([]byte(`</row>`))
-	}
-	_, _ = sheet.Write([]byte(`</sheetData></worksheet>`))
-	_ = zipWriter.Close()
-	return body.Bytes()
-}
-
-func zipContains(content []byte, term string) bool {
-	reader, err := zip.NewReader(bytes.NewReader(content), int64(len(content)))
-	if err != nil {
-		return false
-	}
-	for _, file := range reader.File {
-		rc, err := file.Open()
-		if err != nil {
-			continue
-		}
-		data, err := io.ReadAll(rc)
-		_ = rc.Close()
-		if err == nil && bytes.Contains(data, []byte(term)) {
-			return true
-		}
-	}
-	return false
-}
-
-func excelColumnName(index int) string {
-	name := ""
-	for index >= 0 {
-		name = string(rune('A'+index%26)) + name
-		index = index/26 - 1
-	}
-	return name
-}
-
-func request(t *testing.T, router http.Handler, method, path, token string, body interface{}) *httptest.ResponseRecorder {
-	t.Helper()
-	var reader *bytes.Reader
-	if body == nil {
-		reader = bytes.NewReader(nil)
-	} else {
-		raw, err := json.Marshal(body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		reader = bytes.NewReader(raw)
-	}
-	req := httptest.NewRequest(method, path, reader)
-	req.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, req)
-	return resp
-}
-
-func itoa(id uint) string {
-	return json.Number(fmtUint(id)).String()
-}
-
-func fmtUint(id uint) string {
-	return strconvFormatUint(uint64(id))
-}
-
-func strconvFormatUint(id uint64) string {
-	const digits = "0123456789"
-	if id == 0 {
-		return "0"
-	}
-	var buf [20]byte
-	i := len(buf)
-	for id > 0 {
-		i--
-		buf[i] = digits[id%10]
-		id /= 10
-	}
-	return string(buf[i:])
 }

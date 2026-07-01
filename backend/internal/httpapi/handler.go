@@ -45,10 +45,7 @@ func NewHandler(cfg config.Config, db *gorm.DB, roles []model.Role, ad service.A
 }
 
 func (h *Handler) Login(c *gin.Context) {
-	var req struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
-	}
+	var req loginRequest
 	if !bind(c, &req) {
 		return
 	}
@@ -104,7 +101,7 @@ func (h *Handler) SaveADConfig(c *gin.Context) {
 		adConfig.UserFilter = buildADUserFilter(adConfig.LoginAttribute, adConfig.FilterUserObject, adConfig.ExcludeDisabled)
 	}
 	if req.BindPassword != "" {
-		encrypted, err := service.EncryptString(req.BindPassword, h.cfg.ConfigKey)
+		encrypted, err := service.EncryptString(req.BindPassword, h.cfg.Security.ConfigEncryptionKey)
 		if err != nil {
 			errorJSON(c, http.StatusInternalServerError, "加密 Bind 密码失败")
 			return
@@ -222,7 +219,7 @@ func (h *Handler) SaveMailConfig(c *gin.Context) {
 		}
 	}
 	if req.Password != "" {
-		encrypted, err := service.EncryptString(req.Password, h.cfg.ConfigKey)
+		encrypted, err := service.EncryptString(req.Password, h.cfg.Security.ConfigEncryptionKey)
 		if err != nil {
 			errorJSON(c, http.StatusInternalServerError, "加密 SMTP 密码失败")
 			return
@@ -615,11 +612,7 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		var req struct {
-			Remark           string `json:"remark"`
-			Result           string `json:"result"`
-			AcceptanceResult string `json:"acceptanceResult"`
-		}
+		var req ticketActionRequest
 		_ = c.ShouldBindJSON(&req)
 
 		user := currentUser(c)
@@ -847,7 +840,7 @@ func (h *Handler) UploadTicketAttachment(c *gin.Context) {
 		return
 	}
 	storedName := uniqueStoredName(file.Filename)
-	dir := filepath.Join(h.cfg.AttachmentDir, fmt.Sprint(ticket.ID))
+	dir := filepath.Join(h.cfg.Storage.AttachmentDir, fmt.Sprint(ticket.ID))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		errorJSON(c, http.StatusInternalServerError, "创建附件目录失败")
 		return
@@ -1015,7 +1008,7 @@ func (h *Handler) closeTicketWithArchive(c *gin.Context, ticket *model.Ticket) (
 	full.Status = ticket.Status
 	full.Result = ticket.Result
 	full.AcceptanceResult = ticket.AcceptanceResult
-	archiveNo, archivePath, err := h.archiver.Generate(c.Request.Context(), service.TicketArchiveData{Ticket: full}, h.cfg.TicketTemplate, h.cfg.ArchiveDir, h.cfg.LibreOfficeBin)
+	archiveNo, archivePath, err := h.archiver.Generate(c.Request.Context(), service.TicketArchiveData{Ticket: full}, h.cfg.Storage.TicketTemplatePath, h.cfg.Storage.TicketArchiveDir, h.cfg.Storage.LibreOfficeBin)
 	if err != nil {
 		errorJSON(c, http.StatusBadRequest, "生成归档 PDF 失败: "+err.Error())
 		return "", "", false
@@ -1091,7 +1084,7 @@ func (h *Handler) authenticate(username, password string) (model.User, bool) {
 	if user.Status != "active" {
 		return model.User{}, false
 	}
-	authMode := strings.ToLower(defaultString(h.cfg.AuthMode, "mixed"))
+	authMode := strings.ToLower(defaultString(h.cfg.Auth.Mode, "mixed"))
 	if user.AuthSource == "" {
 		user.AuthSource = "local"
 	}
@@ -1133,7 +1126,7 @@ func (h *Handler) adConfigForAuth() (model.ADConfig, string, bool) {
 	if adConfig.ID == 0 || !adConfig.Enabled {
 		return model.ADConfig{}, "", false
 	}
-	bindPassword, err := service.DecryptString(adConfig.EncryptedBindPassword, h.cfg.ConfigKey)
+	bindPassword, err := service.DecryptString(adConfig.EncryptedBindPassword, h.cfg.Security.ConfigEncryptionKey)
 	if err != nil {
 		return model.ADConfig{}, "", false
 	}
@@ -1160,7 +1153,7 @@ func (h *Handler) readyADConfig(c *gin.Context) (model.ADConfig, string, bool) {
 		errorJSON(c, http.StatusBadRequest, "AD 配置未启用")
 		return model.ADConfig{}, "", false
 	}
-	bindPassword, err := service.DecryptString(adConfig.EncryptedBindPassword, h.cfg.ConfigKey)
+	bindPassword, err := service.DecryptString(adConfig.EncryptedBindPassword, h.cfg.Security.ConfigEncryptionKey)
 	if err != nil {
 		errorJSON(c, http.StatusBadRequest, "AD Bind 密码解密失败")
 		return model.ADConfig{}, "", false
@@ -1226,7 +1219,7 @@ func (h *Handler) mailConfigPassword(mailConfig model.MailConfig) (string, error
 	if mailConfig.EncryptedPassword == "" {
 		return "", nil
 	}
-	return service.DecryptString(mailConfig.EncryptedPassword, h.cfg.ConfigKey)
+	return service.DecryptString(mailConfig.EncryptedPassword, h.cfg.Security.ConfigEncryptionKey)
 }
 
 func (h *Handler) mailConfigResponse(mailConfig model.MailConfig) gin.H {
@@ -1283,7 +1276,7 @@ func (h *Handler) issueToken(user model.User) (string, error) {
 			ExpiresAt: jwt.NewNumericDate(now.Add(h.cfg.TokenTTL)),
 		},
 	})
-	return token.SignedString([]byte(h.cfg.JWTSecret))
+	return token.SignedString([]byte(h.cfg.Security.JWTSecret))
 }
 
 func (h *Handler) AuthRequired() gin.HandlerFunc {
@@ -1296,7 +1289,7 @@ func (h *Handler) AuthRequired() gin.HandlerFunc {
 		}
 		tokenText := strings.TrimPrefix(auth, "Bearer ")
 		parsed, err := jwt.ParseWithClaims(tokenText, &claims{}, func(token *jwt.Token) (interface{}, error) {
-			return []byte(h.cfg.JWTSecret), nil
+			return []byte(h.cfg.Security.JWTSecret), nil
 		})
 		if err != nil || !parsed.Valid {
 			errorJSON(c, http.StatusUnauthorized, "登录已失效")

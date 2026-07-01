@@ -33,7 +33,21 @@ npm run dev
 
 - 前端：http://localhost:5173
 - 后端健康检查：http://localhost:8080/healthz
-- API 文档：http://localhost:8080/swagger/index.html
+- API 文档：在配置文件中设置 `swagger.enabled: true` 后访问 http://localhost:8080/swagger/index.html
+
+后端配置由 YAML 文件决定。默认尝试读取 `backend/config.yaml`，如不存在则使用开发默认值；也可以用 `CONFIG_FILE` 指定配置文件路径：
+
+```text
+CONFIG_FILE=./config.yaml
+```
+
+可从 `backend/config.example.yaml` 复制本地配置。
+
+Swagger 文档通过 `swaggo` 注解生成，更新接口注解后在 `backend/` 下运行：
+
+```bash
+go run github.com/swaggo/swag/cmd/swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+```
 
 默认管理员账号：
 
@@ -62,12 +76,13 @@ admin / admin123456
 - 工单列表支持“我的待办 / 我提交的 / 全部”视图。
 - 工单详情支持参与人评论、附件上传和下载。
 
-归档相关环境变量：
+归档相关配置位于 YAML 的 `storage` 节点：
 
-```text
-TICKET_ARCHIVE_DIR=./data/ticket-archives
-TICKET_TEMPLATE_PATH=../templates/ticket-it-change-template.docx
-LIBREOFFICE_BIN=soffice
+```yaml
+storage:
+  ticket_archive_dir: data/ticket-archives
+  ticket_template_path: ../templates/ticket-it-change-template.docx
+  libreoffice_bin: soffice
 ```
 
 生成 PDF 需要本机安装 LibreOffice。Ubuntu 部署建议安装 `libreoffice-writer` 和 `fonts-noto-cjk`。
@@ -75,20 +90,24 @@ LIBREOFFICE_BIN=soffice
 ## 系统配置
 
 - 管理员可在“系统配置”页面维护 AD 域控和 SMTP 邮件通知配置。
-- SMTP 密码会用 `CONFIG_ENCRYPTION_KEY` 加密后保存。
+- SMTP 密码会用配置文件中的 `security.config_encryption_key` 加密后保存。
 
 ## v2.2 AD 域控接入
 
 - 管理员可在“系统配置”页面维护单域 AD 配置。
 - AD 配置支持普通 LDAP，例如 `ldap://dc.example.com:389`。
 - 页面默认用“登录名格式 / 只查用户 / 排除禁用账号”生成 LDAP 过滤器，高级过滤器默认隐藏。
-- Bind 密码会用 `CONFIG_ENCRYPTION_KEY` 加密后保存。
+- Bind 密码会用配置文件中的 `security.config_encryption_key` 加密后保存。
 - 管理员可按 `sAMAccountName` 查询 AD 用户，并导入为本系统用户。
 - AD 只负责认证，系统角色仍在本系统分配。
 
-相关环境变量：
+相关配置：
 
-```text
-AUTH_MODE=mixed
-CONFIG_ENCRYPTION_KEY=change-me-config-key
+```yaml
+auth:
+  mode: mixed
+security:
+  config_encryption_key: change-me-config-key
+swagger:
+  enabled: false
 ```
