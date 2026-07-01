@@ -18,6 +18,8 @@
 ├── frontend/
 ├── data/assets.db
 ├── data/attachments/
+├── data/ticket-archives/
+├── templates/ticket-it-change-template.docx
 ├── backups/
 └── .env
 ```
@@ -28,7 +30,7 @@
 
 ```bash
 sudo apt update
-sudo apt install -y nginx ca-certificates tar rsync
+sudo apt install -y nginx ca-certificates tar rsync libreoffice-writer fonts-noto-cjk
 ```
 
 如服务器不能访问外网，请提前用离线方式安装 Nginx。
@@ -72,6 +74,9 @@ ADMIN_PASSWORD=请改成强密码
 HTTP_ADDR=127.0.0.1:8080
 DATABASE_PATH=/opt/asset-management/data/assets.db
 ATTACHMENT_DIR=/opt/asset-management/data/attachments
+TICKET_ARCHIVE_DIR=/opt/asset-management/data/ticket-archives
+TICKET_TEMPLATE_PATH=/opt/asset-management/templates/ticket-it-change-template.docx
+LIBREOFFICE_BIN=soffice
 AUTH_MODE=mixed
 ```
 
@@ -95,6 +100,7 @@ sudo bash install.sh
 - 安装后端二进制和前端静态文件
 - 写入 `/opt/asset-management/.env`
 - 创建 SQLite 与附件目录
+- 创建工单 PDF 归档目录
 - 安装 systemd 服务
 - 安装 Nginx 站点配置
 - 启动服务
@@ -206,3 +212,4 @@ sudo bash install.sh
 - 后端启动失败：执行 `sudo journalctl -u asset-management -n 100 --no-pager` 查看错误。
 - 数据库无权限：确认 `/opt/asset-management/data` 属主为 `assetmgmt:assetmgmt`。
 - AD 配置保存失败：确认 `CONFIG_ENCRYPTION_KEY` 已设置且保持不变，修改密钥会导致已保存的 Bind 密码无法解密。
+- 工单验收关闭时 PDF 生成失败：确认已安装 `libreoffice-writer` 和 `fonts-noto-cjk`，并检查 `TICKET_TEMPLATE_PATH` 指向的 DOCX 模板是否存在。

@@ -94,27 +94,6 @@
       </div>
     </div>
 
-    <div class="panel approver-panel">
-      <div class="toolbar">
-        <h3>工单类型审批人配置</h3>
-      </div>
-      <el-table :data="ticketTypes">
-        <el-table-column prop="label" label="工单类型" min-width="180" />
-        <el-table-column label="默认审批人" min-width="220">
-          <template #default="{ row }">
-            <el-select v-model="approverMap[row.value]" placeholder="选择审批人">
-              <el-option v-for="user in approverUsers" :key="user.id" :label="`${user.name} (${user.username})`" :value="user.id" />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120">
-          <template #default="{ row }">
-            <el-button type="primary" link @click="saveApprover(row.value)">保存</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
-
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑用户' : '新增用户'" width="520px">
       <el-form :model="form" label-width="80px">
         <el-form-item label="账号"><el-input v-model="form.username" /></el-form-item>
@@ -138,20 +117,19 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { adApi, settingsApi, usersApi } from '../api'
+import { adApi, usersApi } from '../api'
 import PageHeader from '../components/common/PageHeader.vue'
 import RoleTag from '../components/common/RoleTag.vue'
 import StatusTag from '../components/common/StatusTag.vue'
-import { AUTH_SOURCE_MAP, ROLE_MAP, TICKET_TYPE_MAP, USER_STATUS_MAP, dictOptions } from '../constants/dictionaries'
+import { AUTH_SOURCE_MAP, ROLE_MAP, USER_STATUS_MAP, dictOptions } from '../constants/dictionaries'
 
 const items = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const form = reactive(emptyUser())
-const approverMap = reactive({})
 const adConfig = reactive({
   enabled: false,
   ldapUrl: '',
@@ -168,10 +146,8 @@ const adConfig = reactive({
 const lookupUsername = ref('')
 const lookupResult = ref(null)
 const importRole = ref('applicant')
-const ticketTypes = dictOptions(TICKET_TYPE_MAP)
 const roleOptions = dictOptions(ROLE_MAP)
 const userStatusOptions = dictOptions(USER_STATUS_MAP)
-const approverUsers = computed(() => items.value.filter((user) => ['admin', 'approver'].includes(user.role) && user.status === 'active'))
 
 function emptyUser() {
   return { username: '', name: '', role: 'applicant', status: 'active', password: '', authSource: 'local', email: '', department: '' }
@@ -182,7 +158,6 @@ async function load() {
   try {
     const data = await usersApi.list()
     items.value = data.items
-    await loadApprovers()
     await loadADConfig()
   } finally {
     loading.value = false
@@ -192,13 +167,6 @@ async function load() {
 async function loadADConfig() {
   const data = await adApi.config()
   Object.assign(adConfig, data, { bindPassword: '' })
-}
-
-async function loadApprovers() {
-  const data = await settingsApi.ticketTypeApprovers()
-  for (const item of data.items) {
-    approverMap[item.type] = item.approverId
-  }
 }
 
 function openCreate() {
@@ -217,16 +185,6 @@ async function save() {
   ElMessage.success('已保存')
   dialogVisible.value = false
   load()
-}
-
-async function saveApprover(type) {
-  if (!approverMap[type]) {
-    ElMessage.warning('请选择审批人')
-    return
-  }
-  await settingsApi.saveTicketTypeApprover(type, { approverId: approverMap[type] })
-  ElMessage.success('审批人配置已保存')
-  await loadApprovers()
 }
 
 async function saveADConfig() {
@@ -268,7 +226,6 @@ onMounted(load)
 </script>
 
 <style scoped>
-.approver-panel,
 .ad-panel {
   margin-top: 16px;
 }

@@ -14,10 +14,11 @@ import (
 )
 
 type Dependencies struct {
-	Config config.Config
-	DB     *gorm.DB
-	Roles  []model.Role
-	AD     service.ADClient
+	Config   config.Config
+	DB       *gorm.DB
+	Roles    []model.Role
+	AD       service.ADClient
+	Archiver service.TicketArchiver
 }
 
 func NewRouter(dep Dependencies) *gin.Engine {
@@ -28,7 +29,11 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	if adClient == nil {
 		adClient = service.LDAPADClient{}
 	}
-	h := NewHandler(dep.Config, dep.DB, dep.Roles, adClient)
+	archiver := dep.Archiver
+	if archiver == nil {
+		archiver = service.LibreOfficeTicketArchiver{}
+	}
+	h := NewHandler(dep.Config, dep.DB, dep.Roles, adClient, archiver)
 
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now().UTC()})
@@ -59,6 +64,12 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	typeApprovers.GET("", h.ListTicketTypeApprovers)
 	typeApprovers.PUT("/:type", h.SetTicketTypeApprover)
 
+	workflows := api.Group("/workflows", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
+	workflows.GET("", h.ListWorkflows)
+	workflows.GET("/:type", h.GetWorkflow)
+	workflows.PUT("/:type", h.SaveWorkflow)
+	workflows.POST("/:type/enable", h.EnableWorkflow)
+
 	assets := api.Group("/assets", h.AuthRequired())
 	assets.GET("", h.ListAssets)
 	assets.GET("/stats", h.AssetStats)
@@ -73,6 +84,7 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	tickets := api.Group("/tickets", h.AuthRequired())
 	tickets.GET("", h.ListTickets)
 	tickets.POST("", h.CreateTicket)
+	tickets.POST("/archives/download", h.DownloadTicketArchives)
 	tickets.GET("/:id", h.GetTicket)
 	tickets.PUT("/:id", h.UpdateTicket)
 	tickets.GET("/:id/comments", h.ListTicketComments)
@@ -80,7 +92,8 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	tickets.GET("/:id/attachments", h.ListTicketAttachments)
 	tickets.POST("/:id/attachments", h.UploadTicketAttachment)
 	tickets.GET("/:id/attachments/:attachmentId/download", h.DownloadTicketAttachment)
-	for _, action := range []string{"submit", "approve", "reject", "start", "complete", "close", "cancel"} {
+	tickets.GET("/:id/archive/download", h.DownloadTicketArchive)
+	for _, action := range []string{"submit", "approve", "reject", "start", "complete", "accept", "cancel"} {
 		tickets.POST("/:id/"+action, h.TicketAction(action))
 	}
 

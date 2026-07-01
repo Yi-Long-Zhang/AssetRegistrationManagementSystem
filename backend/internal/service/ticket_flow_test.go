@@ -7,12 +7,12 @@ import (
 )
 
 func TestTransitionAllowsValidRoleAndStatus(t *testing.T) {
-	next, err := Transition("approve", model.TicketStatusSubmitted, model.RoleApprover)
+	next, err := Transition("approve", model.TicketStatusPendingApproval, model.RoleApprover)
 	if err != nil {
 		t.Fatalf("expected transition to succeed: %v", err)
 	}
-	if next != model.TicketStatusApproved {
-		t.Fatalf("expected %s, got %s", model.TicketStatusApproved, next)
+	if next != model.TicketStatusPendingApproval {
+		t.Fatalf("expected %s, got %s", model.TicketStatusPendingApproval, next)
 	}
 }
 

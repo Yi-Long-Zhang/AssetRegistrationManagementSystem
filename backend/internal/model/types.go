@@ -35,14 +35,14 @@ const (
 type TicketStatus string
 
 const (
-	TicketStatusDraft      TicketStatus = "draft"
-	TicketStatusSubmitted  TicketStatus = "submitted"
-	TicketStatusApproved   TicketStatus = "approved"
-	TicketStatusRejected   TicketStatus = "rejected"
-	TicketStatusInProgress TicketStatus = "in_progress"
-	TicketStatusDone       TicketStatus = "done"
-	TicketStatusClosed     TicketStatus = "closed"
-	TicketStatusCancelled  TicketStatus = "cancelled"
+	TicketStatusDraft             TicketStatus = "draft"
+	TicketStatusPendingApproval   TicketStatus = "pending_approval"
+	TicketStatusApproved          TicketStatus = "approved"
+	TicketStatusRejected          TicketStatus = "rejected"
+	TicketStatusInProgress        TicketStatus = "in_progress"
+	TicketStatusPendingAcceptance TicketStatus = "pending_acceptance"
+	TicketStatusClosed            TicketStatus = "closed"
+	TicketStatusCancelled         TicketStatus = "cancelled"
 )
 
 type Priority string

@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"archive/zip"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,10 +25,11 @@ import (
 )
 
 type Handler struct {
-	cfg   config.Config
-	db    *gorm.DB
-	roles []model.Role
-	ad    service.ADClient
+	cfg      config.Config
+	db       *gorm.DB
+	roles    []model.Role
+	ad       service.ADClient
+	archiver service.TicketArchiver
 }
 
 type claims struct {
@@ -35,8 +38,8 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-func NewHandler(cfg config.Config, db *gorm.DB, roles []model.Role, ad service.ADClient) *Handler {
-	return &Handler{cfg: cfg, db: db, roles: roles, ad: ad}
+func NewHandler(cfg config.Config, db *gorm.DB, roles []model.Role, ad service.ADClient, archiver service.TicketArchiver) *Handler {
+	return &Handler{cfg: cfg, db: db, roles: roles, ad: ad, archiver: archiver}
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -430,7 +433,7 @@ func (h *Handler) DeleteAsset(c *gin.Context) {
 func (h *Handler) ListTickets(c *gin.Context) {
 	user := currentUser(c)
 	var tickets []model.Ticket
-	db := h.db.Preload("Applicant").Preload("Asset").Order("id desc")
+	db := h.db.Preload("Applicant").Preload("Asset").Preload("WorkflowSteps.Approvers").Order("id desc")
 	switch c.Query("view") {
 	case "todo":
 		db = h.applyTodoFilter(db, user)
@@ -458,13 +461,24 @@ func (h *Handler) CreateTicket(c *gin.Context) {
 	}
 	user := currentUser(c)
 	ticket := model.Ticket{
-		Type:        req.Type,
-		Title:       req.Title,
-		ApplicantID: user.ID,
-		AssetID:     req.AssetID,
-		Status:      model.TicketStatusDraft,
-		Priority:    defaultPriority(req.Priority),
-		Description: req.Description,
+		Type:            req.Type,
+		Title:           req.Title,
+		ApplicantID:     user.ID,
+		AssetID:         req.AssetID,
+		Status:          model.TicketStatusDraft,
+		Priority:        defaultPriority(req.Priority),
+		Description:     req.Description,
+		DeviceType:      req.DeviceType,
+		DeviceName:      req.DeviceName,
+		IPAddress:       req.IPAddress,
+		OpenPorts:       req.OpenPorts,
+		RunningServices: req.RunningServices,
+		AppVersion:      req.AppVersion,
+		Manufacturer:    req.Manufacturer,
+		Antivirus:       req.Antivirus,
+		ChangeContent:   req.ChangeContent,
+		Impact:          req.Impact,
+		Remark:          req.Remark,
 	}
 	if err := h.db.Create(&ticket).Error; err != nil {
 		errorJSON(c, http.StatusBadRequest, "创建工单失败: "+err.Error())
@@ -480,7 +494,11 @@ func (h *Handler) GetTicket(c *gin.Context) {
 		return
 	}
 	var ticket model.Ticket
-	if err := h.db.Preload("Applicant").Preload("Asset").Preload("Approver").Preload("Executor").Preload("Records.Actor").Preload("Comments.Actor").Preload("Attachments.Uploader").First(&ticket, id).Error; err != nil {
+	if err := h.db.Preload("Applicant").Preload("Asset").Preload("Approver").Preload("Executor").
+		Preload("Records.Actor").Preload("Comments.Actor").Preload("Attachments.Uploader").
+		Preload("WorkflowSteps.Actor").Preload("WorkflowSteps.Approvers.User", func(db *gorm.DB) *gorm.DB { return db.Order("id asc") }).
+		Preload("WorkflowSteps", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order asc") }).
+		First(&ticket, id).Error; err != nil {
 		statusForDBError(c, err, "工单不存在")
 		return
 	}
@@ -499,19 +517,15 @@ func (h *Handler) UpdateTicket(c *gin.Context) {
 	if !h.findTicketForUser(c, id, &ticket) {
 		return
 	}
-	if ticket.Status != model.TicketStatusDraft {
-		errorJSON(c, http.StatusBadRequest, "只有草稿工单可以编辑")
+	if ticket.Status != model.TicketStatusDraft && ticket.Status != model.TicketStatusRejected {
+		errorJSON(c, http.StatusBadRequest, "只有草稿或驳回工单可以编辑")
 		return
 	}
 	var req ticketRequest
 	if !bind(c, &req) {
 		return
 	}
-	ticket.Type = req.Type
-	ticket.Title = req.Title
-	ticket.AssetID = req.AssetID
-	ticket.Priority = defaultPriority(req.Priority)
-	ticket.Description = req.Description
+	applyTicketRequest(&ticket, req)
 	if err := h.db.Save(&ticket).Error; err != nil {
 		errorJSON(c, http.StatusBadRequest, "更新工单失败: "+err.Error())
 		return
@@ -526,8 +540,9 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 			return
 		}
 		var req struct {
-			Remark string `json:"remark"`
-			Result string `json:"result"`
+			Remark           string `json:"remark"`
+			Result           string `json:"result"`
+			AcceptanceResult string `json:"acceptanceResult"`
 		}
 		_ = c.ShouldBindJSON(&req)
 
@@ -541,38 +556,58 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 			errorJSON(c, http.StatusForbidden, err.Error())
 			return
 		}
-		if action == "submit" && ticket.ApplicantID != user.ID && user.Role != model.RoleAdmin {
+		if (action == "submit" || action == "accept") && ticket.ApplicantID != user.ID && user.Role != model.RoleAdmin {
 			errorJSON(c, http.StatusForbidden, "只能提交自己的工单")
 			return
 		}
 		if action == "submit" {
-			approverID, ok := h.defaultApproverID(c, ticket.Type)
-			if !ok {
+			if !h.createWorkflowSnapshot(c, &ticket) {
 				return
 			}
-			ticket.ApproverID = &approverID
+			h.addRecord(ticket.ID, user.ID, action, model.TicketStatusDraft, ticket.Status, req.Remark)
+			c.JSON(http.StatusOK, ticket)
+			return
 		}
-		if (action == "approve" || action == "reject") && user.Role != model.RoleAdmin {
-			if ticket.ApproverID == nil || *ticket.ApproverID != user.ID {
-				errorJSON(c, http.StatusForbidden, "只有该工单指定审批人可以处理")
+		if action == "approve" {
+			if !h.approveCurrentStep(c, &ticket, user, req.Remark) {
 				return
 			}
+			c.JSON(http.StatusOK, ticket)
+			return
 		}
-		if action == "close" && ticket.ApplicantID != user.ID && user.Role != model.RoleAdmin && user.Role != model.RoleAssetManager {
-			errorJSON(c, http.StatusForbidden, "没有关闭该工单的权限")
+		if action == "reject" {
+			from := ticket.Status
+			ticket.Status = next
+			if !h.rejectCurrentStep(c, &ticket, user, req.Remark) {
+				return
+			}
+			h.addRecord(ticket.ID, user.ID, action, from, next, req.Remark)
+			c.JSON(http.StatusOK, ticket)
+			return
+		}
+		if action == "accept" && ticket.ApplicantID != user.ID && user.Role != model.RoleAdmin {
+			errorJSON(c, http.StatusForbidden, "只有申请人可以验收关闭该工单")
 			return
 		}
 
 		from := ticket.Status
 		ticket.Status = next
-		if action == "approve" {
-			ticket.ApproverID = &user.ID
-		}
 		if action == "start" {
 			ticket.ExecutorID = &user.ID
 		}
 		if action == "complete" {
 			ticket.Result = req.Result
+		}
+		if action == "accept" {
+			ticket.AcceptanceResult = defaultString(req.AcceptanceResult, req.Remark)
+			archiveNo, archivePath, ok := h.closeTicketWithArchive(c, &ticket)
+			if !ok {
+				return
+			}
+			ticket.ArchiveNo = archiveNo
+			ticket.ArchivePath = archivePath
+			now := time.Now()
+			ticket.ArchivedAt = &now
 		}
 		if err := h.db.Save(&ticket).Error; err != nil {
 			errorJSON(c, http.StatusBadRequest, "更新工单状态失败: "+err.Error())
@@ -580,6 +615,97 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 		}
 		h.addRecord(ticket.ID, user.ID, action, from, next, req.Remark)
 		c.JSON(http.StatusOK, ticket)
+	}
+}
+
+func (h *Handler) DownloadTicketArchive(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var ticket model.Ticket
+	if err := h.db.First(&ticket, id).Error; err != nil {
+		statusForDBError(c, err, "工单不存在")
+		return
+	}
+	if !h.canDownloadArchive(c, ticket) {
+		return
+	}
+	if ticket.Status != model.TicketStatusClosed {
+		errorJSON(c, http.StatusBadRequest, "工单关闭后才能下载归档 PDF")
+		return
+	}
+	if ticket.ArchivePath == "" || ticket.ArchiveNo == "" {
+		errorJSON(c, http.StatusBadRequest, "工单归档 PDF 尚未生成")
+		return
+	}
+	c.FileAttachment(ticket.ArchivePath, ticket.ArchiveNo+".pdf")
+}
+
+func (h *Handler) DownloadTicketArchives(c *gin.Context) {
+	var req ticketArchiveBatchRequest
+	if !bind(c, &req) {
+		return
+	}
+	if len(req.IDs) == 0 {
+		errorJSON(c, http.StatusBadRequest, "请选择要下载的工单")
+		return
+	}
+	if len(req.IDs) > 100 {
+		errorJSON(c, http.StatusBadRequest, "单次最多下载 100 个归档 PDF")
+		return
+	}
+	ids := uniqueUint(req.IDs)
+	var tickets []model.Ticket
+	if err := h.db.Where("id IN ?", ids).Find(&tickets).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "查询工单归档失败")
+		return
+	}
+	if len(tickets) != len(ids) {
+		errorJSON(c, http.StatusNotFound, "包含不存在的工单")
+		return
+	}
+	ticketByID := make(map[uint]model.Ticket, len(tickets))
+	for _, ticket := range tickets {
+		ticketByID[ticket.ID] = ticket
+	}
+	ordered := make([]model.Ticket, 0, len(ids))
+	for _, id := range ids {
+		ticket := ticketByID[id]
+		if !h.canDownloadArchive(c, ticket) {
+			return
+		}
+		if ticket.Status != model.TicketStatusClosed {
+			errorJSON(c, http.StatusBadRequest, fmt.Sprintf("工单 #%d 关闭后才能下载归档 PDF", ticket.ID))
+			return
+		}
+		if ticket.ArchivePath == "" || ticket.ArchiveNo == "" {
+			errorJSON(c, http.StatusBadRequest, fmt.Sprintf("工单 #%d 归档 PDF 尚未生成", ticket.ID))
+			return
+		}
+		if _, err := os.Stat(ticket.ArchivePath); err != nil {
+			errorJSON(c, http.StatusBadRequest, fmt.Sprintf("工单 #%d 归档 PDF 文件不存在", ticket.ID))
+			return
+		}
+		ordered = append(ordered, ticket)
+	}
+
+	filename := fmt.Sprintf("ticket-archives-%s.zip", time.Now().Format("20060102150405"))
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	zipWriter := zip.NewWriter(c.Writer)
+	defer zipWriter.Close()
+	usedNames := map[string]int{}
+	for _, ticket := range ordered {
+		name := ticket.ArchiveNo + ".pdf"
+		if usedNames[name] > 0 {
+			name = fmt.Sprintf("%s-%d.pdf", ticket.ArchiveNo, usedNames[name]+1)
+		}
+		usedNames[ticket.ArchiveNo+".pdf"]++
+		if err := addFileToZip(zipWriter, ticket.ArchivePath, name); err != nil {
+			errorJSON(c, http.StatusInternalServerError, "打包归档 PDF 失败: "+err.Error())
+			return
+		}
 	}
 }
 
@@ -696,17 +822,20 @@ func (h *Handler) applyTodoFilter(db *gorm.DB, user model.User) *gorm.DB {
 	switch user.Role {
 	case model.RoleAdmin:
 		return db.Where("status IN ?", []model.TicketStatus{
-			model.TicketStatusSubmitted,
+			model.TicketStatusPendingApproval,
 			model.TicketStatusApproved,
 			model.TicketStatusInProgress,
-			model.TicketStatusDone,
+			model.TicketStatusPendingAcceptance,
+			model.TicketStatusRejected,
 		})
 	case model.RoleApprover:
-		return db.Where("status = ? AND approver_id = ?", model.TicketStatusSubmitted, user.ID)
+		return db.Joins("JOIN ticket_workflow_steps ON ticket_workflow_steps.ticket_id = tickets.id AND ticket_workflow_steps.id = tickets.current_workflow_step_id").
+			Joins("JOIN ticket_workflow_step_approvers ON ticket_workflow_step_approvers.step_id = ticket_workflow_steps.id").
+			Where("tickets.status = ? AND ticket_workflow_step_approvers.user_id = ?", model.TicketStatusPendingApproval, user.ID)
 	case model.RoleAssetManager:
 		return db.Where("status IN ?", []model.TicketStatus{model.TicketStatusApproved, model.TicketStatusInProgress})
 	default:
-		return db.Where("status = ? AND applicant_id = ?", model.TicketStatusDone, user.ID)
+		return db.Where("status IN ? AND applicant_id = ?", []model.TicketStatus{model.TicketStatusPendingAcceptance, model.TicketStatusRejected}, user.ID)
 	}
 }
 
@@ -753,10 +882,105 @@ func (h *Handler) canCollaborate(c *gin.Context, ticket model.Ticket) bool {
 	if user.Role == model.RoleAssetManager {
 		return ticket.Status == model.TicketStatusApproved ||
 			ticket.Status == model.TicketStatusInProgress ||
-			ticket.Status == model.TicketStatusDone
+			ticket.Status == model.TicketStatusPendingAcceptance
 	}
 	errorJSON(c, http.StatusForbidden, "没有权限访问该工单协作内容")
 	return false
+}
+
+func (h *Handler) canDownloadArchive(c *gin.Context, ticket model.Ticket) bool {
+	user := currentUser(c)
+	if user.Role == model.RoleAdmin || ticket.ApplicantID == user.ID {
+		return true
+	}
+	if ticket.ExecutorID != nil && *ticket.ExecutorID == user.ID {
+		return true
+	}
+	var count int64
+	_ = h.db.Model(&model.TicketWorkflowStepApprover{}).
+		Joins("JOIN ticket_workflow_steps ON ticket_workflow_steps.id = ticket_workflow_step_approvers.step_id").
+		Where("ticket_workflow_steps.ticket_id = ? AND ticket_workflow_step_approvers.user_id = ?", ticket.ID, user.ID).
+		Count(&count).Error
+	if count > 0 {
+		return true
+	}
+	errorJSON(c, http.StatusForbidden, "没有权限下载该工单归档")
+	return false
+}
+
+func applyTicketRequest(ticket *model.Ticket, req ticketRequest) {
+	ticket.Type = req.Type
+	ticket.Title = req.Title
+	ticket.AssetID = req.AssetID
+	ticket.Priority = defaultPriority(req.Priority)
+	ticket.Description = req.Description
+	ticket.DeviceType = req.DeviceType
+	ticket.DeviceName = req.DeviceName
+	ticket.IPAddress = req.IPAddress
+	ticket.OpenPorts = req.OpenPorts
+	ticket.RunningServices = req.RunningServices
+	ticket.AppVersion = req.AppVersion
+	ticket.Manufacturer = req.Manufacturer
+	ticket.Antivirus = req.Antivirus
+	ticket.ChangeContent = req.ChangeContent
+	ticket.Impact = req.Impact
+	ticket.Remark = req.Remark
+}
+
+func (h *Handler) closeTicketWithArchive(c *gin.Context, ticket *model.Ticket) (string, string, bool) {
+	var full model.Ticket
+	if err := h.db.Preload("Applicant").Preload("Asset").Preload("Executor").Preload("Records.Actor").
+		Preload("WorkflowSteps.Actor").Preload("WorkflowSteps", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order asc") }).
+		First(&full, ticket.ID).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "加载归档数据失败")
+		return "", "", false
+	}
+	full.Status = ticket.Status
+	full.Result = ticket.Result
+	full.AcceptanceResult = ticket.AcceptanceResult
+	archiveNo, archivePath, err := h.archiver.Generate(c.Request.Context(), service.TicketArchiveData{Ticket: full}, h.cfg.TicketTemplate, h.cfg.ArchiveDir, h.cfg.LibreOfficeBin)
+	if err != nil {
+		errorJSON(c, http.StatusBadRequest, "生成归档 PDF 失败: "+err.Error())
+		return "", "", false
+	}
+	if err := h.writeBackTicketAsset(ticket); err != nil {
+		_ = os.Remove(archivePath)
+		errorJSON(c, http.StatusBadRequest, "写回资产台账失败: "+err.Error())
+		return "", "", false
+	}
+	return archiveNo, archivePath, true
+}
+
+func (h *Handler) writeBackTicketAsset(ticket *model.Ticket) error {
+	if ticket.AssetID == nil {
+		return nil
+	}
+	var asset model.Asset
+	if err := h.db.First(&asset, *ticket.AssetID).Error; err != nil {
+		return err
+	}
+	if ticket.DeviceType != "" {
+		asset.AssetType = ticket.DeviceType
+	}
+	if ticket.DeviceName != "" {
+		asset.Hostname = ticket.DeviceName
+	}
+	if ticket.IPAddress != "" {
+		asset.IP = ticket.IPAddress
+	}
+	if ticket.OpenPorts != "" {
+		asset.OpenPorts = ticket.OpenPorts
+	}
+	if ticket.RunningServices != "" {
+		asset.RunningServices = ticket.RunningServices
+	}
+	if ticket.AppVersion != "" {
+		asset.AppVersion = ticket.AppVersion
+	}
+	if ticket.Manufacturer != "" {
+		asset.Manufacturer = ticket.Manufacturer
+	}
+	return h.db.Save(&asset).Error
 }
 
 func uniqueStoredName(original string) string {
@@ -765,6 +989,20 @@ func uniqueStoredName(original string) string {
 		return fmt.Sprintf("%d-%s", time.Now().UnixNano(), filepath.Base(original))
 	}
 	return fmt.Sprintf("%d-%s-%s", time.Now().UnixNano(), hex.EncodeToString(random[:]), filepath.Base(original))
+}
+
+func addFileToZip(zipWriter *zip.Writer, sourcePath, archiveName string) error {
+	source, err := os.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+	writer, err := zipWriter.Create(archiveName)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(writer, source)
+	return err
 }
 
 func (h *Handler) authenticate(username, password string) (model.User, bool) {

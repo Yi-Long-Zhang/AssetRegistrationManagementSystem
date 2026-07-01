@@ -2,6 +2,7 @@
   <section class="page">
     <PageHeader title="工单流程">
       <template #actions>
+        <el-button :disabled="!selectedArchiveRows.length" @click="downloadSelectedArchives">批量下载归档</el-button>
         <el-button type="primary" :icon="Plus" @click="openCreate">新建工单</el-button>
       </template>
     </PageHeader>
@@ -11,7 +12,8 @@
         <el-tab-pane label="我提交的" name="submitted" />
         <el-tab-pane label="全部" name="all" />
       </el-tabs>
-      <el-table :data="items" v-loading="loading">
+      <el-table :data="items" v-loading="loading" @selection-change="selectedRows = $event">
+        <el-table-column type="selection" width="46" :selectable="canSelectArchive" />
         <el-table-column prop="id" label="编号" width="80" />
         <el-table-column prop="title" label="标题" min-width="180" />
         <el-table-column prop="type" label="类型" width="150">
@@ -30,6 +32,7 @@
           </template>
         </el-table-column>
         <el-table-column label="申请人" width="120"><template #default="{ row }">{{ row.applicant?.name }}</template></el-table-column>
+        <el-table-column prop="currentWorkflowStepName" label="当前节点" width="160" />
         <el-table-column label="操作" width="360">
           <template #default="{ row }">
             <el-button link type="primary" @click="view(row)">详情</el-button>
@@ -44,7 +47,20 @@
         <el-form-item label="类型"><el-select v-model="form.type"><el-option v-for="option in ticketTypeOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
         <el-form-item label="标题"><el-input v-model="form.title" /></el-form-item>
         <el-form-item label="优先级"><el-select v-model="form.priority"><el-option v-for="option in priorityOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
-        <el-form-item label="说明"><el-input v-model="form.description" type="textarea" :rows="4" /></el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12"><el-form-item label="设备类型"><el-input v-model="form.deviceType" placeholder="服务器/交换机/防火墙" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="设备名称"><el-input v-model="form.deviceName" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="IP地址"><el-input v-model="form.ipAddress" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="开放端口"><el-input v-model="form.openPorts" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="运行服务"><el-input v-model="form.runningServices" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="应用版本"><el-input v-model="form.appVersion" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="厂商"><el-input v-model="form.manufacturer" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="防病毒"><el-input v-model="form.antivirus" /></el-form-item></el-col>
+        </el-row>
+        <el-form-item label="申请原因"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="变更内容"><el-input v-model="form.changeContent" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="影响评估"><el-input v-model="form.impact" type="textarea" :rows="2" placeholder="无 / 说明影响范围" /></el-form-item>
+        <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -57,9 +73,23 @@
         <el-descriptions :column="1" border>
           <el-descriptions-item label="标题">{{ detail.title }}</el-descriptions-item>
           <el-descriptions-item label="状态"><StatusTag :value="detail.status" :map="TICKET_STATUS_MAP" /></el-descriptions-item>
-          <el-descriptions-item label="说明">{{ detail.description }}</el-descriptions-item>
-          <el-descriptions-item label="结果">{{ detail.result || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="当前节点">{{ detail.currentWorkflowStepName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="设备">{{ detail.deviceType || '-' }} / {{ detail.deviceName || '-' }} / {{ detail.ipAddress || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="服务信息">{{ detail.openPorts || '-' }} / {{ detail.runningServices || '-' }} / {{ detail.appVersion || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="厂商/防病毒">{{ detail.manufacturer || '-' }} / {{ detail.antivirus || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="申请原因">{{ detail.description || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="变更内容">{{ detail.changeContent || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="影响评估">{{ detail.impact || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="执行记录">{{ detail.result || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="验收结果">{{ detail.acceptanceResult || '-' }}</el-descriptions-item>
+          <el-descriptions-item v-if="detail.archiveNo" label="归档编号">{{ detail.archiveNo }} {{ detail.archivedAt || '' }}</el-descriptions-item>
         </el-descriptions>
+        <div v-if="detail.status === 'closed'" class="archive-actions">
+          <el-button type="primary" @click="downloadArchive">下载归档 PDF</el-button>
+        </div>
+        <el-steps v-if="detail.workflowSteps?.length" class="workflow-steps" :active="activeStepIndex" finish-status="success" process-status="process">
+          <el-step v-for="step in detail.workflowSteps" :key="step.id" :title="step.name" :description="stepDescription(step)" />
+        </el-steps>
         <el-timeline class="timeline">
           <el-timeline-item v-for="record in detail.records" :key="record.id" :timestamp="record.createdAt">
             {{ record.actor?.name }} {{ record.action }}：{{ record.remark || '-' }}
@@ -91,7 +121,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { ticketsApi } from '../api'
@@ -102,6 +132,7 @@ import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const items = ref([])
+const selectedRows = ref([])
 const loading = ref(false)
 const activeView = ref('todo')
 const dialogVisible = ref(false)
@@ -110,7 +141,7 @@ const detail = ref(null)
 const comments = ref([])
 const attachments = ref([])
 const commentText = ref('')
-const form = reactive({ type: 'asset_register', title: '', priority: 'normal', description: '' })
+const form = reactive(emptyForm())
 const ticketTypeOptions = dictOptions(TICKET_TYPE_MAP)
 const priorityOptions = dictOptions(PRIORITY_MAP)
 
@@ -119,14 +150,35 @@ async function load() {
   try {
     const data = await ticketsApi.list({ view: activeView.value })
     items.value = data.items
+    selectedRows.value = []
   } finally {
     loading.value = false
   }
 }
 
 function openCreate() {
-  Object.assign(form, { type: 'asset_register', title: '', priority: 'normal', description: '' })
+  Object.assign(form, emptyForm())
   dialogVisible.value = true
+}
+
+function emptyForm() {
+  return {
+    type: 'asset_register',
+    title: '',
+    priority: 'normal',
+    description: '',
+    deviceType: '',
+    deviceName: '',
+    ipAddress: '',
+    openPorts: '',
+    runningServices: '',
+    appVersion: '',
+    manufacturer: '',
+    antivirus: '',
+    changeContent: '',
+    impact: '无',
+    remark: ''
+  }
 }
 
 async function save() {
@@ -163,18 +215,23 @@ function actions(row) {
   const role = user?.role
   const items = []
   if (row.status === 'draft' && (role === 'admin' || row.applicantId === user?.id)) items.push({ name: 'submit', label: '提交' })
-  if (row.status === 'submitted' && ['admin', 'approver'].includes(role)) items.push({ name: 'approve', label: '通过' }, { name: 'reject', label: '驳回' })
+  if (row.status === 'rejected' && (role === 'admin' || row.applicantId === user?.id)) items.push({ name: 'submit', label: '重新提交' })
+  if (row.status === 'pending_approval' && ['admin', 'approver'].includes(role)) items.push({ name: 'approve', label: '通过' }, { name: 'reject', label: '驳回' })
   if (row.status === 'approved' && ['admin', 'asset_manager'].includes(role)) items.push({ name: 'start', label: '开始' })
   if (row.status === 'in_progress' && ['admin', 'asset_manager'].includes(role)) items.push({ name: 'complete', label: '完成' })
-  if (row.status === 'done' && ['admin', 'asset_manager', 'applicant'].includes(role)) items.push({ name: 'close', label: '关闭' })
-  if (row.status === 'draft' && (role === 'admin' || row.applicantId === user?.id)) items.push({ name: 'cancel', label: '取消' })
+  if (row.status === 'pending_acceptance' && ['admin', 'applicant'].includes(role)) items.push({ name: 'accept', label: '验收' })
+  if (['draft', 'rejected'].includes(row.status) && (role === 'admin' || row.applicantId === user?.id)) items.push({ name: 'cancel', label: '取消' })
   return items
 }
 
 async function doAction(row, action) {
   try {
     const { value } = await ElMessageBox.prompt('处理备注', '工单操作', { inputType: 'textarea', inputValue: action })
-    await ticketsApi.action(row.id, action, { remark: value, result: action === 'complete' ? value : '' })
+    await ticketsApi.action(row.id, action, {
+      remark: value,
+      result: action === 'complete' ? value : '',
+      acceptanceResult: action === 'accept' ? value : ''
+    })
     ElMessage.success('操作成功')
     load()
   } catch (error) {
@@ -214,6 +271,48 @@ async function downloadAttachment(row) {
   URL.revokeObjectURL(url)
 }
 
+async function downloadArchive() {
+  const data = await ticketsApi.downloadArchive(detail.value.id)
+  const url = URL.createObjectURL(data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${detail.value.archiveNo || `ticket-${detail.value.id}`}.pdf`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+const selectedArchiveRows = computed(() => selectedRows.value.filter(canSelectArchive))
+
+function canSelectArchive(row) {
+  return row.status === 'closed' && !!row.archiveNo
+}
+
+async function downloadSelectedArchives() {
+  if (!selectedArchiveRows.value.length) {
+    ElMessage.warning('请选择已关闭且已生成归档的工单')
+    return
+  }
+  const ids = selectedArchiveRows.value.map((row) => row.id)
+  const data = await ticketsApi.downloadArchives(ids)
+  const url = URL.createObjectURL(data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `ticket-archives-${new Date().toISOString().slice(0, 10)}.zip`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function stepDescription(step) {
+  const users = (step.approvers || []).map((item) => item.user?.name || item.user?.username).filter(Boolean).join('、')
+  return `${users || '-'} ${step.actedAt || ''}`
+}
+
+const activeStepIndex = computed(() => {
+  if (!detail.value?.workflowSteps?.length) return 0
+  const pending = detail.value.workflowSteps.findIndex((step) => step.status === 'pending')
+  return pending === -1 ? detail.value.workflowSteps.length : pending
+})
+
 onMounted(load)
 </script>
 
@@ -242,5 +341,10 @@ onMounted(load)
 
 .attachments {
   margin-top: 12px;
+}
+
+.archive-actions,
+.workflow-steps {
+  margin-top: 16px;
 }
 </style>

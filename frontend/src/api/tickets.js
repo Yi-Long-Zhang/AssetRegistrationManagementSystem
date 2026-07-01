@@ -27,5 +27,11 @@ export const ticketsApi = {
   },
   downloadAttachment(id, attachmentId) {
     return request.get(`/tickets/${id}/attachments/${attachmentId}/download`, { responseType: 'blob' }).then(unwrap)
+  },
+  downloadArchive(id) {
+    return request.get(`/tickets/${id}/archive/download`, { responseType: 'blob' }).then(unwrap)
+  },
+  downloadArchives(ids) {
+    return request.post('/tickets/archives/download', { ids }, { responseType: 'blob' }).then(unwrap)
   }
 }

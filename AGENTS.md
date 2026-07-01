@@ -18,6 +18,9 @@
   - `HTTP_ADDR=:8080`
   - `DATABASE_PATH=./data/assets.db`
   - `ATTACHMENT_DIR=./data/attachments`
+  - `TICKET_ARCHIVE_DIR=./data/ticket-archives`
+  - `TICKET_TEMPLATE_PATH=../templates/ticket-it-change-template.docx`
+  - `LIBREOFFICE_BIN=soffice`
   - `JWT_SECRET=change-me-in-production`
   - `AUTH_MODE=mixed`
   - `CONFIG_ENCRYPTION_KEY=change-me-config-key`
@@ -34,7 +37,7 @@
 - 前端访问：http://localhost:5173
 - 后端健康检查：http://localhost:8080/healthz
 - API 文档：http://localhost:8080/swagger/index.html
-- 本地持久化：SQLite 默认使用 `backend/data/assets.db`，附件默认使用 `backend/data/attachments`。
+- 本地持久化：SQLite 默认使用 `backend/data/assets.db`，附件默认使用 `backend/data/attachments`，工单归档 PDF 默认使用 `backend/data/ticket-archives`。
 
 ## 3. Testing Guidelines（测试规范）
 - 后端测试框架：Go testing。
@@ -56,6 +59,7 @@
 - 使用 `gofmt` 格式化 Go 文件。
 - 业务枚举集中放在 `backend/internal/model/types.go`，不要在业务逻辑中散落硬编码状态值。
 - 工单状态流集中维护在 `backend/internal/service/ticket_flow.go`。
+- 工单 PDF 归档通过 DOCX 模板填充后调用 LibreOffice 转换，模板位于 `templates/ticket-it-change-template.docx`。
 - HTTP 层放在 `backend/internal/httpapi/`，认证、RBAC、AD 配置、资产、工单接口应保持 REST 风格。
 - 数据模型放在 `backend/internal/model/`，数据库迁移由 GORM AutoMigrate 统一处理。
 - 错误返回使用统一 JSON 结构：`{"error": "..."}`。
@@ -83,6 +87,7 @@
 - 修改认证、JWT、RBAC、AD/LDAP、密码加密、附件下载权限前，必须先说明影响范围和回归测试点。
 - 升级依赖前先查看现有 `go.mod`、`package-lock.json`，避免引入重复库或破坏锁定版本。
 - 修改工单状态值时，必须同步后端枚举、状态机、前端字典、测试用例。
+- 修改工单流程时，必须同步流程配置接口、待办筛选、详情页流程进度、归档 PDF 内容。
 - 修改数据库模型时，必须确认 SQLite AutoMigrate 的兼容性和已有数据影响。
 
 ## 6. Commit & Review（提交与协作）
@@ -101,6 +106,7 @@
 - AD Bind 密码必须通过 AES-GCM 加密后入库，密钥来自 `CONFIG_ENCRYPTION_KEY`。
 - AD 用户必须先由管理员导入系统后才能登录；AD 只做认证，不自动授予系统角色。
 - 工单评论、附件、下载接口必须限制为参与人可见：申请人、审批人、执行人、资产管理员或管理员。
+- 工单归档 PDF 只能在已关闭状态下载；单个下载和批量 ZIP 下载都必须校验每个工单的参与人权限，不能静默跳过越权工单。
 - 所有资产关键变更和工单状态变化应写入审计/时间线记录。
 
 ## 8. Debugging Notes（调试与排错）

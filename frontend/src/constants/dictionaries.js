@@ -25,11 +25,11 @@ export const ASSET_STATUS_MAP = {
 
 export const TICKET_STATUS_MAP = {
   draft: { label: '草稿', type: 'info' },
-  submitted: { label: '已提交', type: 'warning' },
+  pending_approval: { label: '审批中', type: 'warning' },
   approved: { label: '已审批', type: 'success' },
   rejected: { label: '已驳回', type: 'danger' },
   in_progress: { label: '执行中', type: 'primary' },
-  done: { label: '待验收', type: 'warning' },
+  pending_acceptance: { label: '待验收', type: 'warning' },
   closed: { label: '已关闭', type: 'success' },
   cancelled: { label: '已取消', type: 'info' }
 }

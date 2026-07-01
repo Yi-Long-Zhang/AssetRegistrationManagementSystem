@@ -3,12 +3,15 @@ package httpapi
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -175,7 +178,7 @@ func TestAssetImportExportAndTemplate(t *testing.T) {
 func TestTicketFlow(t *testing.T) {
 	router := testRouter(t)
 	token := login(t, router, "admin", "admin123456")
-	configureApprover(t, router, token, "asset_register", 1)
+	configureWorkflow(t, router, token, "asset_register", []string{"IT运维主管审核", "信息技术部经理审批"}, 1)
 
 	resp := request(t, router, http.MethodPost, "/api/v1/tickets", token, map[string]interface{}{
 		"type":        "asset_register",
@@ -191,15 +194,91 @@ func TestTicketFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, action := range []string{"submit", "approve", "start", "complete", "close"} {
-		resp = request(t, router, http.MethodPost, "/api/v1/tickets/"+itoa(ticket.ID)+"/"+action, token, map[string]string{"remark": action})
+	for _, action := range []string{"submit", "approve", "approve", "start", "complete", "accept"} {
+		payload := map[string]string{"remark": action, "result": action, "acceptanceResult": "验收通过"}
+		resp = request(t, router, http.MethodPost, "/api/v1/tickets/"+itoa(ticket.ID)+"/"+action, token, payload)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("%s status=%d body=%s", action, resp.Code, resp.Body.String())
 		}
 	}
+	resp = request(t, router, http.MethodGet, "/api/v1/tickets/"+itoa(ticket.ID)+"/archive/download", token, nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("download archive status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/tickets/archives/download", token, map[string]interface{}{"ids": []uint{ticket.ID}})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("batch download archive status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if got := resp.Header().Get("Content-Type"); got != "application/zip" {
+		t.Fatalf("expected zip content-type, got %s", got)
+	}
 }
 
-func TestSubmitTicketRequiresTypeApprover(t *testing.T) {
+func TestTicketArchiveBatchRejectsInvalidItems(t *testing.T) {
+	router := testRouter(t)
+	token := login(t, router, "admin", "admin123456")
+	configureWorkflow(t, router, token, "asset_register", []string{"IT运维主管审核"}, 1)
+
+	resp := request(t, router, http.MethodPost, "/api/v1/tickets", token, map[string]interface{}{
+		"type":  "asset_register",
+		"title": "未关闭工单",
+	})
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create ticket status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var ticket model.Ticket
+	if err := json.Unmarshal(resp.Body.Bytes(), &ticket); err != nil {
+		t.Fatal(err)
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/tickets/archives/download", token, map[string]interface{}{"ids": []uint{ticket.ID}})
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected unclosed ticket to fail, status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestTicketArchiveDownloadRejectsNonParticipant(t *testing.T) {
+	router := testRouter(t)
+	adminToken := login(t, router, "admin", "admin123456")
+	resp := request(t, router, http.MethodPost, "/api/v1/users", adminToken, map[string]interface{}{
+		"username": "outsider",
+		"name":     "无关用户",
+		"role":     "applicant",
+		"status":   "active",
+		"password": "password123",
+	})
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create outsider status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	outsiderToken := login(t, router, "outsider", "password123")
+	configureWorkflow(t, router, adminToken, "asset_register", []string{"IT运维主管审核"}, 1)
+	resp = request(t, router, http.MethodPost, "/api/v1/tickets", adminToken, map[string]interface{}{
+		"type":  "asset_register",
+		"title": "已归档工单",
+	})
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create ticket status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var ticket model.Ticket
+	if err := json.Unmarshal(resp.Body.Bytes(), &ticket); err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range []string{"submit", "approve", "start", "complete", "accept"} {
+		resp = request(t, router, http.MethodPost, "/api/v1/tickets/"+itoa(ticket.ID)+"/"+action, adminToken, map[string]string{"remark": action, "result": action, "acceptanceResult": "验收通过"})
+		if resp.Code != http.StatusOK {
+			t.Fatalf("%s status=%d body=%s", action, resp.Code, resp.Body.String())
+		}
+	}
+	resp = request(t, router, http.MethodGet, "/api/v1/tickets/"+itoa(ticket.ID)+"/archive/download", outsiderToken, nil)
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("expected single archive forbidden, status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	resp = request(t, router, http.MethodPost, "/api/v1/tickets/archives/download", outsiderToken, map[string]interface{}{"ids": []uint{ticket.ID}})
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("expected batch archive forbidden, status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestSubmitTicketRequiresWorkflow(t *testing.T) {
 	router := testRouter(t)
 	token := login(t, router, "admin", "admin123456")
 
@@ -217,14 +296,14 @@ func TestSubmitTicketRequiresTypeApprover(t *testing.T) {
 
 	resp = request(t, router, http.MethodPost, "/api/v1/tickets/"+itoa(ticket.ID)+"/submit", token, map[string]string{"remark": "submit"})
 	if resp.Code != http.StatusBadRequest {
-		t.Fatalf("expected missing approver config to fail, status=%d body=%s", resp.Code, resp.Body.String())
+		t.Fatalf("expected missing workflow config to fail, status=%d body=%s", resp.Code, resp.Body.String())
 	}
 }
 
 func TestTicketTodoCommentsAndAttachments(t *testing.T) {
 	router := testRouter(t)
 	token := login(t, router, "admin", "admin123456")
-	configureApprover(t, router, token, "maintenance", 1)
+	configureWorkflow(t, router, token, "maintenance", []string{"IT运维主管审核"}, 1)
 
 	resp := request(t, router, http.MethodPost, "/api/v1/tickets", token, map[string]interface{}{
 		"type":  "maintenance",
@@ -368,11 +447,27 @@ func testRouter(t *testing.T) http.Handler {
 			AuthMode:       "mixed",
 			TokenTTL:       time.Hour,
 			AllowedOrigins: "*",
+			ArchiveDir:     dir + "/archives",
 		},
-		DB:    db,
-		Roles: model.AllRoles(),
-		AD:    fakeADClient{},
+		DB:       db,
+		Roles:    model.AllRoles(),
+		AD:       fakeADClient{},
+		Archiver: fakeArchiver{},
 	})
+}
+
+type fakeArchiver struct{}
+
+func (fakeArchiver) Generate(_ context.Context, data service.TicketArchiveData, _ string, archiveDir string, _ string) (string, string, error) {
+	if err := os.MkdirAll(archiveDir, 0o755); err != nil {
+		return "", "", err
+	}
+	archiveNo := fmt.Sprintf("ITCFG-TEST-%06d", data.Ticket.ID)
+	archivePath := filepath.Join(archiveDir, archiveNo+".pdf")
+	if err := os.WriteFile(archivePath, []byte("%PDF-1.4\n% test archive\n"), 0o644); err != nil {
+		return "", "", err
+	}
+	return archiveNo, archivePath, nil
 }
 
 type fakeADClient struct{}
@@ -409,6 +504,22 @@ func configureApprover(t *testing.T, router http.Handler, token, ticketType stri
 	resp := request(t, router, http.MethodPut, "/api/v1/ticket-type-approvers/"+ticketType, token, map[string]uint{"approverId": approverID})
 	if resp.Code != http.StatusOK {
 		t.Fatalf("configure approver status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func configureWorkflow(t *testing.T, router http.Handler, token, ticketType string, nodeNames []string, approverID uint) {
+	t.Helper()
+	nodes := make([]map[string]interface{}, 0, len(nodeNames))
+	for _, name := range nodeNames {
+		nodes = append(nodes, map[string]interface{}{"name": name, "approverIds": []uint{approverID}})
+	}
+	resp := request(t, router, http.MethodPut, "/api/v1/workflows/"+ticketType, token, map[string]interface{}{
+		"name":    ticketType + " 流程",
+		"enabled": true,
+		"nodes":   nodes,
+	})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("configure workflow status=%d body=%s", resp.Code, resp.Body.String())
 	}
 }
 

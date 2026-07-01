@@ -8,6 +8,7 @@
 - 前端：Vue 3、Vite、Element Plus
 - 运行方式：本地分别启动后端 API 与前端 Vite 开发服务
 - 附件：后端本地目录存储，默认目录 `backend/data/attachments`
+- 工单归档：关闭后生成 PDF，默认目录 `backend/data/ticket-archives`
 - 用户体系：支持本地账号和 AD/LDAP 账号混合登录
 
 ## 本地开发
@@ -50,12 +51,25 @@ admin / admin123456
 - 导入模板和导出文件不包含“风险等级”字段。
 - 仓库内提供可直接使用的模板文件：`templates/asset-import-template.xlsx`。
 
-## v2.1 工单增强
+## v2.4 工单流程与归档
 
-- 管理员可配置每种工单类型的默认审批人。
-- 提交工单时系统自动绑定默认审批人，未配置时会阻止提交。
+- 管理员可在“流程配置”页面按工单类型维护审批流程。
+- 审批节点支持排序，每个节点可指定多个审批人，任一审批人通过即可进入下一节点。
+- 工单统一流转：草稿、审批中、已驳回、已审批、执行中、待验收、已关闭、已取消。
+- 申请人验收通过后，系统写回资产台账并生成《IT配置变更申请表》PDF 归档。
+- 工单关闭后可在详情页下载单个归档 PDF，也可在列表勾选多个已归档工单批量下载 ZIP。
 - 工单列表支持“我的待办 / 我提交的 / 全部”视图。
 - 工单详情支持参与人评论、附件上传和下载。
+
+归档相关环境变量：
+
+```text
+TICKET_ARCHIVE_DIR=./data/ticket-archives
+TICKET_TEMPLATE_PATH=../templates/ticket-it-change-template.docx
+LIBREOFFICE_BIN=soffice
+```
+
+生成 PDF 需要本机安装 LibreOffice。Ubuntu 部署建议安装 `libreoffice-writer` 和 `fonts-noto-cjk`。
 
 ## v2.2 AD 域控接入
 

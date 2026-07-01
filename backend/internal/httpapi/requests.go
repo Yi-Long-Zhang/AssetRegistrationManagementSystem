@@ -99,19 +99,45 @@ func (r assetRequest) toModel() model.Asset {
 }
 
 type ticketRequest struct {
-	Type        model.TicketType `json:"type" binding:"required"`
-	Title       string           `json:"title" binding:"required"`
-	AssetID     *uint            `json:"assetId"`
-	Priority    model.Priority   `json:"priority"`
-	Description string           `json:"description"`
+	Type            model.TicketType `json:"type" binding:"required"`
+	Title           string           `json:"title" binding:"required"`
+	AssetID         *uint            `json:"assetId"`
+	Priority        model.Priority   `json:"priority"`
+	Description     string           `json:"description"`
+	DeviceType      string           `json:"deviceType"`
+	DeviceName      string           `json:"deviceName"`
+	IPAddress       string           `json:"ipAddress"`
+	OpenPorts       string           `json:"openPorts"`
+	RunningServices string           `json:"runningServices"`
+	AppVersion      string           `json:"appVersion"`
+	Manufacturer    string           `json:"manufacturer"`
+	Antivirus       string           `json:"antivirus"`
+	ChangeContent   string           `json:"changeContent"`
+	Impact          string           `json:"impact"`
+	Remark          string           `json:"remark"`
 }
 
 type ticketTypeApproverRequest struct {
 	ApproverID uint `json:"approverId" binding:"required"`
 }
 
+type workflowRequest struct {
+	Name    string                `json:"name"`
+	Enabled bool                  `json:"enabled"`
+	Nodes   []workflowNodeRequest `json:"nodes" binding:"required"`
+}
+
+type workflowNodeRequest struct {
+	Name        string `json:"name" binding:"required"`
+	ApproverIDs []uint `json:"approverIds" binding:"required"`
+}
+
 type ticketCommentRequest struct {
 	Content string `json:"content" binding:"required"`
+}
+
+type ticketArchiveBatchRequest struct {
+	IDs []uint `json:"ids" binding:"required"`
 }
 
 type adConfigRequest struct {

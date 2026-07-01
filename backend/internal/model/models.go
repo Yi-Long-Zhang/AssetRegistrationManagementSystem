@@ -80,26 +80,95 @@ type Asset struct {
 }
 
 type Ticket struct {
-	ID          uint               `json:"id" gorm:"primaryKey"`
-	Type        TicketType         `json:"type" gorm:"size:32;not null;index"`
-	Title       string             `json:"title" gorm:"size:200;not null"`
-	ApplicantID uint               `json:"applicantId" gorm:"not null;index"`
-	Applicant   User               `json:"applicant" gorm:"foreignKey:ApplicantID"`
-	AssetID     *uint              `json:"assetId" gorm:"index"`
-	Asset       *Asset             `json:"asset,omitempty" gorm:"foreignKey:AssetID"`
-	Status      TicketStatus       `json:"status" gorm:"size:32;not null;index"`
-	ApproverID  *uint              `json:"approverId" gorm:"index"`
-	Approver    *User              `json:"approver,omitempty" gorm:"foreignKey:ApproverID"`
-	ExecutorID  *uint              `json:"executorId" gorm:"index"`
-	Executor    *User              `json:"executor,omitempty" gorm:"foreignKey:ExecutorID"`
-	Priority    Priority           `json:"priority" gorm:"size:32;not null"`
-	Description string             `json:"description" gorm:"type:text"`
-	Result      string             `json:"result" gorm:"type:text"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	UpdatedAt   time.Time          `json:"updatedAt"`
-	Records     []TicketRecord     `json:"records,omitempty"`
-	Comments    []TicketComment    `json:"comments,omitempty"`
-	Attachments []TicketAttachment `json:"attachments,omitempty"`
+	ID                      uint                 `json:"id" gorm:"primaryKey"`
+	Type                    TicketType           `json:"type" gorm:"size:32;not null;index"`
+	Title                   string               `json:"title" gorm:"size:200;not null"`
+	ApplicantID             uint                 `json:"applicantId" gorm:"not null;index"`
+	Applicant               User                 `json:"applicant" gorm:"foreignKey:ApplicantID"`
+	AssetID                 *uint                `json:"assetId" gorm:"index"`
+	Asset                   *Asset               `json:"asset,omitempty" gorm:"foreignKey:AssetID"`
+	Status                  TicketStatus         `json:"status" gorm:"size:32;not null;index"`
+	ApproverID              *uint                `json:"approverId" gorm:"index"`
+	Approver                *User                `json:"approver,omitempty" gorm:"foreignKey:ApproverID"`
+	ExecutorID              *uint                `json:"executorId" gorm:"index"`
+	Executor                *User                `json:"executor,omitempty" gorm:"foreignKey:ExecutorID"`
+	CurrentWorkflowStepID   *uint                `json:"currentWorkflowStepId" gorm:"index"`
+	CurrentWorkflowStepName string               `json:"currentWorkflowStepName" gorm:"size:128"`
+	ArchiveNo               string               `json:"archiveNo" gorm:"size:64;uniqueIndex"`
+	ArchivePath             string               `json:"-" gorm:"size:512"`
+	ArchivedAt              *time.Time           `json:"archivedAt"`
+	Priority                Priority             `json:"priority" gorm:"size:32;not null"`
+	Description             string               `json:"description" gorm:"type:text"`
+	Result                  string               `json:"result" gorm:"type:text"`
+	AcceptanceResult        string               `json:"acceptanceResult" gorm:"type:text"`
+	DeviceType              string               `json:"deviceType" gorm:"size:64"`
+	DeviceName              string               `json:"deviceName" gorm:"size:128"`
+	IPAddress               string               `json:"ipAddress" gorm:"size:64;index"`
+	OpenPorts               string               `json:"openPorts" gorm:"type:text"`
+	RunningServices         string               `json:"runningServices" gorm:"type:text"`
+	AppVersion              string               `json:"appVersion" gorm:"type:text"`
+	Manufacturer            string               `json:"manufacturer" gorm:"size:128"`
+	Antivirus               string               `json:"antivirus" gorm:"size:128"`
+	ChangeContent           string               `json:"changeContent" gorm:"type:text"`
+	Impact                  string               `json:"impact" gorm:"type:text"`
+	Remark                  string               `json:"remark" gorm:"type:text"`
+	CreatedAt               time.Time            `json:"createdAt"`
+	UpdatedAt               time.Time            `json:"updatedAt"`
+	Records                 []TicketRecord       `json:"records,omitempty"`
+	Comments                []TicketComment      `json:"comments,omitempty"`
+	Attachments             []TicketAttachment   `json:"attachments,omitempty"`
+	WorkflowSteps           []TicketWorkflowStep `json:"workflowSteps,omitempty"`
+}
+
+type TicketWorkflow struct {
+	ID        uint                 `json:"id" gorm:"primaryKey"`
+	Type      TicketType           `json:"type" gorm:"uniqueIndex;size:32;not null"`
+	Name      string               `json:"name" gorm:"size:128;not null"`
+	Enabled   bool                 `json:"enabled" gorm:"not null;default:true"`
+	CreatedAt time.Time            `json:"createdAt"`
+	UpdatedAt time.Time            `json:"updatedAt"`
+	Nodes     []TicketWorkflowNode `json:"nodes,omitempty" gorm:"foreignKey:WorkflowID;constraint:OnDelete:CASCADE"`
+}
+
+type TicketWorkflowNode struct {
+	ID         uint                         `json:"id" gorm:"primaryKey"`
+	WorkflowID uint                         `json:"workflowId" gorm:"not null;index"`
+	Name       string                       `json:"name" gorm:"size:128;not null"`
+	SortOrder  int                          `json:"sortOrder" gorm:"not null;index"`
+	CreatedAt  time.Time                    `json:"createdAt"`
+	UpdatedAt  time.Time                    `json:"updatedAt"`
+	Approvers  []TicketWorkflowNodeApprover `json:"approvers,omitempty" gorm:"foreignKey:NodeID;constraint:OnDelete:CASCADE"`
+}
+
+type TicketWorkflowNodeApprover struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	NodeID    uint      `json:"nodeId" gorm:"not null;index"`
+	UserID    uint      `json:"userId" gorm:"not null;index"`
+	User      User      `json:"user" gorm:"foreignKey:UserID"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type TicketWorkflowStep struct {
+	ID        uint                         `json:"id" gorm:"primaryKey"`
+	TicketID  uint                         `json:"ticketId" gorm:"not null;index"`
+	Name      string                       `json:"name" gorm:"size:128;not null"`
+	SortOrder int                          `json:"sortOrder" gorm:"not null;index"`
+	Status    string                       `json:"status" gorm:"size:32;not null;index"`
+	ActorID   *uint                        `json:"actorId" gorm:"index"`
+	Actor     *User                        `json:"actor,omitempty" gorm:"foreignKey:ActorID"`
+	Remark    string                       `json:"remark" gorm:"type:text"`
+	ActedAt   *time.Time                   `json:"actedAt"`
+	CreatedAt time.Time                    `json:"createdAt"`
+	UpdatedAt time.Time                    `json:"updatedAt"`
+	Approvers []TicketWorkflowStepApprover `json:"approvers,omitempty" gorm:"foreignKey:StepID;constraint:OnDelete:CASCADE"`
+}
+
+type TicketWorkflowStepApprover struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	StepID    uint      `json:"stepId" gorm:"not null;index"`
+	UserID    uint      `json:"userId" gorm:"not null;index"`
+	User      User      `json:"user" gorm:"foreignKey:UserID"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type TicketTypeApprover struct {

@@ -20,7 +20,7 @@ if [ ! -f "$ENV_SOURCE" ] && [ ! -f "$ENV_TARGET" ]; then
 fi
 
 apt-get update
-apt-get install -y nginx ca-certificates tar rsync
+apt-get install -y nginx ca-certificates tar rsync libreoffice-writer fonts-noto-cjk
 
 if ! id "$APP_USER" >/dev/null 2>&1; then
   useradd --system --home "$APP_DIR" --shell /usr/sbin/nologin "$APP_USER"
@@ -31,8 +31,10 @@ install -d -m 0755 "$APP_DIR/backend"
 install -d -m 0755 "$APP_DIR/frontend"
 install -d -m 0750 "$APP_DIR/data"
 install -d -m 0750 "$APP_DIR/data/attachments"
+install -d -m 0750 "$APP_DIR/data/ticket-archives"
 install -d -m 0750 "$APP_DIR/backups"
 install -d -m 0755 "$APP_DIR/scripts"
+install -d -m 0755 "$APP_DIR/templates"
 
 if systemctl is-active --quiet "$APP_NAME"; then
   systemctl stop "$APP_NAME"
@@ -40,13 +42,16 @@ fi
 
 install -m 0755 "$PACKAGE_DIR/backend/asset-management-server" "$APP_DIR/backend/asset-management-server"
 rsync -a --delete "$PACKAGE_DIR/frontend/" "$APP_DIR/frontend/"
+if [ -d "$PACKAGE_DIR/templates" ]; then
+  rsync -a --delete "$PACKAGE_DIR/templates/" "$APP_DIR/templates/"
+fi
 if [ -f "$ENV_SOURCE" ]; then
   install -m 0640 "$ENV_SOURCE" "$ENV_TARGET"
 fi
 install -m 0755 "$PACKAGE_DIR/scripts/backup.sh" "$APP_DIR/scripts/backup.sh"
 
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
-chmod 0750 "$APP_DIR/data" "$APP_DIR/data/attachments" "$APP_DIR/backups"
+chmod 0750 "$APP_DIR/data" "$APP_DIR/data/attachments" "$APP_DIR/data/ticket-archives" "$APP_DIR/backups"
 chmod 0640 "$ENV_TARGET"
 
 install -m 0644 "$PACKAGE_DIR/systemd/asset-management.service" "/etc/systemd/system/$APP_NAME.service"
