@@ -125,7 +125,7 @@
   - Swagger：接口有变化时更新注解并重新生成 docs（`go run github.com/swaggo/swag/cmd/swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal`）。
   - 配置/部署：环境变量或部署方式变化时同步 `config.example.yaml` 与部署文档。
 - 合并采用 squash merge：`git checkout main && git merge --squash feature/<功能名> && git commit`，提交信息遵循 Conventional Commits（含 Changes / Validation 正文）。
-- 合并完成后删除功能分支：`git branch -D feature/<功能名>`（squash merge 与功能分支无祖先链接，须用 `-D` 强制删除）。
+- 合并完成后**保留功能分支**，便于回溯功能开发过程与验证记录；不得删除功能分支（`git branch -D feature/<功能名>` 禁止使用）。如需归档，可将分支推送到远程长期保留。
 
 ## 7. Security Notes（安全规范）
 - `JWT_SECRET`、`CONFIG_ENCRYPTION_KEY`、AD Bind 密码不得写入代码或文档示例之外的真实值。
