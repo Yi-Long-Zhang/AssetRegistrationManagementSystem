@@ -53,3 +53,42 @@ const (
 	PriorityHigh   Priority = "high"
 	PriorityUrgent Priority = "urgent"
 )
+
+// AssetOnlineStatus 资产在线状态（与生命周期 AssetStatus 分离）
+type AssetOnlineStatus string
+
+const (
+	AssetOnlineStatusOnline  AssetOnlineStatus = "online"
+	AssetOnlineStatusOffline AssetOnlineStatus = "offline"
+	AssetOnlineStatusUnknown AssetOnlineStatus = "unknown"
+)
+
+// DiscoveryRunStatus 发现运行状态
+type DiscoveryRunStatus string
+
+const (
+	DiscoveryRunStatusRunning DiscoveryRunStatus = "running"
+	DiscoveryRunStatusSuccess DiscoveryRunStatus = "success"
+	DiscoveryRunStatusFailed  DiscoveryRunStatus = "failed"
+)
+
+// DiscoveryChangeType 单台主机的发现比对结果
+type DiscoveryChangeType string
+
+const (
+	DiscoveryChangeNew     DiscoveryChangeType = "new"
+	DiscoveryChangeChanged DiscoveryChangeType = "changed"
+	DiscoveryChangeOffline DiscoveryChangeType = "offline"
+	DiscoveryChangeOnline  DiscoveryChangeType = "online"
+	DiscoveryChangeNone    DiscoveryChangeType = "none"
+)
+
+// SnapshotSource 资产快照来源
+type SnapshotSource string
+
+const (
+	SnapshotSourceDiscovery SnapshotSource = "discovery"
+	SnapshotSourceTicket    SnapshotSource = "ticket"
+	SnapshotSourceImport    SnapshotSource = "import"
+	SnapshotSourceManual    SnapshotSource = "manual"
+)

@@ -36,6 +36,9 @@
         <el-input v-model="filters.owner" placeholder="负责人" clearable @keyup.enter="applyFilters" />
         <el-input v-model="filters.openPort" placeholder="端口" clearable @keyup.enter="applyFilters" />
         <el-input v-model="filters.service" placeholder="服务/应用" clearable @keyup.enter="applyFilters" />
+        <el-select v-model="filters.onlineStatus" placeholder="在线状态" clearable style="width: 130px" @change="applyFilters">
+          <el-option v-for="(item, key) in onlineStatusOptions" :key="key" :label="item.label" :value="key" />
+        </el-select>
         <el-button :icon="Search" type="primary" @click="applyFilters">查询</el-button>
         <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
         <el-popover placement="bottom-end" width="220" trigger="click">
@@ -51,7 +54,7 @@
       </template>
     </DataToolbar>
     <div class="panel">
-      <el-table :data="items" v-loading="loading" border height="560" @sort-change="handleSortChange">
+      <el-table :data="items" v-loading="loading" border height="560" @sort-change="handleSortChange" @row-click="openDetail">
         <el-table-column
           v-for="column in visibleColumns"
           :key="column.key"
@@ -63,10 +66,15 @@
           :sortable="column.sortable ? 'custom' : false"
           :show-overflow-tooltip="column.tooltip"
         />
+        <el-table-column label="在线状态" width="90" fixed="right">
+          <template #default="{ row }">
+            <el-tag :type="dictItem(onlineStatusMap, row.onlineStatus).type" size="small">{{ dictItem(onlineStatusMap, row.onlineStatus).label }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column v-if="canManage" label="操作" width="160" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <ConfirmAction link type="danger" :message="`确认删除资产 ${row.ip}？`" @confirm="remove(row)">删除</ConfirmAction>
+            <el-button link type="primary" @click.stop="openEdit(row)">编辑</el-button>
+            <ConfirmAction link type="danger" :message="`确认删除资产 ${row.ip}？`" @click.stop @confirm="remove(row)">删除</ConfirmAction>
           </template>
         </el-table-column>
       </el-table>
@@ -111,6 +119,50 @@
         <el-button type="primary" @click="save">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 资产详情 + 变更历史 -->
+    <el-drawer v-model="detail.visible" :title="detail.asset ? `${detail.asset.hostname} (${detail.asset.ip})` : '资产详情'" size="60%">
+      <template v-if="detail.asset">
+        <el-descriptions :column="3" border size="small">
+          <el-descriptions-item label="资产编号">{{ detail.asset.assetNo }}</el-descriptions-item>
+          <el-descriptions-item label="IP地址">{{ detail.asset.ip }}</el-descriptions-item>
+          <el-descriptions-item label="在线状态">
+            <el-tag :type="dictItem(onlineStatusMap, detail.asset.onlineStatus).type" size="small">{{ dictItem(onlineStatusMap, detail.asset.onlineStatus).label }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="生命周期状态">{{ dictItem(assetStatusMap, detail.asset.status).label }}</el-descriptions-item>
+          <el-descriptions-item label="操作系统">{{ detail.asset.os }}</el-descriptions-item>
+          <el-descriptions-item label="资产归属">{{ detail.asset.owner }}</el-descriptions-item>
+          <el-descriptions-item label="所在网段">{{ detail.asset.subnet }}</el-descriptions-item>
+          <el-descriptions-item label="最近发现时间">{{ formatTime(detail.asset.lastSeenAt) }}</el-descriptions-item>
+          <el-descriptions-item label="首次发现时间">{{ formatTime(detail.asset.discoveredAt) }}</el-descriptions-item>
+        </el-descriptions>
+        <el-tabs style="margin-top: 16px">
+          <el-tab-pane label="开放端口与服务">
+            <div class="detail-block">
+              <div class="detail-label">开放端口</div>
+              <pre>{{ detail.asset.openPorts || '-' }}</pre>
+              <div class="detail-label">运行服务/应用</div>
+              <pre>{{ detail.asset.runningServices || '-' }}</pre>
+              <div class="detail-label">应用版本</div>
+              <pre>{{ detail.asset.appVersion || '-' }}</pre>
+            </div>
+          </el-tab-pane>
+          <el-tab-pane label="变更历史">
+            <el-timeline v-loading="detail.loading">
+              <el-timeline-item v-for="snap in detail.history" :key="snap.id" :timestamp="formatTime(snap.createdAt)" placement="top">
+                <div class="snap-head">
+                  <el-tag size="small" :type="dictItem(snapshotSourceMap, snap.source).type">{{ dictItem(snapshotSourceMap, snap.source).label }}</el-tag>
+                  <el-tag size="small" :type="snap.changeType === 'create' ? 'success' : snap.changeType === 'offline' ? 'danger' : snap.changeType === 'online' ? 'primary' : 'warning'">{{ snap.changeType }}</el-tag>
+                </div>
+                <pre v-if="snap.diffSummary" class="snap-diff">{{ snap.diffSummary }}</pre>
+                <span v-else class="snap-empty">无字段变化（创建或首次快照）</span>
+              </el-timeline-item>
+              <el-empty v-if="!detail.loading && !detail.history.length" description="暂无变更历史" />
+            </el-timeline>
+          </el-tab-pane>
+        </el-tabs>
+      </template>
+    </el-drawer>
   </section>
 </template>
 
@@ -119,11 +171,19 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Plus, Refresh, Search, Setting, Upload } from '@element-plus/icons-vue'
 import { assetsApi } from '../api'
+import { discoveryApi } from '../api/discovery'
 import ConfirmAction from '../components/common/ConfirmAction.vue'
 import DataToolbar from '../components/common/DataToolbar.vue'
 import PageHeader from '../components/common/PageHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { canManageAssets } from '../utils/permissions'
+import {
+  ASSET_STATUS_MAP,
+  ONLINE_STATUS_MAP,
+  SNAPSHOT_SOURCE_MAP,
+  dictItem,
+  dictOptions
+} from '../constants/dictionaries'
 
 const auth = useAuthStore()
 const canManage = computed(() => canManageAssets(auth.user))
@@ -138,7 +198,8 @@ const filters = reactive({
   owner: '',
   manufacturer: '',
   openPort: '',
-  service: ''
+  service: '',
+  onlineStatus: ''
 })
 const pagination = reactive({
   page: 1,
@@ -181,6 +242,34 @@ const topAssetTypeText = computed(() => {
   const top = stats.byAssetType?.[0]
   return top ? `${top.label || '未填'} ${top.count}` : '-'
 })
+
+const onlineStatusMap = ONLINE_STATUS_MAP
+const onlineStatusOptions = dictOptions(ONLINE_STATUS_MAP)
+const assetStatusMap = ASSET_STATUS_MAP
+const snapshotSourceMap = SNAPSHOT_SOURCE_MAP
+
+const detail = reactive({ visible: false, asset: null, history: [], loading: false })
+
+function formatTime(value) {
+  if (!value) return '-'
+  const d = new Date(value)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+async function openDetail(row) {
+  detail.asset = row
+  detail.history = []
+  detail.visible = true
+  detail.loading = true
+  try {
+    detail.history = await discoveryApi.assetHistory(row.id)
+  } catch {
+    ElMessage.error('加载变更历史失败')
+  } finally {
+    detail.loading = false
+  }
+}
 
 function emptyAsset() {
   return {
@@ -436,6 +525,46 @@ onMounted(load)
   display: flex;
   justify-content: flex-end;
   padding-top: 12px;
+}
+
+.detail-block .detail-label {
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.detail-block pre {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 13px;
+}
+
+.snap-head {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.snap-diff {
+  margin: 0;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 12px;
+  color: #374151;
+}
+
+.snap-empty {
+  color: #9ca3af;
+  font-size: 12px;
 }
 
 :deep(.toolbar-actions) {

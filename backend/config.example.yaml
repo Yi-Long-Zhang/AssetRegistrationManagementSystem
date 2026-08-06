@@ -27,3 +27,10 @@ admin:
 
 cors:
   allowed_origins: "*"
+
+discovery:
+  # 资产自动发现（nmap）配置；nmap_bin 留空时自动探测 tools/nmap/<platform>/ 与系统 PATH
+  nmap_bin: ""
+  scan_timeout_sec: 300
+  default_ports: "22,80,443,3389"
+  max_hosts: 1024

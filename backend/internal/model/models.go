@@ -56,42 +56,45 @@ type MailConfig struct {
 }
 
 type Asset struct {
-	ID                 uint           `json:"id" gorm:"primaryKey"`
-	AssetNo            string         `json:"assetNo" gorm:"uniqueIndex;size:64;not null"`
-	SequenceNo         string         `json:"sequenceNo" gorm:"size:64"`
-	AssetType          string         `json:"assetType" gorm:"size:64"`
-	Hostname           string         `json:"hostname" gorm:"size:128;not null"`
-	IP                 string         `json:"ip" gorm:"size:64;not null;index"`
-	MACAddress         string         `json:"macAddress" gorm:"size:128;index"`
-	ManagementIP       string         `json:"managementIp" gorm:"size:64"`
-	SerialNo           string         `json:"serialNo" gorm:"size:128;index"`
-	Manufacturer       string         `json:"manufacturer" gorm:"size:128"`
-	Model              string         `json:"model" gorm:"size:128"`
-	Location           string         `json:"location" gorm:"size:128"`
-	Rack               string         `json:"rack" gorm:"size:128"`
-	RackPosition       string         `json:"rackPosition" gorm:"size:64"`
-	OS                 string         `json:"os" gorm:"size:128"`
-	OSVersion          string         `json:"osVersion" gorm:"size:128"`
-	CPU                string         `json:"cpu" gorm:"size:128"`
-	Memory             string         `json:"memory" gorm:"size:128"`
-	Disk               string         `json:"disk" gorm:"size:128"`
-	OpenPorts          string         `json:"openPorts" gorm:"type:text"`
-	RunningServices    string         `json:"runningServices" gorm:"type:text"`
-	AppVersion         string         `json:"appVersion" gorm:"type:text"`
-	Subnet             string         `json:"subnet" gorm:"size:128;index"`
-	BusinessSystem     string         `json:"businessSystem" gorm:"size:128;index"`
-	Environment        string         `json:"environment" gorm:"size:64"`
-	Department         string         `json:"department" gorm:"size:128"`
-	Owner              string         `json:"owner" gorm:"size:128"`
-	MaintenanceVendor  string         `json:"maintenanceVendor" gorm:"size:128"`
-	PurchaseDate       *time.Time     `json:"purchaseDate"`
-	WarrantyExpireDate *time.Time     `json:"warrantyExpireDate"`
-	Status             AssetStatus    `json:"status" gorm:"size:32;not null;index"`
-	OnlineDate         *time.Time     `json:"onlineDate"`
-	Remark             string         `json:"remark" gorm:"type:text"`
-	CreatedAt          time.Time      `json:"createdAt"`
-	UpdatedAt          time.Time      `json:"updatedAt"`
-	DeletedAt          gorm.DeletedAt `json:"-" gorm:"index"`
+	ID                 uint              `json:"id" gorm:"primaryKey"`
+	AssetNo            string            `json:"assetNo" gorm:"uniqueIndex;size:64;not null"`
+	SequenceNo         string            `json:"sequenceNo" gorm:"size:64"`
+	AssetType          string            `json:"assetType" gorm:"size:64"`
+	Hostname           string            `json:"hostname" gorm:"size:128;not null"`
+	IP                 string            `json:"ip" gorm:"size:64;not null;index"`
+	MACAddress         string            `json:"macAddress" gorm:"size:128;index"`
+	ManagementIP       string            `json:"managementIp" gorm:"size:64"`
+	SerialNo           string            `json:"serialNo" gorm:"size:128;index"`
+	Manufacturer       string            `json:"manufacturer" gorm:"size:128"`
+	Model              string            `json:"model" gorm:"size:128"`
+	Location           string            `json:"location" gorm:"size:128"`
+	Rack               string            `json:"rack" gorm:"size:128"`
+	RackPosition       string            `json:"rackPosition" gorm:"size:64"`
+	OS                 string            `json:"os" gorm:"size:128"`
+	OSVersion          string            `json:"osVersion" gorm:"size:128"`
+	CPU                string            `json:"cpu" gorm:"size:128"`
+	Memory             string            `json:"memory" gorm:"size:128"`
+	Disk               string            `json:"disk" gorm:"size:128"`
+	OpenPorts          string            `json:"openPorts" gorm:"type:text"`
+	RunningServices    string            `json:"runningServices" gorm:"type:text"`
+	AppVersion         string            `json:"appVersion" gorm:"type:text"`
+	Subnet             string            `json:"subnet" gorm:"size:128;index"`
+	BusinessSystem     string            `json:"businessSystem" gorm:"size:128;index"`
+	Environment        string            `json:"environment" gorm:"size:64"`
+	Department         string            `json:"department" gorm:"size:128"`
+	Owner              string            `json:"owner" gorm:"size:128"`
+	MaintenanceVendor  string            `json:"maintenanceVendor" gorm:"size:128"`
+	PurchaseDate       *time.Time        `json:"purchaseDate"`
+	WarrantyExpireDate *time.Time        `json:"warrantyExpireDate"`
+	Status             AssetStatus       `json:"status" gorm:"size:32;not null;index"`
+	OnlineStatus       AssetOnlineStatus `json:"onlineStatus" gorm:"size:32;not null;default:unknown;index"`
+	LastSeenAt         *time.Time        `json:"lastSeenAt"`
+	DiscoveredAt       *time.Time        `json:"discoveredAt"`
+	OnlineDate         *time.Time        `json:"onlineDate"`
+	Remark             string            `json:"remark" gorm:"type:text"`
+	CreatedAt          time.Time         `json:"createdAt"`
+	UpdatedAt          time.Time         `json:"updatedAt"`
+	DeletedAt          gorm.DeletedAt    `json:"-" gorm:"index"`
 }
 
 type Ticket struct {
@@ -237,4 +240,70 @@ type AuditLog struct {
 	Action    string    `json:"action" gorm:"size:64;not null"`
 	Detail    string    `json:"detail" gorm:"type:text"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// DiscoveryRule 资产发现规则：定义扫描目标与行为
+type DiscoveryRule struct {
+	ID              uint       `json:"id" gorm:"primaryKey"`
+	Name            string     `json:"name" gorm:"size:128;not null"`
+	Targets         string     `json:"targets" gorm:"type:text;not null"` // CIDR/IP 列表，逗号分隔
+	Ports           string     `json:"ports" gorm:"size:255"`             // 端口列表，如 "22,80,443"；空=使用默认端口
+	ServiceDetect   bool       `json:"serviceDetect" gorm:"not null;default:false"`
+	IntervalMinutes int        `json:"intervalMinutes" gorm:"not null;default:60"`
+	AutoAdopt       bool       `json:"autoAdopt" gorm:"not null;default:false"`
+	AutoApply       bool       `json:"autoApply" gorm:"not null;default:false"`
+	Enabled         bool       `json:"enabled" gorm:"not null;default:true"`
+	LastRunAt       *time.Time `json:"lastRunAt"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
+}
+
+// DiscoveryRun 一次发现执行记录
+type DiscoveryRun struct {
+	ID           uint               `json:"id" gorm:"primaryKey"`
+	RuleID       uint               `json:"ruleId" gorm:"not null;index"`
+	Rule         DiscoveryRule      `json:"rule,omitempty" gorm:"foreignKey:RuleID"`
+	Trigger      string             `json:"trigger" gorm:"size:32;not null;default:manual"`
+	Status       DiscoveryRunStatus `json:"status" gorm:"size:32;not null;index"`
+	NewCount     int                `json:"newCount"`
+	ChangedCount int                `json:"changedCount"`
+	OfflineCount int                `json:"offlineCount"`
+	OnlineCount  int                `json:"onlineCount"`
+	TotalHosts   int                `json:"totalHosts"`
+	Error        string             `json:"error" gorm:"type:text"`
+	StartedAt    time.Time          `json:"startedAt"`
+	FinishedAt   *time.Time         `json:"finishedAt"`
+	Hosts        []DiscoveredHost   `json:"hosts,omitempty" gorm:"foreignKey:RunID;constraint:OnDelete:CASCADE"`
+}
+
+// DiscoveredHost 单台主机发现结果
+type DiscoveredHost struct {
+	ID             uint                `json:"id" gorm:"primaryKey"`
+	RunID          uint                `json:"runId" gorm:"not null;index"`
+	IP             string              `json:"ip" gorm:"size:64;not null;index"`
+	Hostname       string              `json:"hostname" gorm:"size:255"`
+	Status         string              `json:"status" gorm:"size:32;not null;default:up"`
+	OpenPorts      string              `json:"openPorts" gorm:"type:text"`
+	Services       string              `json:"services" gorm:"type:text"`
+	OS             string              `json:"os" gorm:"size:255"`
+	ChangeType     DiscoveryChangeType `json:"changeType" gorm:"size:32;not null;index"`
+	MatchedAssetID *uint               `json:"matchedAssetId" gorm:"index"`
+	MatchedAsset   *Asset              `json:"matchedAsset,omitempty" gorm:"foreignKey:MatchedAssetID"`
+	DiffSummary    string              `json:"diffSummary" gorm:"type:text"`
+	Adopted        bool                `json:"adopted" gorm:"not null;default:false"`
+	Applied        bool                `json:"applied" gorm:"not null;default:false"`
+	CreatedAt      time.Time           `json:"createdAt"`
+}
+
+// AssetSnapshot 资产字段快照与相对上一快照的变更 diff
+type AssetSnapshot struct {
+	ID           uint           `json:"id" gorm:"primaryKey"`
+	AssetID      uint           `json:"assetId" gorm:"not null;index"`
+	Source       SnapshotSource `json:"source" gorm:"size:32;not null"`
+	ChangeType   string         `json:"changeType" gorm:"size:32;not null"`
+	SnapshotJSON string         `json:"-" gorm:"type:text;not null"`
+	DiffJSON     string         `json:"-" gorm:"type:text"`
+	DiffSummary  string         `json:"diffSummary" gorm:"type:text"`
+	CreatedBy    *uint          `json:"createdBy" gorm:"index"`
+	CreatedAt    time.Time      `json:"createdAt"`
 }

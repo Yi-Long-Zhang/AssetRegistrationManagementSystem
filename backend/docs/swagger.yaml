@@ -16,6 +16,8 @@ definitions:
         type: string
       department:
         type: string
+      discoveredAt:
+        type: string
       disk:
         type: string
       environment:
@@ -25,6 +27,8 @@ definitions:
       id:
         type: integer
       ip:
+        type: string
+      lastSeenAt:
         type: string
       location:
         type: string
@@ -42,6 +46,8 @@ definitions:
         type: string
       onlineDate:
         type: string
+      onlineStatus:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.AssetOnlineStatus'
       openPorts:
         type: string
       os:
@@ -73,6 +79,33 @@ definitions:
       warrantyExpireDate:
         type: string
     type: object
+  asset-registration-management-system_backend_internal_model.AssetOnlineStatus:
+    enum:
+    - online
+    - offline
+    - unknown
+    type: string
+    x-enum-varnames:
+    - AssetOnlineStatusOnline
+    - AssetOnlineStatusOffline
+    - AssetOnlineStatusUnknown
+  asset-registration-management-system_backend_internal_model.AssetSnapshot:
+    properties:
+      assetId:
+        type: integer
+      changeType:
+        type: string
+      createdAt:
+        type: string
+      createdBy:
+        type: integer
+      diffSummary:
+        type: string
+      id:
+        type: integer
+      source:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.SnapshotSource'
+    type: object
   asset-registration-management-system_backend_internal_model.AssetStatus:
     enum:
     - pending
@@ -87,6 +120,125 @@ definitions:
     - AssetStatusMaintenance
     - AssetStatusRetired
     - AssetStatusDecommission
+  asset-registration-management-system_backend_internal_model.DiscoveredHost:
+    properties:
+      adopted:
+        type: boolean
+      applied:
+        type: boolean
+      changeType:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryChangeType'
+      createdAt:
+        type: string
+      diffSummary:
+        type: string
+      hostname:
+        type: string
+      id:
+        type: integer
+      ip:
+        type: string
+      matchedAsset:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+      matchedAssetId:
+        type: integer
+      openPorts:
+        type: string
+      os:
+        type: string
+      runId:
+        type: integer
+      services:
+        type: string
+      status:
+        type: string
+    type: object
+  asset-registration-management-system_backend_internal_model.DiscoveryChangeType:
+    enum:
+    - new
+    - changed
+    - offline
+    - online
+    - none
+    type: string
+    x-enum-varnames:
+    - DiscoveryChangeNew
+    - DiscoveryChangeChanged
+    - DiscoveryChangeOffline
+    - DiscoveryChangeOnline
+    - DiscoveryChangeNone
+  asset-registration-management-system_backend_internal_model.DiscoveryRule:
+    properties:
+      autoAdopt:
+        type: boolean
+      autoApply:
+        type: boolean
+      createdAt:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: integer
+      intervalMinutes:
+        type: integer
+      lastRunAt:
+        type: string
+      name:
+        type: string
+      ports:
+        description: 端口列表，如 "22,80,443"；空=使用默认端口
+        type: string
+      serviceDetect:
+        type: boolean
+      targets:
+        description: CIDR/IP 列表，逗号分隔
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  asset-registration-management-system_backend_internal_model.DiscoveryRun:
+    properties:
+      changedCount:
+        type: integer
+      error:
+        type: string
+      finishedAt:
+        type: string
+      hosts:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveredHost'
+        type: array
+      id:
+        type: integer
+      newCount:
+        type: integer
+      offlineCount:
+        type: integer
+      onlineCount:
+        type: integer
+      rule:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRule'
+      ruleId:
+        type: integer
+      startedAt:
+        type: string
+      status:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRunStatus'
+      totalHosts:
+        type: integer
+      trigger:
+        type: string
+    type: object
+  asset-registration-management-system_backend_internal_model.DiscoveryRunStatus:
+    enum:
+    - running
+    - success
+    - failed
+    type: string
+    x-enum-varnames:
+    - DiscoveryRunStatusRunning
+    - DiscoveryRunStatusSuccess
+    - DiscoveryRunStatusFailed
   asset-registration-management-system_backend_internal_model.Priority:
     enum:
     - low
@@ -111,6 +263,18 @@ definitions:
     - RoleAssetManager
     - RoleApprover
     - RoleApplicant
+  asset-registration-management-system_backend_internal_model.SnapshotSource:
+    enum:
+    - discovery
+    - ticket
+    - import
+    - manual
+    type: string
+    x-enum-varnames:
+    - SnapshotSourceDiscovery
+    - SnapshotSourceTicket
+    - SnapshotSourceImport
+    - SnapshotSourceManual
   asset-registration-management-system_backend_internal_model.Ticket:
     properties:
       acceptanceResult:
@@ -534,6 +698,37 @@ definitions:
     required:
     - ip
     type: object
+  internal_httpapi.discoveryHostActionRequest:
+    properties:
+      hostIds:
+        items:
+          type: integer
+        type: array
+    required:
+    - hostIds
+    type: object
+  internal_httpapi.discoveryRuleRequest:
+    properties:
+      autoAdopt:
+        type: boolean
+      autoApply:
+        type: boolean
+      enabled:
+        type: boolean
+      intervalMinutes:
+        type: integer
+      name:
+        type: string
+      ports:
+        type: string
+      serviceDetect:
+        type: boolean
+      targets:
+        type: string
+    required:
+    - name
+    - targets
+    type: object
   internal_httpapi.errorResponse:
     properties:
       error:
@@ -939,6 +1134,32 @@ paths:
       summary: 更新资产
       tags:
       - assets
+  /assets/{id}/history:
+    get:
+      parameters:
+      - description: 资产 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/asset-registration-management-system_backend_internal_model.AssetSnapshot'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 资产变更历史
+      tags:
+      - assets
   /assets/export:
     get:
       produces:
@@ -1078,6 +1299,267 @@ paths:
       summary: 当前用户
       tags:
       - auth
+  /discovery/rules:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRule'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 发现规则列表
+      tags:
+      - discovery
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 发现规则
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.discoveryRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRule'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建发现规则
+      tags:
+      - discovery
+  /discovery/rules/{id}:
+    delete:
+      parameters:
+      - description: 规则 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除发现规则
+      tags:
+      - discovery
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 规则 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 发现规则
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.discoveryRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRule'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新发现规则
+      tags:
+      - discovery
+  /discovery/rules/{id}/run:
+    post:
+      parameters:
+      - description: 规则 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRun'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 手动触发发现任务
+      tags:
+      - discovery
+  /discovery/rules/{id}/test:
+    post:
+      parameters:
+      - description: 规则 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 试跑发现规则
+      tags:
+      - discovery
+  /discovery/runs:
+    get:
+      parameters:
+      - description: 规则 ID
+        in: query
+        name: ruleId
+        type: integer
+      - description: 状态
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 运行记录列表
+      tags:
+      - discovery
+  /discovery/runs/{id}:
+    get:
+      parameters:
+      - description: 运行 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRun'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 运行记录详情
+      tags:
+      - discovery
+  /discovery/runs/{id}/adopt:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 运行 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 主机 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.discoveryHostActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 纳管新发现主机
+      tags:
+      - discovery
+  /discovery/runs/{id}/apply:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 运行 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 主机 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.discoveryHostActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 应用发现变更到资产
+      tags:
+      - discovery
   /roles:
     get:
       produces:

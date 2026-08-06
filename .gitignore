@@ -16,6 +16,9 @@ release/
 release.zip
 *.inspect.ndjson
 
+# Portable nmap binaries (downloaded via scripts/setup-nmap.*)
+tools/nmap/
+
 # Local env
 .env
 .env.*

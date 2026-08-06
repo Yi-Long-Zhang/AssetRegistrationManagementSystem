@@ -111,3 +111,27 @@ security:
 swagger:
   enabled: false
 ```
+
+## v2.5 动态资产管理（自动发现 + 变更追踪）
+
+- 管理员或资产管理员可在“资产发现”页面维护发现规则：扫描目标（IP/CIDR）、端口、服务识别（`-sV`）、调度间隔、是否自动纳管。
+- 发现引擎调用系统 **nmap** 执行扫描，解析 `-oX` XML 输出；nmap 通过 `discovery.nmap_bin` 配置或自动探测便携目录/系统 PATH 定位。
+- 首次使用需安装 nmap：
+  - Windows：`powershell -ExecutionPolicy Bypass -File scripts/setup-nmap.ps1`（下载官方便携版到 `tools/nmap/windows/`）
+  - Linux/macOS：`bash scripts/setup-nmap.sh`（通过系统包管理器/Homebrew 安装）
+  - `tools/nmap/` 目录已加入 `.gitignore`，便携二进制不入库
+- 每次扫描结果与资产台账按 IP 比对，产出四类结果：**新增**（未匹配主机，默认人工确认后纳管，规则可开自动纳管）、**变更**（端口/主机名/OS 变化，默认人工确认后应用）、**恢复在线**、**离线**（连续两轮未发现才判定，防止误报）。
+- 纳管与变更应用会写入资产快照与审计日志；资产详情页“变更历史”时间线展示字段级 diff。
+- 资产新增在线状态（`onlineStatus`: online/offline/unknown）与最近发现时间（`lastSeenAt`），资产列表支持按在线状态筛选。
+- 手动编辑资产、工单关闭写回资产也会生成快照，纳入变更历史。
+- 调度器为进程内 ticker（按规则间隔分钟执行），进程重启后按 `lastRunAt` 自然恢复节奏；`POST /discovery/rules/:id/test` 可试跑并检查 nmap 可用性。
+
+相关配置：
+
+```yaml
+discovery:
+  nmap_bin: ""            # 空=自动探测 tools/nmap/<platform>/ 与 PATH
+  scan_timeout_sec: 300   # 单次扫描超时
+  default_ports: "22,80,443,3389"
+  max_hosts: 1024         # 单次扫描最大主机数，防止误配大网段
+```

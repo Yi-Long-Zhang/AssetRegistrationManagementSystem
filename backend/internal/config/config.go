@@ -20,15 +20,16 @@ const (
 )
 
 type Config struct {
-	App      AppConfig      `yaml:"app"`
-	HTTP     HTTPConfig     `yaml:"http"`
-	Storage  StorageConfig  `yaml:"storage"`
-	Security SecurityConfig `yaml:"security"`
-	Auth     AuthConfig     `yaml:"auth"`
-	Swagger  SwaggerConfig  `yaml:"swagger"`
-	Admin    AdminConfig    `yaml:"admin"`
-	CORS     CORSConfig     `yaml:"cors"`
-	TokenTTL time.Duration  `yaml:"-"`
+	App       AppConfig       `yaml:"app"`
+	HTTP      HTTPConfig      `yaml:"http"`
+	Storage   StorageConfig   `yaml:"storage"`
+	Security  SecurityConfig  `yaml:"security"`
+	Auth      AuthConfig      `yaml:"auth"`
+	Swagger   SwaggerConfig   `yaml:"swagger"`
+	Admin     AdminConfig     `yaml:"admin"`
+	CORS      CORSConfig      `yaml:"cors"`
+	Discovery DiscoveryConfig `yaml:"discovery"`
+	TokenTTL  time.Duration   `yaml:"-"`
 }
 
 type AppConfig struct {
@@ -67,6 +68,14 @@ type AdminConfig struct {
 
 type CORSConfig struct {
 	AllowedOrigins string `yaml:"allowed_origins"`
+}
+
+// DiscoveryConfig 资产自动发现（nmap）配置
+type DiscoveryConfig struct {
+	NmapBin        string `yaml:"nmap_bin"`         // 空=自动探测 tools/nmap/<platform>/ 与 PATH
+	ScanTimeoutSec int    `yaml:"scan_timeout_sec"` // 单次扫描超时秒数
+	DefaultPorts   string `yaml:"default_ports"`    // 规则未指定端口时的默认端口列表
+	MaxHosts       int    `yaml:"max_hosts"`        // 单次扫描最大主机数，防止误配大网段
 }
 
 func Load() (Config, error) {
@@ -129,6 +138,12 @@ func defaultConfig() Config {
 		CORS: CORSConfig{
 			AllowedOrigins: "*",
 		},
+		Discovery: DiscoveryConfig{
+			NmapBin:        "",
+			ScanTimeoutSec: 300,
+			DefaultPorts:   "22,80,443,3389",
+			MaxHosts:       1024,
+		},
 		TokenTTL: 24 * time.Hour,
 	}
 }
@@ -173,6 +188,15 @@ func (c *Config) applyDefaults() {
 	}
 	if c.CORS.AllowedOrigins == "" {
 		c.CORS.AllowedOrigins = defaults.CORS.AllowedOrigins
+	}
+	if c.Discovery.ScanTimeoutSec == 0 {
+		c.Discovery.ScanTimeoutSec = defaults.Discovery.ScanTimeoutSec
+	}
+	if c.Discovery.DefaultPorts == "" {
+		c.Discovery.DefaultPorts = defaults.Discovery.DefaultPorts
+	}
+	if c.Discovery.MaxHosts == 0 {
+		c.Discovery.MaxHosts = defaults.Discovery.MaxHosts
 	}
 	if c.TokenTTL == 0 {
 		c.TokenTTL = defaults.TokenTTL

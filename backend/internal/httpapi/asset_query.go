@@ -57,6 +57,9 @@ func applyAssetFilters(db *gorm.DB, c *gin.Context) *gorm.DB {
 	if value := strings.TrimSpace(c.Query("service")); value != "" {
 		db = db.Where("running_services LIKE ?", "%"+value+"%")
 	}
+	if value := strings.TrimSpace(c.Query("onlineStatus")); value != "" {
+		db = db.Where("online_status = ?", value)
+	}
 	return db
 }
 

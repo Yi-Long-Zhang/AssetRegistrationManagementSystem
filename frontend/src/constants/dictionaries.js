@@ -23,6 +23,33 @@ export const ASSET_STATUS_MAP = {
   decommissioned: { label: '已下线', type: 'info' }
 }
 
+export const ONLINE_STATUS_MAP = {
+  online: { label: '在线', type: 'success' },
+  offline: { label: '离线', type: 'danger' },
+  unknown: { label: '未知', type: 'info' }
+}
+
+export const DISCOVERY_RUN_STATUS_MAP = {
+  running: { label: '运行中', type: 'warning' },
+  success: { label: '成功', type: 'success' },
+  failed: { label: '失败', type: 'danger' }
+}
+
+export const DISCOVERY_CHANGE_TYPE_MAP = {
+  new: { label: '新增', type: 'success' },
+  changed: { label: '变更', type: 'warning' },
+  offline: { label: '离线', type: 'danger' },
+  online: { label: '恢复在线', type: 'primary' },
+  none: { label: '无变化', type: 'info' }
+}
+
+export const SNAPSHOT_SOURCE_MAP = {
+  discovery: { label: '自动发现', type: 'primary' },
+  ticket: { label: '工单写回', type: 'warning' },
+  import: { label: '批量导入', type: 'success' },
+  manual: { label: '手动编辑', type: 'info' }
+}
+
 export const TICKET_STATUS_MAP = {
   draft: { label: '草稿', type: 'info' },
   pending_approval: { label: '审批中', type: 'warning' },

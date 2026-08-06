@@ -535,6 +535,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/assets/{id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "assets"
+                ],
+                "summary": "资产变更历史",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "资产 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.AssetSnapshot"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "consumes": [
@@ -630,6 +672,425 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/rules": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "发现规则列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRule"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "创建发现规则",
+                "parameters": [
+                    {
+                        "description": "发现规则",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.discoveryRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRule"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/rules/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "更新发现规则",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "发现规则",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.discoveryRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRule"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "删除发现规则",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/rules/{id}/run": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "手动触发发现任务",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRun"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/rules/{id}/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "试跑发现规则",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "运行记录列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "ruleId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "状态",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/runs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "运行记录详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "运行 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRun"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/runs/{id}/adopt": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "纳管新发现主机",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "运行 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "主机 ID 列表",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.discoveryHostActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/runs/{id}/apply": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "应用发现变更到资产",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "运行 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "主机 ID 列表",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.discoveryHostActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/internal_httpapi.errorResponse"
                         }
@@ -1853,6 +2314,9 @@ const docTemplate = `{
                 "department": {
                     "type": "string"
                 },
+                "discoveredAt": {
+                    "type": "string"
+                },
                 "disk": {
                     "type": "string"
                 },
@@ -1866,6 +2330,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "ip": {
+                    "type": "string"
+                },
+                "lastSeenAt": {
                     "type": "string"
                 },
                 "location": {
@@ -1891,6 +2358,9 @@ const docTemplate = `{
                 },
                 "onlineDate": {
                     "type": "string"
+                },
+                "onlineStatus": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.AssetOnlineStatus"
                 },
                 "openPorts": {
                     "type": "string"
@@ -1939,6 +2409,45 @@ const docTemplate = `{
                 }
             }
         },
+        "asset-registration-management-system_backend_internal_model.AssetOnlineStatus": {
+            "type": "string",
+            "enum": [
+                "online",
+                "offline",
+                "unknown"
+            ],
+            "x-enum-varnames": [
+                "AssetOnlineStatusOnline",
+                "AssetOnlineStatusOffline",
+                "AssetOnlineStatusUnknown"
+            ]
+        },
+        "asset-registration-management-system_backend_internal_model.AssetSnapshot": {
+            "type": "object",
+            "properties": {
+                "assetId": {
+                    "type": "integer"
+                },
+                "changeType": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "integer"
+                },
+                "diffSummary": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "source": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.SnapshotSource"
+                }
+            }
+        },
         "asset-registration-management-system_backend_internal_model.AssetStatus": {
             "type": "string",
             "enum": [
@@ -1954,6 +2463,179 @@ const docTemplate = `{
                 "AssetStatusMaintenance",
                 "AssetStatusRetired",
                 "AssetStatusDecommission"
+            ]
+        },
+        "asset-registration-management-system_backend_internal_model.DiscoveredHost": {
+            "type": "object",
+            "properties": {
+                "adopted": {
+                    "type": "boolean"
+                },
+                "applied": {
+                    "type": "boolean"
+                },
+                "changeType": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryChangeType"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "diffSummary": {
+                    "type": "string"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "matchedAsset": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Asset"
+                },
+                "matchedAssetId": {
+                    "type": "integer"
+                },
+                "openPorts": {
+                    "type": "string"
+                },
+                "os": {
+                    "type": "string"
+                },
+                "runId": {
+                    "type": "integer"
+                },
+                "services": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "asset-registration-management-system_backend_internal_model.DiscoveryChangeType": {
+            "type": "string",
+            "enum": [
+                "new",
+                "changed",
+                "offline",
+                "online",
+                "none"
+            ],
+            "x-enum-varnames": [
+                "DiscoveryChangeNew",
+                "DiscoveryChangeChanged",
+                "DiscoveryChangeOffline",
+                "DiscoveryChangeOnline",
+                "DiscoveryChangeNone"
+            ]
+        },
+        "asset-registration-management-system_backend_internal_model.DiscoveryRule": {
+            "type": "object",
+            "properties": {
+                "autoAdopt": {
+                    "type": "boolean"
+                },
+                "autoApply": {
+                    "type": "boolean"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "intervalMinutes": {
+                    "type": "integer"
+                },
+                "lastRunAt": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ports": {
+                    "description": "端口列表，如 \"22,80,443\"；空=使用默认端口",
+                    "type": "string"
+                },
+                "serviceDetect": {
+                    "type": "boolean"
+                },
+                "targets": {
+                    "description": "CIDR/IP 列表，逗号分隔",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "asset-registration-management-system_backend_internal_model.DiscoveryRun": {
+            "type": "object",
+            "properties": {
+                "changedCount": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "finishedAt": {
+                    "type": "string"
+                },
+                "hosts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveredHost"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "newCount": {
+                    "type": "integer"
+                },
+                "offlineCount": {
+                    "type": "integer"
+                },
+                "onlineCount": {
+                    "type": "integer"
+                },
+                "rule": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRule"
+                },
+                "ruleId": {
+                    "type": "integer"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryRunStatus"
+                },
+                "totalHosts": {
+                    "type": "integer"
+                },
+                "trigger": {
+                    "type": "string"
+                }
+            }
+        },
+        "asset-registration-management-system_backend_internal_model.DiscoveryRunStatus": {
+            "type": "string",
+            "enum": [
+                "running",
+                "success",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "DiscoveryRunStatusRunning",
+                "DiscoveryRunStatusSuccess",
+                "DiscoveryRunStatusFailed"
             ]
         },
         "asset-registration-management-system_backend_internal_model.Priority": {
@@ -1984,6 +2666,21 @@ const docTemplate = `{
                 "RoleAssetManager",
                 "RoleApprover",
                 "RoleApplicant"
+            ]
+        },
+        "asset-registration-management-system_backend_internal_model.SnapshotSource": {
+            "type": "string",
+            "enum": [
+                "discovery",
+                "ticket",
+                "import",
+                "manual"
+            ],
+            "x-enum-varnames": [
+                "SnapshotSourceDiscovery",
+                "SnapshotSourceTicket",
+                "SnapshotSourceImport",
+                "SnapshotSourceManual"
             ]
         },
         "asset-registration-management-system_backend_internal_model.Ticket": {
@@ -2613,6 +3310,53 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "warrantyExpireDate": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.discoveryHostActionRequest": {
+            "type": "object",
+            "required": [
+                "hostIds"
+            ],
+            "properties": {
+                "hostIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_httpapi.discoveryRuleRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "targets"
+            ],
+            "properties": {
+                "autoAdopt": {
+                    "type": "boolean"
+                },
+                "autoApply": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "intervalMinutes": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ports": {
+                    "type": "string"
+                },
+                "serviceDetect": {
+                    "type": "boolean"
+                },
+                "targets": {
                     "type": "string"
                 }
             }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/mail"
 	"os"
@@ -487,6 +488,10 @@ func (h *Handler) UpdateAsset(c *gin.Context) {
 		return
 	}
 	h.audit(currentUser(c).ID, "asset", updated.ID, "update", updated.AssetNo)
+	actorID := currentUser(c).ID
+	if err := (&service.AssetSnapshotter{DB: h.db}).CreateSnapshot(&updated, model.SnapshotSourceManual, &actorID, "update"); err != nil {
+		log.Printf("asset snapshot failed for asset %d: %v", updated.ID, err)
+	}
 	c.JSON(http.StatusOK, updated)
 }
 
@@ -1050,7 +1055,14 @@ func (h *Handler) writeBackTicketAsset(ticket *model.Ticket) error {
 	if ticket.Manufacturer != "" {
 		asset.Manufacturer = ticket.Manufacturer
 	}
-	return h.db.Save(&asset).Error
+	if err := h.db.Save(&asset).Error; err != nil {
+		return err
+	}
+	actorID := uint(0)
+	if err := (&service.AssetSnapshotter{DB: h.db}).CreateSnapshot(&asset, model.SnapshotSourceTicket, &actorID, "update"); err != nil {
+		return err
+	}
+	return nil
 }
 
 func uniqueStoredName(original string) string {

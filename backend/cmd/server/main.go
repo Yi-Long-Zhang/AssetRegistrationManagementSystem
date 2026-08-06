@@ -7,6 +7,7 @@ import (
 	"asset-registration-management-system/backend/internal/database"
 	"asset-registration-management-system/backend/internal/httpapi"
 	"asset-registration-management-system/backend/internal/model"
+	"asset-registration-management-system/backend/internal/service"
 )
 
 // @title Asset Registration Management System API
@@ -43,6 +44,11 @@ func main() {
 		DB:     db,
 		Roles:  model.AllRoles(),
 	})
+
+	discoverySvc := service.NewDiscoveryService(db, cfg)
+	scheduler := service.NewDiscoveryScheduler(discoverySvc)
+	scheduler.Start()
+	defer scheduler.Stop()
 
 	log.Printf("asset registration management backend listening on %s", cfg.HTTP.Addr)
 	if err := router.Run(cfg.HTTP.Addr); err != nil {

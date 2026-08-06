@@ -36,6 +36,10 @@ func Migrate(db *gorm.DB) error {
 		&model.TicketAttachment{},
 		&model.TicketRecord{},
 		&model.AuditLog{},
+		&model.DiscoveryRule{},
+		&model.DiscoveryRun{},
+		&model.DiscoveredHost{},
+		&model.AssetSnapshot{},
 	)
 }
 
