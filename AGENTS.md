@@ -118,14 +118,14 @@
 - 工作区可能存在用户未提交改动；提交前必须用 `git status --short` 确认范围，不要回退或夹带无关文件。
 
 ### 6.1 分支与合并
-- 新功能必须在独立分支上开发，命名 `feature/<功能名>`，从最新的 main 分支切出：`git checkout main && git pull && git checkout -b feature/<功能名>`。
-- 禁止直接在 main 上提交功能代码；仅紧急修复（hotfix）可例外。
+- 新功能必须在独立分支上开发，命名 `feature/<功能名>`，从最新的 hua 分支切出：`git checkout hua && git pull && git checkout -b feature/<功能名>`。
+- 禁止直接在 hua 上提交功能代码；仅紧急修复（hotfix）可例外。
 - 功能开发完整（后端测试/构建、前端构建全部通过）后，先更新文档再合并：
   - README.md：按现有 v2.x 章节风格增补功能说明。
   - Swagger：接口有变化时更新注解并重新生成 docs（`go run github.com/swaggo/swag/cmd/swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal`）。
   - 配置/部署：环境变量或部署方式变化时同步 `config.example.yaml` 与部署文档。
-- 合并采用 squash merge：`git checkout main && git merge --squash feature/<功能名>`，提交信息遵循 Conventional Commits（含 Changes / Validation 正文）。
-- 合并完成后删除功能分支：`git branch -d feature/<功能名>`。
+- 合并采用 squash merge：`git checkout hua && git merge --squash feature/<功能名> && git commit`，提交信息遵循 Conventional Commits（含 Changes / Validation 正文）。
+- 合并完成后删除功能分支：`git branch -D feature/<功能名>`（squash merge 与功能分支无祖先链接，须用 `-D` 强制删除）。
 
 ## 7. Security Notes（安全规范）
 - `JWT_SECRET`、`CONFIG_ENCRYPTION_KEY`、AD Bind 密码不得写入代码或文档示例之外的真实值。
