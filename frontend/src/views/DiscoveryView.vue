@@ -47,10 +47,32 @@
               <el-input v-model="ruleDialog.form.targets" type="textarea" :rows="2" placeholder="IP 或 CIDR，逗号分隔，如 192.168.1.0/24, 10.0.0.5" />
             </el-form-item>
             <el-form-item label="端口">
-              <el-input v-model="ruleDialog.form.ports" placeholder="留空使用默认端口 22,80,443,3389，如 22,80,443" />
+              <el-select
+                v-model="ruleDialog.form.ports"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                placeholder="选择或输入端口，留空使用默认 22,80,443,3389"
+                style="width: 100%"
+              >
+                <el-option v-for="p in commonPorts" :key="p.value" :label="p.label" :value="p.value" />
+              </el-select>
             </el-form-item>
             <el-form-item label="探活端口">
-              <el-input v-model="ruleDialog.form.probePorts" placeholder="两阶段扫描探活用，留空默认 22,80,443,445,3389" />
+              <el-select
+                v-model="ruleDialog.form.probePorts"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                placeholder="选择或输入探活端口，留空默认 22,80,443,445,3389"
+                style="width: 100%"
+              >
+                <el-option v-for="p in probePortOptions" :key="p.value" :label="p.label" :value="p.value" />
+              </el-select>
               <span class="hint">大网段先扫探活端口定位存活主机，再详扫，可大幅提速</span>
             </el-form-item>
             <el-form-item label="调度间隔(分)">
@@ -196,13 +218,60 @@ const emptyRuleForm = () => ({
   id: 0,
   name: '',
   targets: '',
-  ports: '',
-  probePorts: '',
+  ports: [],
+  probePorts: [],
   serviceDetect: false,
   intervalMinutes: 60,
   autoAdopt: false,
   enabled: true
 })
+
+// 常见端口选项（多选下拉，可自由输入自定义端口）
+const commonPorts = [
+  { value: '22', label: '22 SSH' },
+  { value: '21', label: '21 FTP' },
+  { value: '23', label: '23 Telnet' },
+  { value: '25', label: '25 SMTP' },
+  { value: '80', label: '80 HTTP' },
+  { value: '135', label: '135 MSRPC' },
+  { value: '139', label: '139 NetBIOS' },
+  { value: '443', label: '443 HTTPS' },
+  { value: '445', label: '445 SMB' },
+  { value: '8080', label: '8080 HTTP' },
+  { value: '8443', label: '8443 HTTPS' },
+  { value: '3389', label: '3389 RDP' },
+  { value: '3306', label: '3306 MySQL' },
+  { value: '5432', label: '5432 PostgreSQL' },
+  { value: '6379', label: '6379 Redis' },
+  { value: '27017', label: '27017 MongoDB' },
+  { value: '9200', label: '9200 Elasticsearch' }
+]
+
+// 探活端口选项（常用存活探测端口）
+const probePortOptions = [
+  { value: '22', label: '22 SSH' },
+  { value: '80', label: '80 HTTP' },
+  { value: '135', label: '135 MSRPC' },
+  { value: '139', label: '139 NetBIOS' },
+  { value: '443', label: '443 HTTPS' },
+  { value: '445', label: '445 SMB' },
+  { value: '3389', label: '3389 RDP' },
+  { value: '8080', label: '8080 HTTP' }
+]
+
+// 逗号分隔字符串 ↔ 多选数组
+function portsToArray(value) {
+  if (!value) return []
+  return String(value)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function portsToString(value) {
+  if (!Array.isArray(value) || value.length === 0) return ''
+  return value.join(',')
+}
 
 const runStatusMap = DISCOVERY_RUN_STATUS_MAP
 const changeTypeMap = DISCOVERY_CHANGE_TYPE_MAP
@@ -247,7 +316,7 @@ async function loadRules() {
 }
 
 function openRuleDialog(row) {
-  ruleDialog.form = row ? { ...row } : emptyRuleForm()
+  ruleDialog.form = row ? { ...row, ports: portsToArray(row.ports), probePorts: portsToArray(row.probePorts) } : emptyRuleForm()
   ruleDialog.visible = true
 }
 
@@ -259,10 +328,16 @@ async function saveRule() {
   }
   savingRule.value = true
   try {
+    // 多选数组 → 逗号分隔字符串提交
+    const payload = {
+      ...form,
+      ports: portsToString(form.ports),
+      probePorts: portsToString(form.probePorts)
+    }
     if (form.id) {
-      await discoveryApi.updateRule(form.id, form)
+      await discoveryApi.updateRule(form.id, payload)
     } else {
-      await discoveryApi.createRule(form)
+      await discoveryApi.createRule(payload)
     }
     ElMessage.success('保存成功')
     ruleDialog.visible = false
