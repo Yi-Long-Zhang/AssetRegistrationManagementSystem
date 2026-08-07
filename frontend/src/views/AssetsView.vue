@@ -31,49 +31,51 @@
     </div>
     <DataToolbar>
       <template #actions>
-        <template v-for="field in visibleFilterFields" :key="field.key">
-          <el-input
-            v-if="field.component === 'input'"
-            v-model="filters[field.key]"
-            :placeholder="field.placeholder"
-            clearable
-            :style="{ width: field.width + 'px' }"
-            @keyup.enter="applyFilters"
-          />
-          <el-select
-            v-else
-            v-model="filters[field.key]"
-            :placeholder="field.placeholder"
-            clearable
-            :style="{ width: field.width + 'px' }"
-            @change="applyFilters"
-          >
-            <el-option v-for="item in onlineStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
-        </template>
-        <el-button :icon="Search" type="primary" @click="applyFilters">查询</el-button>
-        <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
-        <el-popover placement="bottom-end" width="240" trigger="click">
-          <template #reference>
-            <el-button :icon="Setting">筛选</el-button>
+        <div class="toolbar-scroll">
+          <template v-for="field in visibleFilterFields" :key="field.key">
+            <el-input
+              v-if="field.component === 'input'"
+              v-model="filters[field.key]"
+              :placeholder="field.placeholder"
+              clearable
+              :style="{ width: field.width + 'px' }"
+              @keyup.enter="applyFilters"
+            />
+            <el-select
+              v-else
+              v-model="filters[field.key]"
+              :placeholder="field.placeholder"
+              clearable
+              :style="{ width: field.width + 'px' }"
+              @change="applyFilters"
+            >
+              <el-option v-for="item in onlineStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
           </template>
-          <div class="filter-settings-title">显示筛选字段（自动保存）</div>
-          <el-checkbox-group v-model="filterFieldKeys">
-            <el-checkbox v-for="field in filterFields" :key="field.key" :label="field.key">
-              {{ field.label }}
-            </el-checkbox>
-          </el-checkbox-group>
-        </el-popover>
-        <el-popover placement="bottom-end" width="220" trigger="click">
-          <template #reference>
-            <el-button :icon="Setting">列设置</el-button>
-          </template>
-          <el-checkbox-group v-model="visibleColumnKeys">
-            <el-checkbox v-for="column in columns" :key="column.key" :label="column.key" :disabled="column.required">
-              {{ column.label }}
-            </el-checkbox>
-          </el-checkbox-group>
-        </el-popover>
+          <el-button :icon="Search" type="primary" @click="applyFilters">查询</el-button>
+          <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
+          <el-popover placement="bottom-end" width="240" trigger="click">
+            <template #reference>
+              <el-button :icon="Setting">筛选</el-button>
+            </template>
+            <div class="filter-settings-title">显示筛选字段（自动保存）</div>
+            <el-checkbox-group v-model="filterFieldKeys">
+              <el-checkbox v-for="field in filterFields" :key="field.key" :label="field.key">
+                {{ field.label }}
+              </el-checkbox>
+            </el-checkbox-group>
+          </el-popover>
+          <el-popover placement="bottom-end" width="220" trigger="click">
+            <template #reference>
+              <el-button :icon="Setting">列设置</el-button>
+            </template>
+            <el-checkbox-group v-model="visibleColumnKeys">
+              <el-checkbox v-for="column in columns" :key="column.key" :label="column.key" :disabled="column.required">
+                {{ column.label }}
+              </el-checkbox>
+            </el-checkbox-group>
+          </el-popover>
+        </div>
       </template>
     </DataToolbar>
     <div v-if="activeFilterChips.length" class="filter-chips">
@@ -610,8 +612,21 @@ onMounted(load)
   align-items: center;
   gap: 8px;
   flex-wrap: nowrap;
+  padding: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 10;
+}
+
+/* 外层滚动容器：容纳 hover 上浮与阴影，避免被上下内容裁剪/遮挡 */
+.toolbar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  overflow-y: hidden;
+  padding: 6px 2px 14px;
+  min-width: 0;
 }
 
 .filter-settings-title {
