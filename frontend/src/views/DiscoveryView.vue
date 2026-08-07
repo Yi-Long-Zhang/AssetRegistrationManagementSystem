@@ -60,16 +60,16 @@
                 allow-create
                 default-first-option
                 clearable
-                placeholder="选择或输入端口"
+                placeholder="选择或输入端口，输入后按回车添加"
                 style="width: 100%"
               >
                 <el-option v-for="p in commonPorts" :key="p.value" :label="p.label" :value="p.value" />
               </el-select>
             </el-form-item>
-            <el-form-item v-else label="已选端口">
+            <el-form-item label="已选端口">
               <div class="port-tags">
                 <el-tag v-if="ruleDialog.form.ports.length" size="small" type="info">
-                  {{ portGroupLabel(ruleDialog.form.portGroup) }}组 · {{ ruleDialog.form.ports.length }} 个端口
+                  {{ ruleDialog.form.portGroup === 'custom' ? '自定义' : portGroupLabel(ruleDialog.form.portGroup) }}组 · {{ ruleDialog.form.ports.length }} 个端口
                 </el-tag>
                 <el-tag
                   v-for="(p, idx) in ruleDialog.form.ports.slice(0, 8)"
