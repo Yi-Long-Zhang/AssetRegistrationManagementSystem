@@ -3,15 +3,13 @@
     <el-aside :width="app.sidebarCollapsed ? '64px' : '220px'" class="aside">
       <div class="brand" :class="{ collapsed: app.sidebarCollapsed }">
         <span class="brand-mark">资</span>
-        <span v-if="!app.sidebarCollapsed">资产管理</span>
+        <span v-if="!app.sidebarCollapsed" class="brand-text">资产管理</span>
       </div>
       <el-menu
         router
         :collapse="app.sidebarCollapsed"
         :default-active="$route.path"
-        background-color="#111827"
-        text-color="#d1d5db"
-        active-text-color="#ffffff"
+        class="side-menu"
       >
         <el-menu-item v-for="item in menus" :key="item.path" :index="item.path">
           <el-icon><component :is="iconMap[item.meta.icon] || Menu" /></el-icon>
@@ -22,14 +20,15 @@
     <el-container>
       <el-header class="header">
         <div class="header-left">
-          <el-button text :icon="app.sidebarCollapsed ? Expand : Fold" @click="app.toggleSidebar" />
+          <el-button text class="collapse-btn" :icon="app.sidebarCollapsed ? Expand : Fold" @click="app.toggleSidebar" />
           <span class="header-title">{{ app.pageTitle }}</span>
         </div>
         <el-dropdown trigger="click" @command="handleCommand">
           <button class="user-button">
-            <span>{{ auth.user?.name || auth.user?.username }}</span>
+            <span class="user-avatar">{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</span>
+            <span class="user-name">{{ auth.user?.name || auth.user?.username }}</span>
             <RoleTag :value="auth.user?.role" />
-            <el-icon><ArrowDown /></el-icon>
+            <el-icon class="chevron"><ArrowDown /></el-icon>
           </button>
           <template #dropdown>
             <el-dropdown-menu>
@@ -40,7 +39,11 @@
         </el-dropdown>
       </el-header>
       <el-main>
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <transition name="route-fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>
@@ -79,20 +82,24 @@ async function handleCommand(command) {
   min-height: 100vh;
 }
 
+/* ---------- 侧边栏 ---------- */
 .aside {
-  background: #111827;
-  transition: width 0.2s ease;
+  background:
+    radial-gradient(400px 300px at 0% 0%, rgba(99, 102, 241, 0.25), transparent 70%),
+    #0f1420;
+  transition: width 0.25s ease;
+  overflow-x: hidden;
 }
 
 .brand {
-  height: 56px;
+  height: 60px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 18px;
+  padding: 0 16px;
   color: #fff;
   font-weight: 700;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   white-space: nowrap;
 }
 
@@ -102,23 +109,73 @@ async function handleCommand(command) {
 }
 
 .brand-mark {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: inline-grid;
   place-items: center;
-  border-radius: 6px;
-  background: #2563eb;
+  border-radius: 10px;
+  background: var(--brand-gradient);
   color: #fff;
-  font-size: 15px;
+  font-size: 16px;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
+  flex-shrink: 0;
 }
 
+.brand-text {
+  background: linear-gradient(90deg, #e0e7ff, #c4b5fd);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
+.side-menu {
+  border-right: none;
+  background: transparent;
+  padding: 10px 8px;
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: #9ca3af;
+  --el-menu-hover-bg-color: rgba(255, 255, 255, 0.06);
+  --el-menu-active-color: #ffffff;
+}
+
+.side-menu :deep(.el-menu-item) {
+  height: 44px;
+  line-height: 44px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  transition: background-color 0.2s ease, transform 0.2s ease, color 0.2s ease;
+}
+
+.side-menu :deep(.el-menu-item:hover) {
+  transform: translateX(3px);
+}
+
+.side-menu :deep(.el-menu-item.is-active) {
+  background: var(--brand-gradient);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+}
+
+.side-menu :deep(.el-menu--collapse .el-menu-item) {
+  border-radius: 10px;
+}
+
+/* ---------- 顶栏（毛玻璃） ---------- */
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.7);
+  height: 60px;
+  padding: 0 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .header-left {
@@ -128,24 +185,86 @@ async function handleCommand(command) {
   min-width: 0;
 }
 
+.collapse-btn {
+  color: var(--text-secondary);
+  border-radius: 8px;
+}
+
+.collapse-btn:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
 .header-title {
-  font-weight: 600;
-  color: #111827;
+  font-weight: 700;
+  font-size: 15px;
+  background: linear-gradient(90deg, #4f46e5, #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .user-button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 0;
+  padding: 6px 10px;
   border: none;
   background: transparent;
-  color: #1f2937;
+  color: var(--text-primary);
   cursor: pointer;
   font: inherit;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
 }
 
-.el-menu {
-  border-right: none;
+.user-button:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--brand-gradient);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+.user-name {
+  font-weight: 600;
+}
+
+.chevron {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* ---------- 页面切换过渡 ---------- */
+.route-fade-enter-active,
+.route-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.route-fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.route-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.el-main {
+  background: transparent;
+  padding: 0;
+}
+
+.el-main > * {
+  padding: 24px;
 }
 </style>
