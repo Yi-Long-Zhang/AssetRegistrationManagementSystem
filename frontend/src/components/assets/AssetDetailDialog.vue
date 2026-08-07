@@ -19,7 +19,7 @@
           </div>
           <div class="hero-tags">
             <span class="ip-badge">{{ asset.ip }}</span>
-            <el-tag size="small" effect="dark" class="hero-tag">{{ asset.assetNo }}</el-tag>
+            <el-tag size="small" effect="dark" class="hero-tag">{{ asset.macAddress ? 'MAC ' + asset.macAddress : '无 MAC 信息' }}</el-tag>
             <el-tag size="small" effect="plain" class="hero-tag">{{ asset.assetType || 'server' }}</el-tag>
             <el-tag v-if="asset.sequenceNo" size="small" effect="plain" class="hero-tag">序号 {{ asset.sequenceNo }}</el-tag>
           </div>
@@ -90,7 +90,7 @@
 
       <div class="footer-note">
         <el-icon><InfoFilled /></el-icon>
-        <span>最近发现 {{ formatTime(asset.lastSeenAt) }} · 首次发现 {{ formatTime(asset.discoveredAt) }}</span>
+        <span>资产编号 {{ asset.assetNo }} · 最近发现 {{ formatTime(asset.lastSeenAt) }} · 首次发现 {{ formatTime(asset.discoveredAt) }}</span>
       </div>
     </template>
     <template #footer>
@@ -237,6 +237,10 @@ watch(
   --el-dialog-border-radius: 24px;
 }
 
+.asset-detail-dialog :deep(.el-dialog) {
+  overflow: hidden;
+}
+
 .asset-detail-dialog :deep(.el-dialog__body) {
   padding: 0 24px 8px;
 }
@@ -249,9 +253,10 @@ watch(
   justify-content: space-between;
   gap: 16px;
   padding: 26px 26px 22px;
-  margin: -4px -24px 20px;
+  margin: 0 -24px 20px;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  overflow: hidden; /* 裁切光晕与背景超出部分，与弹窗圆角衔接 */
   background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #a855f7 100%);
-  overflow: hidden;
   animation: hero-in 0.5s ease both;
 }
 
