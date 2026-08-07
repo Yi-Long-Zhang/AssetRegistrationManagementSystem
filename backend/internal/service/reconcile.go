@@ -24,14 +24,23 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 		return err
 	}
 	byIP := make(map[string]*model.Asset, len(assets))
+	byMAC := make(map[string]*model.Asset, len(assets))
 	for i := range assets {
-		byIP[assets[i].IP] = &assets[i]
-		if assets[i].ManagementIP != "" {
-			byIP[assets[i].ManagementIP] = &assets[i]
+		a := &assets[i]
+		for _, ip := range assetIPs(a) {
+			byIP[ip] = a
+		}
+		if a.MACAddress != "" {
+			byMAC[normalizeMAC(a.MACAddress)] = a
 		}
 	}
 
 	seen := make(map[string]bool, len(results))
+	markSeen := func(a *model.Asset) {
+		for _, ip := range assetIPs(a) {
+			seen[ip] = true
+		}
+	}
 	hosts := make([]model.DiscoveredHost, 0, len(results))
 	for _, r := range results {
 		if r.Status != "up" {
@@ -41,13 +50,23 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 		change := model.DiscoveryChangeNew
 		var matchedID *uint
 		var diff string
-		if asset, ok := byIP[r.IP]; ok {
+		// 匹配顺序：MAC（同网段 ARP 最可靠）→ IP（含管理 IP 与关联 IP）
+		var asset *model.Asset
+		if r.MAC != "" {
+			asset = byMAC[normalizeMAC(r.MAC)]
+		}
+		if asset == nil {
+			asset = byIP[r.IP]
+		}
+		if asset != nil {
 			matchedID = &asset.ID
 			change, diff = classifyChange(asset, r)
+			markSeen(asset) // 多网卡/多 IP 资产：其余 IP 一并标记，防止误判离线
 		}
 		hosts = append(hosts, model.DiscoveredHost{
 			RunID:          run.ID,
 			IP:             r.IP,
+			MAC:            r.MAC,
 			Hostname:       r.Hostname,
 			Status:         r.Status,
 			OpenPorts:      strings.Join(r.OpenPorts, ","),
@@ -61,8 +80,8 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 
 	// 离线判定：仅对“本轮未出现”的资产，且上一轮同样未出现时才标记（连续 2 轮）
 	var offline []model.DiscoveredHost
-	for ip, asset := range byIP {
-		if seen[ip] {
+	for _, asset := range byIP {
+		if assetSeen(asset, seen) {
 			continue
 		}
 		if asset.OnlineStatus != model.AssetOnlineStatusOnline && asset.OnlineStatus != model.AssetOnlineStatusUnknown {
@@ -71,7 +90,7 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 		if asset.LastSeenAt == nil {
 			continue // 从未被扫描发现过，无从判定离线
 		}
-		absentPrev, err := absentLastRound(s.DB, run.RuleID, ip, run.ID)
+		absentPrev, err := absentLastRound(s.DB, run.RuleID, assetIPs(asset)[0], run.ID)
 		if err != nil {
 			return err
 		}
@@ -80,7 +99,7 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 		}
 		offline = append(offline, model.DiscoveredHost{
 			RunID:          run.ID,
-			IP:             ip,
+			IP:             assetIPs(asset)[0],
 			Status:         "down",
 			ChangeType:     model.DiscoveryChangeOffline,
 			MatchedAssetID: &asset.ID,
@@ -98,6 +117,9 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 			return err
 		}
 	}
+	// 回填内存态，保证调用方（含单测）可读
+	run.Hosts = append(run.Hosts, hosts...)
+	run.Hosts = append(run.Hosts, offline...)
 
 	run.TotalHosts = len(hosts)
 	run.NewCount = countChange(hosts, model.DiscoveryChangeNew)
@@ -184,6 +206,48 @@ func countChange(hosts []model.DiscoveredHost, t model.DiscoveryChangeType) int 
 		}
 	}
 	return n
+}
+
+// assetIPs 返回资产的全部关联 IP（主 IP + 管理 IP + 附加关联 IP），去空去重。
+func assetIPs(a *model.Asset) []string {
+	var ips []string
+	seen := map[string]bool{}
+	add := func(ip string) {
+		ip = strings.TrimSpace(ip)
+		if ip == "" || seen[ip] {
+			return
+		}
+		seen[ip] = true
+		ips = append(ips, ip)
+	}
+	add(a.IP)
+	add(a.ManagementIP)
+	for _, ip := range strings.Split(a.AdditionalIPs, ",") {
+		add(ip)
+	}
+	return ips
+}
+
+// assetSeen 判断资产任一关联 IP 是否在本轮 seen 集合中。
+func assetSeen(a *model.Asset, seen map[string]bool) bool {
+	for _, ip := range assetIPs(a) {
+		if seen[ip] {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeMAC 归一化 MAC：小写、去分隔符（: - .）。
+func normalizeMAC(mac string) string {
+	mac = strings.ToLower(strings.TrimSpace(mac))
+	var b strings.Builder
+	for _, r := range mac {
+		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // absentLastRound 判断该 IP 在指定规则的上一次成功运行中是否未出现（up）。

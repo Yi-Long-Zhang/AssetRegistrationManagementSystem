@@ -33,4 +33,7 @@ discovery:
   nmap_bin: ""
   scan_timeout_sec: 300
   default_ports: "22,80,443,3389"
+  probe_ports: "22,80,443,445,3389"  # 两阶段扫描探活端口
+  max_parallel_scans: 4              # 大网段分片并行扫描最大并发
+  scan_chunk_size: 128               # 单次扫描主机数上限（分片粒度）
   max_hosts: 1024

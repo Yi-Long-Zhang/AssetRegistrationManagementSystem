@@ -18,6 +18,7 @@ type discoveryRuleRequest struct {
 	Name            string `json:"name" binding:"required"`
 	Targets         string `json:"targets" binding:"required"`
 	Ports           string `json:"ports"`
+	ProbePorts      string `json:"probePorts"`
 	ServiceDetect   bool   `json:"serviceDetect"`
 	IntervalMinutes int    `json:"intervalMinutes"`
 	AutoAdopt       bool   `json:"autoAdopt"`
@@ -34,6 +35,7 @@ func (r discoveryRuleRequest) toModel(id uint) model.DiscoveryRule {
 		Name:            r.Name,
 		Targets:         r.Targets,
 		Ports:           r.Ports,
+		ProbePorts:      r.ProbePorts,
 		ServiceDetect:   r.ServiceDetect,
 		IntervalMinutes: r.IntervalMinutes,
 		AutoAdopt:       r.AutoAdopt,

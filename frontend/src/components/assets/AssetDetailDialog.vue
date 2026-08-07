@@ -22,6 +22,7 @@
             <el-tag size="small" effect="dark" class="hero-tag">{{ asset.macAddress ? 'MAC ' + asset.macAddress : '无 MAC 信息' }}</el-tag>
             <el-tag size="small" effect="plain" class="hero-tag">{{ asset.assetType || 'server' }}</el-tag>
             <el-tag v-if="asset.sequenceNo" size="small" effect="plain" class="hero-tag">序号 {{ asset.sequenceNo }}</el-tag>
+            <el-tag v-if="asset.additionalIPs" size="small" effect="plain" class="hero-tag">关联 {{ asset.additionalIPs }}</el-tag>
           </div>
         </div>
         <div class="hero-icon">

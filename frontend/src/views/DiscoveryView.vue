@@ -49,6 +49,10 @@
             <el-form-item label="端口">
               <el-input v-model="ruleDialog.form.ports" placeholder="留空使用默认端口 22,80,443,3389，如 22,80,443" />
             </el-form-item>
+            <el-form-item label="探活端口">
+              <el-input v-model="ruleDialog.form.probePorts" placeholder="两阶段扫描探活用，留空默认 22,80,443,445,3389" />
+              <span class="hint">大网段先扫探活端口定位存活主机，再详扫，可大幅提速</span>
+            </el-form-item>
             <el-form-item label="调度间隔(分)">
               <el-input-number v-model="ruleDialog.form.intervalMinutes" :min="5" :max="10080" />
             </el-form-item>
@@ -193,6 +197,7 @@ const emptyRuleForm = () => ({
   name: '',
   targets: '',
   ports: '',
+  probePorts: '',
   serviceDetect: false,
   intervalMinutes: 60,
   autoAdopt: false,

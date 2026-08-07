@@ -121,6 +121,7 @@
           <el-col :span="8"><el-form-item label="IP地址"><el-input v-model="form.ip" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="主机名/设备"><el-input v-model="form.hostname" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="MAC地址"><el-input v-model="form.macAddress" /></el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="关联IP"><el-input v-model="form.additionalIPs" placeholder="多网卡 IP，逗号分隔" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="厂商"><el-input v-model="form.manufacturer" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="资产类型"><el-input v-model="form.assetType" placeholder="服务器/网络设备/数据库" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="操作系统"><el-input v-model="form.os" /></el-form-item></el-col>
@@ -255,6 +256,7 @@ function emptyAsset() {
     ip: '',
     macAddress: '',
     managementIp: '',
+    additionalIPs: '',
     serialNo: '',
     manufacturer: '',
     model: '',

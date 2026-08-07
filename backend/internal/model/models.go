@@ -90,6 +90,7 @@ type Asset struct {
 	OnlineStatus       AssetOnlineStatus `json:"onlineStatus" gorm:"size:32;not null;default:unknown;index"`
 	LastSeenAt         *time.Time        `json:"lastSeenAt"`
 	DiscoveredAt       *time.Time        `json:"discoveredAt"`
+	AdditionalIPs      string            `json:"additionalIPs" gorm:"type:text"` // 关联 IP 列表，逗号分隔（多网卡）
 	OnlineDate         *time.Time        `json:"onlineDate"`
 	Remark             string            `json:"remark" gorm:"type:text"`
 	CreatedAt          time.Time         `json:"createdAt"`
@@ -248,6 +249,7 @@ type DiscoveryRule struct {
 	Name            string     `json:"name" gorm:"size:128;not null"`
 	Targets         string     `json:"targets" gorm:"type:text;not null"` // CIDR/IP 列表，逗号分隔
 	Ports           string     `json:"ports" gorm:"size:255"`             // 端口列表，如 "22,80,443"；空=使用默认端口
+	ProbePorts      string     `json:"probePorts" gorm:"size:255"`        // 两阶段扫描探活端口；空=使用配置默认
 	ServiceDetect   bool       `json:"serviceDetect" gorm:"not null;default:false"`
 	IntervalMinutes int        `json:"intervalMinutes" gorm:"not null;default:60"`
 	AutoAdopt       bool       `json:"autoAdopt" gorm:"not null;default:false"`
@@ -281,6 +283,7 @@ type DiscoveredHost struct {
 	ID             uint                `json:"id" gorm:"primaryKey"`
 	RunID          uint                `json:"runId" gorm:"not null;index"`
 	IP             string              `json:"ip" gorm:"size:64;not null;index"`
+	MAC            string              `json:"mac" gorm:"size:64"`
 	Hostname       string              `json:"hostname" gorm:"size:255"`
 	Status         string              `json:"status" gorm:"size:32;not null;default:up"`
 	OpenPorts      string              `json:"openPorts" gorm:"type:text"`

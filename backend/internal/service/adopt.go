@@ -60,6 +60,7 @@ func (s *DiscoveryService) AdoptHosts(_ context.Context, runID uint, hostIDs []u
 				AssetType:       "server",
 				Hostname:        h.Hostname,
 				IP:              h.IP,
+				MACAddress:      h.MAC,
 				OpenPorts:       h.OpenPorts,
 				RunningServices: h.Services,
 				OS:              h.OS,

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +13,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"asset-registration-management-system/backend/internal/config"
@@ -105,6 +109,7 @@ func ResolveNmapBin(configured string) (string, error) {
 // ScanResult 单台主机的扫描结果（与 nmap XML 解耦）。
 type ScanResult struct {
 	IP        string   `json:"ip"`
+	MAC       string   `json:"mac"`
 	Hostname  string   `json:"hostname"`
 	Status    string   `json:"status"` // up / down
 	OpenPorts []string `json:"openPorts"`
@@ -175,8 +180,15 @@ func ParseNmapXML(data []byte) ([]ScanResult, error) {
 	for _, h := range run.Hosts {
 		res := ScanResult{Status: h.Status.State}
 		for _, a := range h.Addresses {
-			if a.AddrType == "ipv4" && res.IP == "" {
-				res.IP = a.Addr
+			switch a.AddrType {
+			case "ipv4":
+				if res.IP == "" {
+					res.IP = a.Addr
+				}
+			case "mac":
+				if res.MAC == "" {
+					res.MAC = a.Addr
+				}
 			}
 		}
 		if res.IP == "" && len(h.Addresses) > 0 {
@@ -222,6 +234,11 @@ func absPath(p string) string {
 
 // BuildNmapArgs 依据规则与全局配置组装 nmap 参数（切片传参，杜绝 shell 拼接注入）。
 func BuildNmapArgs(rule model.DiscoveryRule, cfg config.DiscoveryConfig) []string {
+	return BuildNmapArgsFor(rule, cfg, splitTargets(rule.Targets))
+}
+
+// BuildNmapArgsFor 依据规则组装 nmap 参数，目标以传入列表为准（用于分片/两阶段扫描）。
+func BuildNmapArgsFor(rule model.DiscoveryRule, cfg config.DiscoveryConfig, targets []string) []string {
 	args := []string{"-oX", "-"}
 	// -Pn：跳过主机发现直接端口扫描（服务器常禁 ping，无 Npcap 环境下回环探测也会误判 down）
 	args = append(args, "-Pn")
@@ -235,7 +252,7 @@ func BuildNmapArgs(rule model.DiscoveryRule, cfg config.DiscoveryConfig) []strin
 	if ports != "" {
 		args = append(args, "-p", ports)
 	}
-	args = append(args, splitTargets(rule.Targets)...)
+	args = append(args, targets...)
 	return args
 }
 
@@ -317,23 +334,183 @@ func ValidatePorts(ports string) error {
 	return nil
 }
 
-// Scan 执行一次 nmap 扫描并返回解析后的结果；nmap 缺失、超时或 XML 解析失败时返回错误。
-// runner 为 nil 时使用真实 exec 实现。
+// Scan 执行一次发现扫描：目标展开 → 分片 → 两阶段（探活 + 详扫）并行执行。
+// 单目标规则直接单次详扫（跳过探活阶段）；大网段按 ScanChunkSize 分片、MaxParallelScans 并发。
 func Scan(ctx context.Context, runner NmapRunner, bin string, rule model.DiscoveryRule, cfg config.DiscoveryConfig) ([]ScanResult, error) {
 	if runner == nil {
 		runner = execNmapRunner{}
 	}
+	hosts, err := expandTargets(rule.Targets, cfg.MaxHosts)
+	if err != nil {
+		return nil, fmt.Errorf("expand targets: %w", err)
+	}
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("no targets to scan")
+	}
+
+	// 单目标（如单 IP 规则）：直接详扫
+	if len(hosts) <= 1 {
+		scanCtx, cancel := scanContext(ctx, cfg)
+		defer cancel()
+		out, err := runner.Run(scanCtx, bin, BuildNmapArgsFor(rule, cfg, hosts)...)
+		if err != nil {
+			return nil, err
+		}
+		return ParseNmapXML(out)
+	}
+
+	// 两阶段：先用探活端口快速定位存活主机，再对存活主机做全端口详扫
+	probePorts := strings.TrimSpace(rule.ProbePorts)
+	if probePorts == "" {
+		probePorts = strings.TrimSpace(cfg.ProbePorts)
+	}
+	upHosts, err := probeAlive(ctx, runner, bin, hosts, probePorts, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if len(upHosts) == 0 {
+		return nil, nil
+	}
+	return scanHosts(ctx, runner, bin, upHosts, rule, cfg)
+}
+
+func scanContext(ctx context.Context, cfg config.DiscoveryConfig) (context.Context, context.CancelFunc) {
 	timeout := time.Duration(cfg.ScanTimeoutSec) * time.Second
 	if timeout <= 0 {
 		timeout = 300 * time.Second
 	}
-	scanCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	return context.WithTimeout(ctx, timeout)
+}
 
-	args := BuildNmapArgs(rule, cfg)
-	out, err := runner.Run(scanCtx, bin, args...)
+// probeAlive 阶段一：对主机列表分片并行跑探活端口扫描，返回 up 主机 IP 列表。
+func probeAlive(ctx context.Context, runner NmapRunner, bin string, hosts []string, probePorts string, cfg config.DiscoveryConfig) ([]string, error) {
+	results, err := scanChunks(ctx, runner, bin, hosts, cfg, func(chunk []string) []string {
+		args := []string{"-oX", "-", "-Pn", "-p", probePorts}
+		return append(args, chunk...)
+	})
 	if err != nil {
 		return nil, err
 	}
-	return ParseNmapXML(out)
+	seen := map[string]bool{}
+	var up []string
+	for _, r := range results {
+		if r.Status == "up" && r.IP != "" && !seen[r.IP] {
+			seen[r.IP] = true
+			up = append(up, r.IP)
+		}
+	}
+	sort.Strings(up)
+	return up, nil
+}
+
+// scanHosts 阶段二：对存活主机分片并行跑全端口详扫。
+func scanHosts(ctx context.Context, runner NmapRunner, bin string, hosts []string, rule model.DiscoveryRule, cfg config.DiscoveryConfig) ([]ScanResult, error) {
+	return scanChunks(ctx, runner, bin, hosts, cfg, func(chunk []string) []string {
+		return BuildNmapArgsFor(rule, cfg, chunk)
+	})
+}
+
+// scanChunks 将主机列表按 ScanChunkSize 分片，MaxParallelScans 并发执行，合并结果。
+func scanChunks(ctx context.Context, runner NmapRunner, bin string, hosts []string, cfg config.DiscoveryConfig, buildArgs func([]string) []string) ([]ScanResult, error) {
+	chunkSize := cfg.ScanChunkSize
+	if chunkSize <= 0 {
+		chunkSize = 128
+	}
+	parallel := cfg.MaxParallelScans
+	if parallel <= 0 {
+		parallel = 4
+	}
+	var chunks [][]string
+	for i := 0; i < len(hosts); i += chunkSize {
+		end := i + chunkSize
+		if end > len(hosts) {
+			end = len(hosts)
+		}
+		chunks = append(chunks, hosts[i:end])
+	}
+
+	sem := make(chan struct{}, parallel)
+	results := make([][]ScanResult, len(chunks))
+	var failed atomic.Int32
+	var wg sync.WaitGroup
+	for i, chunk := range chunks {
+		wg.Add(1)
+		go func(idx int, chunk []string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			scanCtx, cancel := scanContext(ctx, cfg)
+			defer cancel()
+			out, err := runner.Run(scanCtx, bin, buildArgs(chunk)...)
+			if err != nil {
+				log.Printf("discovery: chunk %d scan failed: %v", idx, err)
+				failed.Add(1)
+				return
+			}
+			rs, err := ParseNmapXML(out)
+			if err != nil {
+				log.Printf("discovery: chunk %d parse failed: %v", idx, err)
+				failed.Add(1)
+				return
+			}
+			results[idx] = rs
+		}(i, chunk)
+	}
+	wg.Wait()
+
+	if failed.Load() == int32(len(chunks)) {
+		return nil, fmt.Errorf("all %d scan chunks failed", len(chunks))
+	}
+	var merged []ScanResult
+	for _, rs := range results {
+		merged = append(merged, rs...)
+	}
+	return merged, nil
+}
+
+// expandTargets 将规则目标（IP/CIDR 混合）展开为具体 IP 列表，受 maxHosts 上限约束。
+func expandTargets(targets string, maxHosts int) ([]string, error) {
+	if maxHosts <= 0 {
+		maxHosts = 1024
+	}
+	var ips []string
+	seen := map[string]bool{}
+	add := func(ip string) {
+		if seen[ip] {
+			return
+		}
+		seen[ip] = true
+		ips = append(ips, ip)
+	}
+	for _, t := range splitTargets(targets) {
+		if strings.Contains(t, "/") {
+			ip, ipnet, err := net.ParseCIDR(t)
+			if err != nil {
+				return nil, fmt.Errorf("invalid CIDR %s: %w", t, err)
+			}
+			for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); incIP(ip) {
+				add(ip.String())
+				if len(ips) >= maxHosts {
+					return nil, fmt.Errorf("targets exceed max hosts (%d): %s", maxHosts, t)
+				}
+			}
+		} else {
+			ip := net.ParseIP(strings.TrimSpace(t))
+			if ip == nil {
+				return nil, fmt.Errorf("invalid target: %s", t)
+			}
+			add(ip.String())
+		}
+	}
+	return ips, nil
+}
+
+// incIP 将 IPv4 地址字节 +1（用于 CIDR 遍历）。
+func incIP(ip net.IP) {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
 }
