@@ -30,17 +30,39 @@
     </div>
     <DataToolbar>
       <template #actions>
-        <el-input v-model="filters.q" placeholder="搜索 IP、主机名、MAC、端口、服务、负责人、网段" clearable @keyup.enter="applyFilters" />
-        <el-input v-model="filters.assetType" placeholder="资产类型" clearable @keyup.enter="applyFilters" />
-        <el-input v-model="filters.subnet" placeholder="所在网段" clearable @keyup.enter="applyFilters" />
-        <el-input v-model="filters.owner" placeholder="负责人" clearable @keyup.enter="applyFilters" />
-        <el-input v-model="filters.openPort" placeholder="端口" clearable @keyup.enter="applyFilters" />
-        <el-input v-model="filters.service" placeholder="服务/应用" clearable @keyup.enter="applyFilters" />
-        <el-select v-model="filters.onlineStatus" placeholder="在线状态" clearable style="width: 130px" @change="applyFilters">
-          <el-option v-for="(item, key) in onlineStatusOptions" :key="key" :label="item.label" :value="key" />
-        </el-select>
+        <template v-for="field in visibleFilterFields" :key="field.key">
+          <el-input
+            v-if="field.component === 'input'"
+            v-model="filters[field.key]"
+            :placeholder="field.placeholder"
+            clearable
+            :style="{ width: field.width + 'px' }"
+            @keyup.enter="applyFilters"
+          />
+          <el-select
+            v-else
+            v-model="filters[field.key]"
+            :placeholder="field.placeholder"
+            clearable
+            :style="{ width: field.width + 'px' }"
+            @change="applyFilters"
+          >
+            <el-option v-for="(item, key) in onlineStatusOptions" :key="key" :label="item.label" :value="key" />
+          </el-select>
+        </template>
         <el-button :icon="Search" type="primary" @click="applyFilters">查询</el-button>
         <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
+        <el-popover placement="bottom-end" width="240" trigger="click">
+          <template #reference>
+            <el-button :icon="Setting">筛选</el-button>
+          </template>
+          <div class="filter-settings-title">显示筛选字段（自动保存）</div>
+          <el-checkbox-group v-model="filterFieldKeys">
+            <el-checkbox v-for="field in filterFields" :key="field.key" :label="field.key">
+              {{ field.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </el-popover>
         <el-popover placement="bottom-end" width="220" trigger="click">
           <template #reference>
             <el-button :icon="Setting">列设置</el-button>
@@ -192,6 +214,20 @@ const columns = [
   { key: 'subnet', prop: 'subnet', label: '所在网段', width: 140, sortable: true },
   { key: 'remark', prop: 'remark', label: '备注', minWidth: 220, tooltip: true }
 ]
+
+// 筛选字段配置：component=input（文本输入）或 select（下拉）
+const filterFields = [
+  { key: 'q', label: '关键词搜索', component: 'input', placeholder: '搜索 IP、主机名、MAC、端口、服务、负责人、网段', width: 250, default: true },
+  { key: 'onlineStatus', label: '在线状态', component: 'select', placeholder: '在线状态', width: 130, default: true },
+  { key: 'assetType', label: '资产类型', component: 'input', placeholder: '资产类型', width: 130, default: false },
+  { key: 'subnet', label: '所在网段', component: 'input', placeholder: '所在网段', width: 130, default: false },
+  { key: 'owner', label: '负责人', component: 'input', placeholder: '负责人', width: 120, default: false },
+  { key: 'openPort', label: '端口', component: 'input', placeholder: '端口', width: 110, default: false },
+  { key: 'service', label: '服务/应用', component: 'input', placeholder: '服务/应用', width: 130, default: false }
+]
+const filterFieldStorageKey = 'asset.filterFields'
+const filterFieldKeys = ref(loadFilterFieldKeys())
+const visibleFilterFields = computed(() => filterFields.filter((field) => filterFieldKeys.value.includes(field.key)))
 const columnStorageKey = 'asset.visibleColumns'
 const visibleColumnKeys = ref(loadVisibleColumnKeys())
 const visibleColumns = computed(() => columns.filter((column) => visibleColumnKeys.value.includes(column.key)))
@@ -404,6 +440,26 @@ function loadVisibleColumnKeys() {
   }
 }
 
+function loadFilterFieldKeys() {
+  const defaults = filterFields.filter((field) => field.default).map((field) => field.key)
+  try {
+    const saved = JSON.parse(localStorage.getItem(filterFieldStorageKey) || '[]')
+    if (!Array.isArray(saved) || saved.length === 0) return defaults
+    return [...new Set(saved)].filter((key) => filterFields.some((field) => field.key === key))
+  } catch {
+    return defaults
+  }
+}
+
+watch(
+  filterFieldKeys,
+  (value) => {
+    if (value.length === 0) return // 至少保留一个筛选字段
+    localStorage.setItem(filterFieldStorageKey, JSON.stringify(value))
+  },
+  { deep: true }
+)
+
 watch(
   visibleColumnKeys,
   (value) => {
@@ -467,7 +523,18 @@ onMounted(load)
 }
 
 :deep(.toolbar-actions) {
-  grid-template-columns: repeat(auto-fit, minmax(150px, max-content));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.filter-settings-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
 }
 
 @media (max-width: 900px) {

@@ -154,6 +154,20 @@ body {
   gap: 16px;
 }
 
+/* 顶部操作区：强制单行紧凑（导入/模板/导出/新增不换行） */
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.page-header-actions .el-upload {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 /* ---------- Element Plus 细节微调 ---------- */
 
 /* 表格：行 hover 微移 + 圆角 */
