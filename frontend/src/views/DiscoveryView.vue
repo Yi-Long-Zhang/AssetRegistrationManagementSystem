@@ -46,7 +46,13 @@
             <el-form-item label="扫描目标" required>
               <el-input v-model="ruleDialog.form.targets" type="textarea" :rows="2" placeholder="IP 或 CIDR，逗号分隔，如 192.168.1.0/24, 10.0.0.5" />
             </el-form-item>
-            <el-form-item label="端口">
+            <el-form-item label="端口组">
+              <el-select v-model="ruleDialog.form.portGroup" placeholder="选择端口分组" style="width: 100%" @change="applyPortGroup">
+                <el-option v-for="g in portGroups" :key="g.value" :label="`${g.label}（${g.ports.join(',') || '自定义'}）`" :value="g.value" />
+              </el-select>
+              <span class="hint">按组预置端口，选中自动填充；选择「自定义」后可自由增删</span>
+            </el-form-item>
+            <el-form-item v-if="ruleDialog.form.portGroup === 'custom'" label="自定义端口">
               <el-select
                 v-model="ruleDialog.form.ports"
                 multiple
@@ -54,13 +60,25 @@
                 allow-create
                 default-first-option
                 clearable
-                placeholder="选择或输入端口，留空使用默认 22,80,443,3389"
+                placeholder="选择或输入端口"
                 style="width: 100%"
               >
                 <el-option v-for="p in commonPorts" :key="p.value" :label="p.label" :value="p.value" />
               </el-select>
             </el-form-item>
-            <el-form-item label="探活端口">
+            <el-form-item v-else label="已选端口">
+              <div class="port-tags">
+                <el-tag v-for="p in ruleDialog.form.ports" :key="p" size="small" closable @close="removePort(p)">{{ p }}</el-tag>
+                <span v-if="!ruleDialog.form.ports.length" class="hint">（组内默认端口，保存时生效）</span>
+              </div>
+            </el-form-item>
+            <el-form-item label="探活端口组">
+              <el-select v-model="ruleDialog.form.probePortGroup" placeholder="选择探活端口分组" style="width: 100%" @change="applyProbeGroup">
+                <el-option v-for="g in probeGroups" :key="g.value" :label="`${g.label}（${g.ports.join(',') || '自定义'}）`" :value="g.value" />
+              </el-select>
+              <span class="hint">大网段先扫探活端口定位存活主机，再详扫，可大幅提速</span>
+            </el-form-item>
+            <el-form-item v-if="ruleDialog.form.probePortGroup === 'custom'" label="自定义探活端口">
               <el-select
                 v-model="ruleDialog.form.probePorts"
                 multiple
@@ -68,12 +86,11 @@
                 allow-create
                 default-first-option
                 clearable
-                placeholder="选择或输入探活端口，留空默认 22,80,443,445,3389"
+                placeholder="选择或输入探活端口"
                 style="width: 100%"
               >
                 <el-option v-for="p in probePortOptions" :key="p.value" :label="p.label" :value="p.value" />
               </el-select>
-              <span class="hint">大网段先扫探活端口定位存活主机，再详扫，可大幅提速</span>
             </el-form-item>
             <el-form-item label="调度间隔(分)">
               <el-input-number v-model="ruleDialog.form.intervalMinutes" :min="5" :max="10080" />
@@ -220,34 +237,65 @@ const emptyRuleForm = () => ({
   targets: '',
   ports: [],
   probePorts: [],
+  portGroup: 'common',
+  probePortGroup: 'common',
   serviceDetect: false,
   intervalMinutes: 60,
   autoAdopt: false,
   enabled: true
 })
 
-// 常见端口选项（多选下拉，可自由输入自定义端口）
+// 端口分组（参考 Goby 的分类方式）：精简 / 常见 / 企业 / 全端口 / 自定义
+const portGroups = [
+  { value: 'lite', label: '精简', ports: ['22', '80', '443', '3389'] },
+  { value: 'common', label: '常见', ports: ['22', '80', '135', '139', '443', '445', '3389', '8080', '8443'] },
+  {
+    value: 'enterprise',
+    label: '企业',
+    ports: [
+      '21', '22', '23', '25', '53', '80', '110', '135', '139', '143', '443', '445',
+      '993', '995', '1433', '3306', '3389', '5432', '6379', '8080', '8443', '9200', '11211', '27017'
+    ]
+  },
+  { value: 'all', label: '全端口', ports: ['1-65535'] },
+  { value: 'custom', label: '自定义', ports: [] }
+]
+
+// 探活端口分组
+const probeGroups = [
+  { value: 'lite', label: '精简', ports: ['22', '80', '443', '3389'] },
+  { value: 'common', label: '常见', ports: ['22', '80', '135', '139', '443', '445', '3389', '8080'] },
+  { value: 'custom', label: '自定义', ports: [] }
+]
+
+// 常见端口选项（自定义时供勾选，可自由输入）
 const commonPorts = [
   { value: '22', label: '22 SSH' },
   { value: '21', label: '21 FTP' },
   { value: '23', label: '23 Telnet' },
   { value: '25', label: '25 SMTP' },
+  { value: '53', label: '53 DNS' },
   { value: '80', label: '80 HTTP' },
+  { value: '110', label: '110 POP3' },
   { value: '135', label: '135 MSRPC' },
   { value: '139', label: '139 NetBIOS' },
+  { value: '143', label: '143 IMAP' },
   { value: '443', label: '443 HTTPS' },
   { value: '445', label: '445 SMB' },
-  { value: '8080', label: '8080 HTTP' },
-  { value: '8443', label: '8443 HTTPS' },
-  { value: '3389', label: '3389 RDP' },
+  { value: '993', label: '993 IMAPS' },
+  { value: '995', label: '995 POP3S' },
+  { value: '1433', label: '1433 MSSQL' },
   { value: '3306', label: '3306 MySQL' },
+  { value: '3389', label: '3389 RDP' },
   { value: '5432', label: '5432 PostgreSQL' },
   { value: '6379', label: '6379 Redis' },
-  { value: '27017', label: '27017 MongoDB' },
-  { value: '9200', label: '9200 Elasticsearch' }
+  { value: '8080', label: '8080 HTTP' },
+  { value: '8443', label: '8443 HTTPS' },
+  { value: '9200', label: '9200 Elasticsearch' },
+  { value: '11211', label: '11211 Memcached' },
+  { value: '27017', label: '27017 MongoDB' }
 ]
 
-// 探活端口选项（常用存活探测端口）
 const probePortOptions = [
   { value: '22', label: '22 SSH' },
   { value: '80', label: '80 HTTP' },
@@ -271,6 +319,38 @@ function portsToArray(value) {
 function portsToString(value) {
   if (!Array.isArray(value) || value.length === 0) return ''
   return value.join(',')
+}
+
+// 根据端口列表匹配所属分组（精确匹配返回组，否则 custom）
+function matchGroup(ports, groups) {
+  if (!ports.length) return 'custom'
+  for (const g of groups) {
+    if (g.ports.length && g.ports.length === ports.length && [...g.ports].sort().join(',') === [...ports].sort().join(',')) {
+      return g.value
+    }
+  }
+  return 'custom'
+}
+
+// 选择端口组时自动填充
+function applyPortGroup(value) {
+  const group = portGroups.find((g) => g.value === value)
+  if (group) {
+    ruleDialog.form.ports = [...group.ports]
+  }
+}
+
+function applyProbeGroup(value) {
+  const group = probeGroups.find((g) => g.value === value)
+  if (group) {
+    ruleDialog.form.probePorts = [...group.ports]
+  }
+}
+
+// 非自定义组模式下移除单个端口（转为自定义）
+function removePort(p) {
+  ruleDialog.form.ports = ruleDialog.form.ports.filter((item) => item !== p)
+  ruleDialog.form.portGroup = 'custom'
 }
 
 const runStatusMap = DISCOVERY_RUN_STATUS_MAP
@@ -316,7 +396,21 @@ async function loadRules() {
 }
 
 function openRuleDialog(row) {
-  ruleDialog.form = row ? { ...row, ports: portsToArray(row.ports), probePorts: portsToArray(row.probePorts) } : emptyRuleForm()
+  if (row) {
+    const ports = portsToArray(row.ports)
+    const probePorts = portsToArray(row.probePorts)
+    ruleDialog.form = {
+      ...row,
+      ports,
+      probePorts,
+      portGroup: matchGroup(ports, portGroups),
+      probePortGroup: matchGroup(probePorts, probeGroups)
+    }
+  } else {
+    ruleDialog.form = emptyRuleForm()
+    applyPortGroup(ruleDialog.form.portGroup)
+    applyProbeGroup(ruleDialog.form.probePortGroup)
+  }
   ruleDialog.visible = true
 }
 
@@ -328,11 +422,13 @@ async function saveRule() {
   }
   savingRule.value = true
   try {
-    // 多选数组 → 逗号分隔字符串提交
+    // 多选数组 → 逗号分隔字符串提交（剔除前端组字段）
     const payload = {
       ...form,
       ports: portsToString(form.ports),
-      probePorts: portsToString(form.probePorts)
+      probePorts: portsToString(form.probePorts),
+      portGroup: undefined,
+      probePortGroup: undefined
     }
     if (form.id) {
       await discoveryApi.updateRule(form.id, payload)
@@ -477,5 +573,13 @@ onMounted(() => {
 }
 .detail-toolbar {
   margin-bottom: 8px;
+}
+
+.port-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-height: 24px;
 }
 </style>
