@@ -48,7 +48,7 @@
             :style="{ width: field.width + 'px' }"
             @change="applyFilters"
           >
-            <el-option v-for="(item, key) in onlineStatusOptions" :key="key" :label="item.label" :value="key" />
+            <el-option v-for="item in onlineStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </template>
         <el-button :icon="Search" type="primary" @click="applyFilters">查询</el-button>

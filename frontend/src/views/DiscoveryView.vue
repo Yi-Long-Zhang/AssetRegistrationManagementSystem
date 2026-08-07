@@ -130,7 +130,7 @@
       <el-tab-pane label="运行记录" name="runs">
         <div class="toolbar">
           <el-select v-model="runFilter.status" placeholder="状态" clearable style="width: 120px" @change="loadRuns">
-            <el-option v-for="(item, key) in runStatusOptions" :key="key" :label="item.label" :value="key" />
+            <el-option v-for="item in runStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
           <el-button @click="loadRuns">刷新</el-button>
         </div>
