@@ -454,7 +454,20 @@ function loadFilterFieldKeys() {
 watch(
   filterFieldKeys,
   (value) => {
-    if (value.length === 0) return // 至少保留一个筛选字段
+    if (value.length === 0) {
+      // 空选择保护：回退到默认关键词搜索字段（UI 不空白）
+      filterFieldKeys.value = ['q']
+      return
+    }
+    // 清除被隐藏字段的残留筛选值，避免“幽灵筛选”仍生效
+    const removed = filterFields.filter((field) => !value.includes(field.key)).map((field) => field.key)
+    const hadValue = removed.some((key) => String(filters[key] || '').trim() !== '')
+    if (hadValue) {
+      removed.forEach((key) => {
+        filters[key] = ''
+      })
+      load()
+    }
     localStorage.setItem(filterFieldStorageKey, JSON.stringify(value))
   },
   { deep: true }
