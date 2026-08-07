@@ -117,7 +117,7 @@ func TestBuildNmapArgs(t *testing.T) {
 		ServiceDetect: true,
 	}
 	args := BuildNmapArgs(rule, cfg)
-	want := []string{"-oX", "-", "-sV", "-p", "22,3389", "192.168.1.0/24", "10.0.0.5"}
+	want := []string{"-oX", "-", "-Pn", "-sV", "-p", "22,3389", "192.168.1.0/24", "10.0.0.5"}
 	if len(args) != len(want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}
@@ -130,7 +130,7 @@ func TestBuildNmapArgs(t *testing.T) {
 	// 规则未指定端口 → 使用默认端口
 	rule2 := model.DiscoveryRule{Targets: "192.168.1.1"}
 	args2 := BuildNmapArgs(rule2, cfg)
-	if len(args2) != 5 || args2[2] != "-p" || args2[3] != "22,80,443" {
+	if len(args2) != 6 || args2[3] != "-p" || args2[4] != "22,80,443" {
 		t.Fatalf("default ports not applied: %v", args2)
 	}
 }

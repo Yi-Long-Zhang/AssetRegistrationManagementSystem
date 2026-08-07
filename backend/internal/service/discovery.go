@@ -76,13 +76,19 @@ func ResolveNmapBin(configured string) (string, error) {
 	}
 	if dir := platformNmapDir(); dir != "" {
 		for _, base := range []string{"", ".."} {
+			// 直接位置：tools/nmap/<platform>/nmap(.exe)
 			p := filepath.Join(base, "tools", "nmap", dir, nmapExeName())
 			if info, err := os.Stat(p); err == nil && !info.IsDir() {
-				abs, err := filepath.Abs(p)
-				if err != nil {
-					return p, nil
+				return absPath(p), nil
+			}
+			// 版本子目录（如 nmap-7.92/）：tools/nmap/<platform>/*/nmap(.exe)
+			pattern := filepath.Join(base, "tools", "nmap", dir, "*", nmapExeName())
+			if matches, err := filepath.Glob(pattern); err == nil {
+				for _, m := range matches {
+					if info, err := os.Stat(m); err == nil && !info.IsDir() {
+						return absPath(m), nil
+					}
 				}
-				return abs, nil
 			}
 		}
 	}
@@ -207,9 +213,18 @@ func ParseNmapXML(data []byte) ([]ScanResult, error) {
 	return results, nil
 }
 
+func absPath(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return p
+}
+
 // BuildNmapArgs 依据规则与全局配置组装 nmap 参数（切片传参，杜绝 shell 拼接注入）。
 func BuildNmapArgs(rule model.DiscoveryRule, cfg config.DiscoveryConfig) []string {
 	args := []string{"-oX", "-"}
+	// -Pn：跳过主机发现直接端口扫描（服务器常禁 ping，无 Npcap 环境下回环探测也会误判 down）
+	args = append(args, "-Pn")
 	if rule.ServiceDetect {
 		args = append(args, "-sV")
 	}
