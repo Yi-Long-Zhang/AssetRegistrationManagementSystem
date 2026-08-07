@@ -48,7 +48,7 @@
             </el-form-item>
             <el-form-item label="端口组">
               <el-select v-model="ruleDialog.form.portGroup" placeholder="选择端口分组" style="width: 100%" @change="applyPortGroup">
-                <el-option v-for="g in portGroups" :key="g.value" :label="`${g.label}（${g.ports.join(',') || '自定义'}）`" :value="g.value" />
+                <el-option v-for="g in portGroups" :key="g.value" :label="`${g.label}（${formatPortsSummary(g)}）`" :value="g.value" />
               </el-select>
               <span class="hint">按组预置端口，选中自动填充；选择「自定义」后可自由增删</span>
             </el-form-item>
@@ -68,13 +68,25 @@
             </el-form-item>
             <el-form-item v-else label="已选端口">
               <div class="port-tags">
-                <el-tag v-for="p in ruleDialog.form.ports" :key="p" size="small" closable @close="removePort(p)">{{ p }}</el-tag>
+                <el-tag v-if="ruleDialog.form.ports.length" size="small" type="info">
+                  {{ portGroupLabel(ruleDialog.form.portGroup) }}组 · {{ ruleDialog.form.ports.length }} 个端口
+                </el-tag>
+                <el-tag
+                  v-for="(p, idx) in ruleDialog.form.ports.slice(0, 8)"
+                  :key="p"
+                  size="small"
+                  closable
+                  @close="removePort(p)"
+                >
+                  {{ p }}
+                </el-tag>
+                <el-tag v-if="ruleDialog.form.ports.length > 8" size="small" type="info">+{{ ruleDialog.form.ports.length - 8 }}</el-tag>
                 <span v-if="!ruleDialog.form.ports.length" class="hint">（组内默认端口，保存时生效）</span>
               </div>
             </el-form-item>
             <el-form-item label="探活端口组">
               <el-select v-model="ruleDialog.form.probePortGroup" placeholder="选择探活端口分组" style="width: 100%" @change="applyProbeGroup">
-                <el-option v-for="g in probeGroups" :key="g.value" :label="`${g.label}（${g.ports.join(',') || '自定义'}）`" :value="g.value" />
+                <el-option v-for="g in probeGroups" :key="g.value" :label="`${g.label}（${formatPortsSummary(g)}）`" :value="g.value" />
               </el-select>
               <span class="hint">大网段先扫探活端口定位存活主机，再详扫，可大幅提速</span>
             </el-form-item>
@@ -319,6 +331,16 @@ function portsToArray(value) {
 function portsToString(value) {
   if (!Array.isArray(value) || value.length === 0) return ''
   return value.join(',')
+}
+
+// 分组摘要：全端口显示范围，其余显示端口数量（避免下拉选项过长）
+function formatPortsSummary(group) {
+  if (group.ports.length === 1 && group.ports[0] === '1-65535') return '1-65535'
+  return `${group.ports.length} 个端口`
+}
+
+function portGroupLabel(value) {
+  return portGroups.find((g) => g.value === value)?.label || value
 }
 
 // 根据端口列表匹配所属分组（精确匹配返回组，否则 custom）
