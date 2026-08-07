@@ -7,6 +7,7 @@
         </el-upload>
         <el-button v-if="canManage" :icon="Download" @click="downloadTemplate">下载模板</el-button>
         <el-button v-if="canManage" :icon="Download" @click="exportAssets">批量导出</el-button>
+        <el-button v-if="canManage" :icon="Delete" type="danger" plain :disabled="!selectedIds.length" @click="batchDelete">批量删除{{ selectedIds.length ? ` (${selectedIds.length})` : '' }}</el-button>
         <el-button v-if="canManage" type="primary" :icon="Plus" @click="openCreate">新增资产</el-button>
       </template>
     </PageHeader>
@@ -75,8 +76,16 @@
         </el-popover>
       </template>
     </DataToolbar>
+    <div v-if="activeFilterChips.length" class="filter-chips">
+      <span class="filter-chips-label">已筛选：</span>
+      <el-tag v-for="chip in activeFilterChips" :key="chip.key" size="small" closable @close="clearFilter(chip.key)">
+        {{ chip.label }}：{{ chip.value }}
+      </el-tag>
+      <el-button link type="primary" size="small" @click="resetFilters">清除全部</el-button>
+    </div>
     <div class="panel">
-      <el-table :data="items" v-loading="loading" border height="560" @sort-change="handleSortChange" @row-click="openDetail">
+      <el-table :data="items" v-loading="loading" border height="560" @sort-change="handleSortChange" @row-click="openDetail" @selection-change="handleSelectionChange">
+        <el-table-column v-if="canManage" type="selection" width="45" fixed="left" />
         <el-table-column
           v-for="column in visibleColumns"
           :key="column.key"
@@ -151,7 +160,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Download, Plus, Refresh, Search, Setting, Upload } from '@element-plus/icons-vue'
+import { Delete, Download, Plus, Refresh, Search, Setting, Upload } from '@element-plus/icons-vue'
 import { assetsApi } from '../api'
 import AssetDetailDialog from '../components/assets/AssetDetailDialog.vue'
 import ConfirmAction from '../components/common/ConfirmAction.vue'
@@ -386,9 +395,68 @@ async function save() {
 }
 
 async function remove(row) {
-  await assetsApi.remove(row.id)
-  ElMessage.success('已删除')
-  load()
+  try {
+    await ElMessageBox.confirm(`确认删除资产 ${row.ip}？`, '删除确认', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await assetsApi.remove(row.id)
+    ElMessage.success('已删除')
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message || '删除失败')
+  }
+}
+
+const selectedIds = ref([])
+function handleSelectionChange(rows) {
+  selectedIds.value = rows.map((row) => row.id)
+}
+
+async function batchDelete() {
+  const count = selectedIds.value.length
+  if (!count) return
+  // 二次确认：输入「删除N台」才执行
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `确认删除选中的 ${count} 台资产？此操作不可恢复。\n请输入「删除${count}台」以确认：`,
+      '批量删除确认',
+      {
+        type: 'warning',
+        inputPlaceholder: `删除${count}台`,
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消'
+      }
+    )
+    if (String(value || '').trim() !== `删除${count}台`) {
+      ElMessage.warning('确认文字不匹配，已取消')
+      return
+    }
+  } catch {
+    return
+  }
+  try {
+    const res = await assetsApi.batchDelete(selectedIds.value)
+    ElMessage.success(`已删除 ${res.deleted || count} 台资产`)
+    selectedIds.value = []
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message || '批量删除失败')
+  }
+}
+
+// 当前生效筛选条件（chips 展示，让筛选状态一目了然）
+const activeFilterChips = computed(() => {
+  const labelMap = Object.fromEntries(filterFields.map((f) => [f.key, f.label]))
+  return Object.entries(filters)
+    .filter(([, value]) => String(value || '').trim() !== '')
+    .map(([key, value]) => ({ key, label: labelMap[key] || key, value }))
+})
+
+function clearFilter(key) {
+  filters[key] = ''
+  applyFilters()
 }
 
 async function downloadTemplate() {
@@ -550,6 +618,24 @@ onMounted(load)
   font-size: 12px;
   color: var(--text-secondary);
   margin-bottom: 8px;
+}
+
+.filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--brand-gradient-soft);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: var(--radius-md);
+}
+
+.filter-chips-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 @media (max-width: 900px) {

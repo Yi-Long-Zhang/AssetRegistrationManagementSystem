@@ -508,6 +508,53 @@ func (h *Handler) DeleteAsset(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+type batchDeleteRequest struct {
+	IDs []uint `json:"ids" binding:"required"`
+}
+
+// BatchDeleteAssets 批量删除资产：清理关联快照、解除发现结果引用，事务内硬删除。
+func (h *Handler) BatchDeleteAssets(c *gin.Context) {
+	var req batchDeleteRequest
+	if !bind(c, &req) {
+		return
+	}
+	if len(req.IDs) == 0 {
+		errorJSON(c, http.StatusBadRequest, "未选择要删除的资产")
+		return
+	}
+	if len(req.IDs) > 200 {
+		errorJSON(c, http.StatusBadRequest, "单次最多删除 200 台资产")
+		return
+	}
+	var count int64
+	h.db.Model(&model.Asset{}).Where("id IN ?", req.IDs).Count(&count)
+	if count == 0 {
+		errorJSON(c, http.StatusBadRequest, "未找到要删除的资产")
+		return
+	}
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		// 清理关联快照
+		if err := tx.Where("asset_id IN ?", req.IDs).Delete(&model.AssetSnapshot{}).Error; err != nil {
+			return err
+		}
+		// 解除发现结果对资产的引用，避免孤儿引用
+		if err := tx.Model(&model.DiscoveredHost{}).Where("matched_asset_id IN ?", req.IDs).
+			Updates(map[string]any{"matched_asset_id": nil, "change_type": model.DiscoveryChangeNew}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&model.Asset{}, req.IDs).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		errorJSON(c, http.StatusBadRequest, "批量删除失败: "+err.Error())
+		return
+	}
+	h.audit(currentUser(c).ID, "asset", 0, "batch_delete", fmt.Sprintf("批量删除 %d 台资产", count))
+	c.JSON(http.StatusOK, gin.H{"deleted": count})
+}
+
 func (h *Handler) ListTickets(c *gin.Context) {
 	user := currentUser(c)
 	var tickets []model.Ticket

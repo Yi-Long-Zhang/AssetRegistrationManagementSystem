@@ -95,6 +95,7 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	assets.GET("/:id/history", h.ListAssetHistory)
 	assets.PUT("/:id", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.UpdateAsset)
 	assets.DELETE("/:id", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.DeleteAsset)
+	assets.POST("/batch-delete", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.BatchDeleteAssets)
 
 	discovery := api.Group("/discovery", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager))
 	discovery.GET("/rules", h.ListDiscoveryRules)

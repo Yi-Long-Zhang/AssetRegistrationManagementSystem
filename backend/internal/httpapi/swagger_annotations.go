@@ -597,3 +597,14 @@ func swaggerApplyDiscoveryHosts() {}
 // @Failure 400 {object} errorResponse
 // @Router /assets/{id}/history [get]
 func swaggerListAssetHistory() {}
+
+// @Summary 批量删除资产
+// @Tags assets
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body batchDeleteRequest true "资产 ID 列表"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} errorResponse
+// @Router /assets/batch-delete [post]
+func swaggerBatchDeleteAssets() {}

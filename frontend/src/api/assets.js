@@ -13,6 +13,9 @@ export const assetsApi = {
   remove(id) {
     return request.delete(`/assets/${id}`).then(unwrap)
   },
+  batchDelete(ids) {
+    return request.post('/assets/batch-delete', { ids }).then(unwrap)
+  },
   import(payload) {
     return request.post('/assets/import', payload).then(unwrap)
   },
