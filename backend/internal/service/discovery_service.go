@@ -13,9 +13,10 @@ import (
 
 // DiscoveryService 资产自动发现服务：执行扫描、比对台账并落库。
 type DiscoveryService struct {
-	DB     *gorm.DB
-	Config config.Config
-	Runner NmapRunner // nil 时使用真实 exec 实现
+	DB          *gorm.DB
+	Config      config.Config
+	Runner      NmapRunner            // nil 时使用真实 exec 实现
+	BinResolver func() (string, error) // nil 时使用默认探测（测试可注入固定路径）
 }
 
 // NewDiscoveryService 创建发现服务。
@@ -25,6 +26,9 @@ func NewDiscoveryService(db *gorm.DB, cfg config.Config) *DiscoveryService {
 
 // Bin 解析 nmap 可执行文件路径（每次调用时解析，便于安装便携版后立即生效）。
 func (s *DiscoveryService) Bin() (string, error) {
+	if s.BinResolver != nil {
+		return s.BinResolver()
+	}
 	return ResolveNmapBin(s.Config.Discovery.NmapBin)
 }
 
@@ -86,6 +90,30 @@ func (s *DiscoveryService) ExecuteRun(ctx context.Context, runID uint) error {
 	now := time.Now()
 	if err := s.reconcile(&run, results, now); err != nil {
 		return s.finishFailed(&run, err)
+	}
+
+	// 自动应用：规则开启 autoApply 时，仅自动应用低风险变更（changed-low / online），
+	// 高风险（端口关闭/OS/主机名/服务变化）与离线保留人工确认。
+	if rule.AutoApply {
+		var autoHosts []model.DiscoveredHost
+		if err := s.DB.Where("run_id = ? AND change_type IN ? AND change_risk = ?",
+			run.ID,
+			[]model.DiscoveryChangeType{model.DiscoveryChangeChanged, model.DiscoveryChangeOnline},
+			model.ChangeRiskLow,
+		).Find(&autoHosts).Error; err != nil {
+			return s.finishFailed(&run, err)
+		}
+		var autoHostIDs []uint
+		for i := range autoHosts {
+			if autoHosts[i].MatchedAssetID != nil {
+				autoHostIDs = append(autoHostIDs, autoHosts[i].ID)
+			}
+		}
+		if len(autoHostIDs) > 0 {
+			if _, err := s.ApplyHostChanges(ctx, run.ID, autoHostIDs, 0); err != nil {
+				return s.finishFailed(&run, err)
+			}
+		}
 	}
 
 	run.Status = model.DiscoveryRunStatusSuccess

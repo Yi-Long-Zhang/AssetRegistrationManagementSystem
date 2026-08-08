@@ -20,12 +20,18 @@ func TestClassifyChangeChanged(t *testing.T) {
 		OpenPorts: []string{"80/tcp", "443/tcp", "22/tcp"},
 		OS:        "Linux",
 	}
-	change, diff := classifyChange(asset, r)
+	change, diff, risk := classifyChange(asset, r)
 	if change != model.DiscoveryChangeChanged {
 		t.Fatalf("expected changed, got %s (diff: %s)", change, diff)
 	}
 	if !strings.Contains(diff, "开放端口") {
 		t.Fatalf("diff should mention ports: %s", diff)
+	}
+	if !strings.Contains(diff, "新增 22") {
+		t.Fatalf("diff should list added port 22: %s", diff)
+	}
+	if risk != model.ChangeRiskLow {
+		t.Fatalf("only added port should be low risk, got %s", risk)
 	}
 }
 
@@ -41,7 +47,7 @@ func TestClassifyChangeOnline(t *testing.T) {
 		Hostname:  "db-01",
 		OpenPorts: []string{"5432/tcp"},
 	}
-	change, _ := classifyChange(asset, r)
+	change, _, _ := classifyChange(asset, r)
 	if change != model.DiscoveryChangeOnline {
 		t.Fatalf("expected online, got %s", change)
 	}
@@ -61,7 +67,7 @@ func TestClassifyChangeNone(t *testing.T) {
 		OpenPorts: []string{"443/tcp", "80/tcp"},
 		OS:        "Linux 4.15",
 	}
-	change, _ := classifyChange(asset, r)
+	change, _, _ := classifyChange(asset, r)
 	if change != model.DiscoveryChangeNone {
 		t.Fatalf("expected none, got %s", change)
 	}
@@ -71,7 +77,7 @@ func TestClassifyChangeHostnameContains(t *testing.T) {
 	// 反向 DNS 短名包含于资产全名时不视为变更（避免误报）
 	asset := &model.Asset{Hostname: "web-01.internal", IP: "192.168.1.10", OnlineStatus: model.AssetOnlineStatusOnline}
 	r := ScanResult{IP: "192.168.1.10", Hostname: "web-01"}
-	change, _ := classifyChange(asset, r)
+	change, _, _ := classifyChange(asset, r)
 	if change != model.DiscoveryChangeNone {
 		t.Fatalf("expected none for contained hostname, got %s", change)
 	}

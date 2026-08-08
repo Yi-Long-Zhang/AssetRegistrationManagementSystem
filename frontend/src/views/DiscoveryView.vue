@@ -115,6 +115,10 @@
               <el-switch v-model="ruleDialog.form.autoAdopt" />
               <span class="hint">启用后新发现主机自动入库（建议人工确认）</span>
             </el-form-item>
+            <el-form-item label="自动应用">
+              <el-switch v-model="ruleDialog.form.autoApply" />
+              <span class="hint">启用后低风险变更（仅新增端口等）自动应用；高风险变更仍需人工确认</span>
+            </el-form-item>
             <el-form-item label="启用">
               <el-switch v-model="ruleDialog.form.enabled" />
             </el-form-item>
@@ -198,6 +202,12 @@
                   <el-tag :type="dictItem(changeTypeMap, row.changeType).type" size="small">{{ dictItem(changeTypeMap, row.changeType).label }}</el-tag>
                 </template>
               </el-table-column>
+              <el-table-column label="风险" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag v-if="row.changeRisk" :type="dictItem(changeRiskMap, row.changeRisk).type" size="small">{{ dictItem(changeRiskMap, row.changeRisk).label }}</el-tag>
+                  <span v-else>-</span>
+                </template>
+              </el-table-column>
               <el-table-column prop="os" label="操作系统" min-width="120" show-overflow-tooltip />
               <el-table-column prop="openPorts" label="开放端口" min-width="140" show-overflow-tooltip />
               <el-table-column label="匹配资产" width="130">
@@ -229,6 +239,7 @@ import { discoveryApi } from '../api/discovery'
 import {
   DISCOVERY_RUN_STATUS_MAP,
   DISCOVERY_CHANGE_TYPE_MAP,
+  DISCOVERY_CHANGE_RISK_MAP,
   dictItem,
   dictOptions
 } from '../constants/dictionaries'
@@ -254,6 +265,7 @@ const emptyRuleForm = () => ({
   serviceDetect: false,
   intervalMinutes: 60,
   autoAdopt: false,
+  autoApply: false,
   enabled: true
 })
 
@@ -377,6 +389,8 @@ function removePort(p) {
 
 const runStatusMap = DISCOVERY_RUN_STATUS_MAP
 const changeTypeMap = DISCOVERY_CHANGE_TYPE_MAP
+const changeRiskMap = DISCOVERY_CHANGE_RISK_MAP
+
 const runStatusOptions = dictOptions(DISCOVERY_RUN_STATUS_MAP)
 
 const runs = ref([])

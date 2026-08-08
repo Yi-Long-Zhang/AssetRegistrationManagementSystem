@@ -72,13 +72,14 @@ type CORSConfig struct {
 
 // DiscoveryConfig 资产自动发现（nmap）配置
 type DiscoveryConfig struct {
-	NmapBin          string `yaml:"nmap_bin"`           // 空=自动探测 tools/nmap/<platform>/ 与 PATH
-	ScanTimeoutSec   int    `yaml:"scan_timeout_sec"`   // 单次扫描超时秒数
-	DefaultPorts     string `yaml:"default_ports"`      // 规则未指定端口时的默认端口列表
-	ProbePorts       string `yaml:"probe_ports"`        // 两阶段扫描探活端口（快速端口）
-	MaxParallelScans int    `yaml:"max_parallel_scans"` // 大网段分片并行扫描最大并发
-	ScanChunkSize    int    `yaml:"scan_chunk_size"`    // 大网段单次扫描主机数上限
-	MaxHosts         int    `yaml:"max_hosts"`          // 单次扫描最大主机数，防止误配大网段
+	NmapBin           string `yaml:"nmap_bin"`            // 空=自动探测 tools/nmap/<platform>/ 与 PATH
+	ScanTimeoutSec    int    `yaml:"scan_timeout_sec"`    // 单次扫描超时秒数
+	DefaultPorts      string `yaml:"default_ports"`       // 规则未指定端口时的默认端口列表
+	ProbePorts        string `yaml:"probe_ports"`         // 两阶段扫描探活端口（快速端口）
+	MaxParallelScans  int    `yaml:"max_parallel_scans"`  // 大网段分片并行扫描最大并发
+	ScanChunkSize     int    `yaml:"scan_chunk_size"`     // 大网段单次扫描主机数上限
+	MaxHosts          int    `yaml:"max_hosts"`           // 单次扫描最大主机数，防止误配大网段
+	OfflineAfterHours int    `yaml:"offline_after_hours"` // 资产连续未响应超过该小时数（且跨规则最近一轮缺席）才判离线
 }
 
 func Load() (Config, error) {
@@ -142,13 +143,14 @@ func defaultConfig() Config {
 			AllowedOrigins: "*",
 		},
 		Discovery: DiscoveryConfig{
-			NmapBin:          "",
-			ScanTimeoutSec:   300,
-			DefaultPorts:     "22,80,443,3389",
-			ProbePorts:       "22,80,443,445,3389",
-			MaxParallelScans: 4,
-			ScanChunkSize:    128,
-			MaxHosts:         1024,
+			NmapBin:           "",
+			ScanTimeoutSec:    300,
+			DefaultPorts:      "22,80,443,3389",
+			ProbePorts:        "22,80,443,445,3389",
+			MaxParallelScans:  4,
+			ScanChunkSize:     128,
+			MaxHosts:          1024,
+			OfflineAfterHours: 24,
 		},
 		TokenTTL: 24 * time.Hour,
 	}
@@ -212,6 +214,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Discovery.MaxHosts == 0 {
 		c.Discovery.MaxHosts = defaults.Discovery.MaxHosts
+	}
+	if c.Discovery.OfflineAfterHours == 0 {
+		c.Discovery.OfflineAfterHours = defaults.Discovery.OfflineAfterHours
 	}
 	if c.TokenTTL == 0 {
 		c.TokenTTL = defaults.TokenTTL

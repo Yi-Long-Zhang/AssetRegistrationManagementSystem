@@ -290,6 +290,7 @@ type DiscoveredHost struct {
 	Services       string              `json:"services" gorm:"type:text"`
 	OS             string              `json:"os" gorm:"size:255"`
 	ChangeType     DiscoveryChangeType `json:"changeType" gorm:"size:32;not null;index"`
+	ChangeRisk     ChangeRiskLevel     `json:"changeRisk" gorm:"size:16;not null;default:low"` // 变更风险级别：low=可自动应用 / high=需人工确认
 	MatchedAssetID *uint               `json:"matchedAssetId" gorm:"index"`
 	MatchedAsset   *Asset              `json:"matchedAsset,omitempty" gorm:"foreignKey:MatchedAssetID"`
 	DiffSummary    string              `json:"diffSummary" gorm:"type:text"`

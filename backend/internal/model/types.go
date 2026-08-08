@@ -83,6 +83,14 @@ const (
 	DiscoveryChangeNone    DiscoveryChangeType = "none"
 )
 
+// ChangeRiskLevel 变更风险级别：low=低风险（仅端口新增等，可自动应用），high=高风险（需人工确认）
+type ChangeRiskLevel string
+
+const (
+	ChangeRiskLow  ChangeRiskLevel = "low"
+	ChangeRiskHigh ChangeRiskLevel = "high"
+)
+
 // SnapshotSource 资产快照来源
 type SnapshotSource string
 

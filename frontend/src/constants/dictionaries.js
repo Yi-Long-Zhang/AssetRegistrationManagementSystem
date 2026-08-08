@@ -43,6 +43,11 @@ export const DISCOVERY_CHANGE_TYPE_MAP = {
   none: { label: '无变化', type: 'info' }
 }
 
+export const DISCOVERY_CHANGE_RISK_MAP = {
+  low: { label: '低风险', type: 'success' },
+  high: { label: '高风险', type: 'danger' }
+}
+
 export const SNAPSHOT_SOURCE_MAP = {
   discovery: { label: '自动发现', type: 'primary' },
   ticket: { label: '工单写回', type: 'warning' },

@@ -16,7 +16,7 @@ import (
 // - 已匹配且端口/主机名/OS 变化 → changed（变更）
 // - 已匹配、无字段变化且此前非在线 → online（恢复在线）
 // - 已匹配、无任何变化 → none
-// - 资产此前在线、本轮未出现且上一轮同样未出现 → offline（连续 2 轮离线）
+// - 资产此前在线、本轮未出现、LastSeenAt 超过离线窗口且最近一次任意规则运行仍缺席 → offline
 // 同时更新运行记录统计。
 func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResult, now time.Time) error {
 	var assets []model.Asset
@@ -48,6 +48,7 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 		}
 		seen[r.IP] = true
 		change := model.DiscoveryChangeNew
+		risk := model.ChangeRiskLow
 		var matchedID *uint
 		var diff string
 		// 匹配顺序：MAC（同网段 ARP 最可靠）→ IP（含管理 IP 与关联 IP）
@@ -60,7 +61,7 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 		}
 		if asset != nil {
 			matchedID = &asset.ID
-			change, diff = classifyChange(asset, r)
+			change, diff, risk = classifyChange(asset, r)
 			markSeen(asset) // 多网卡/多 IP 资产：其余 IP 一并标记，防止误判离线
 		}
 		hosts = append(hosts, model.DiscoveredHost{
@@ -73,13 +74,20 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 			Services:       joinLines(r.Services),
 			OS:             r.OS,
 			ChangeType:     change,
+			ChangeRisk:     risk,
 			MatchedAssetID: matchedID,
 			DiffSummary:    diff,
 		})
 	}
 
-	// 离线判定：仅对“本轮未出现”的资产，且上一轮同样未出现时才标记（连续 2 轮）
+	// 离线判定（P4）：时间窗口 + 跨规则确认
+	// - 时间窗口：资产 LastSeenAt 距今超过 offline_after_hours 才可能判离线（替代连续轮数判据）
+	// - 跨规则确认：最近一次任意规则的成功运行中该 IP 同样缺席，避免“另一网段仍在线”误判
 	var offline []model.DiscoveredHost
+	offlineAfter := time.Duration(s.Config.Discovery.OfflineAfterHours) * time.Hour
+	if offlineAfter <= 0 {
+		offlineAfter = 24 * time.Hour // 兜底默认
+	}
 	for _, asset := range byIP {
 		if assetSeen(asset, seen) {
 			continue
@@ -90,20 +98,24 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 		if asset.LastSeenAt == nil {
 			continue // 从未被扫描发现过，无从判定离线
 		}
-		absentPrev, err := absentLastRound(s.DB, run.RuleID, assetIPs(asset)[0], run.ID)
+		if time.Since(*asset.LastSeenAt) < offlineAfter {
+			continue // 时间窗口内未响应，暂不判离线
+		}
+		absentLatest, err := absentInLatestRun(s.DB, assetIPs(asset)[0], run.ID)
 		if err != nil {
 			return err
 		}
-		if !absentPrev {
-			continue // 上一轮还在，本轮仅缺席一次，等待下一轮确认
+		if !absentLatest {
+			continue // 最近一次任意规则运行仍发现该主机（如其它网段在线）
 		}
 		offline = append(offline, model.DiscoveredHost{
 			RunID:          run.ID,
 			IP:             assetIPs(asset)[0],
 			Status:         "down",
 			ChangeType:     model.DiscoveryChangeOffline,
+			ChangeRisk:     model.ChangeRiskHigh, // 离线属于高风险变更，需人工确认
 			MatchedAssetID: &asset.ID,
-			DiffSummary:    "连续两轮未发现主机",
+			DiffSummary:    "超过离线窗口未发现主机（跨规则确认）",
 		})
 	}
 
@@ -129,35 +141,99 @@ func (s *DiscoveryService) reconcile(run *model.DiscoveryRun, results []ScanResu
 	return nil
 }
 
-// classifyChange 对比资产当前字段与扫描结果，返回变更类型与 diff 摘要。
-func classifyChange(asset *model.Asset, r ScanResult) (model.DiscoveryChangeType, string) {
+// classifyChange 对比资产当前字段与扫描结果，返回变更类型、diff 摘要与风险级别。
+// 风险分级：仅端口新增为 low（可自动应用）；端口关闭/主机名/OS/服务变化为 high（需人工确认）。
+func classifyChange(asset *model.Asset, r ScanResult) (model.DiscoveryChangeType, string, model.ChangeRiskLevel) {
 	var diffs []string
+	risk := model.ChangeRiskLow
 
 	assetPorts := portSet(strings.Split(asset.OpenPorts, ","))
 	scanPorts := portSet(r.OpenPorts)
 	if !equalSet(assetPorts, scanPorts) {
-		diffs = append(diffs, "开放端口: ["+strings.Join(sortedKeys(assetPorts), ",")+"] → ["+strings.Join(r.OpenPorts, ",")+"]")
+		added := diffKeys(scanPorts, assetPorts)   // 新增端口
+		removed := diffKeys(assetPorts, scanPorts) // 关闭端口
+		var parts []string
+		if len(added) > 0 {
+			parts = append(parts, "新增 "+strings.Join(added, ","))
+		}
+		if len(removed) > 0 {
+			parts = append(parts, "关闭 "+strings.Join(removed, ","))
+		}
+		diffs = append(diffs, "开放端口: "+strings.Join(parts, "; "))
+		if len(removed) > 0 {
+			risk = model.ChangeRiskHigh // 端口关闭属于高风险变更
+		}
 	}
 	if r.Hostname != "" && asset.Hostname != "" &&
 		!strings.EqualFold(asset.Hostname, r.Hostname) &&
 		!strings.Contains(strings.ToLower(asset.Hostname), strings.ToLower(r.Hostname)) &&
 		!strings.Contains(strings.ToLower(r.Hostname), strings.ToLower(asset.Hostname)) {
 		diffs = append(diffs, "主机名: "+asset.Hostname+" → "+r.Hostname)
+		risk = model.ChangeRiskHigh
 	}
 	if r.OS != "" && asset.OS != "" &&
 		!strings.EqualFold(asset.OS, r.OS) &&
 		!strings.Contains(strings.ToLower(asset.OS), strings.ToLower(r.OS)) &&
 		!strings.Contains(strings.ToLower(r.OS), strings.ToLower(asset.OS)) {
 		diffs = append(diffs, "操作系统: "+asset.OS+" → "+r.OS)
+		risk = model.ChangeRiskHigh
+	}
+	if svc := serviceDiff(strings.Split(asset.RunningServices, "\n"), r.Services); svc != "" {
+		diffs = append(diffs, "服务: "+svc)
+		risk = model.ChangeRiskHigh
 	}
 
 	if len(diffs) > 0 {
-		return model.DiscoveryChangeChanged, strings.Join(diffs, "; ")
+		return model.DiscoveryChangeChanged, strings.Join(diffs, "; "), risk
 	}
 	if asset.OnlineStatus != model.AssetOnlineStatusOnline {
-		return model.DiscoveryChangeOnline, "主机恢复在线"
+		return model.DiscoveryChangeOnline, "主机恢复在线", model.ChangeRiskLow
 	}
-	return model.DiscoveryChangeNone, ""
+	return model.DiscoveryChangeNone, "", model.ChangeRiskLow
+}
+
+// diffKeys 返回 map a 中存在但 b 中不存在的键（排序），用于端口新增/关闭明细。
+func diffKeys(a, b map[string]bool) []string {
+	var out []string
+	for k := range a {
+		if !b[k] {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// serviceDiff 按端口对齐比较资产与扫描的服务信息；同一端口服务描述变化即视为服务变更。
+func serviceDiff(assetServices, scanServices []string) string {
+	assetMap := serviceMap(assetServices)
+	scanMap := serviceMap(scanServices)
+	var diffs []string
+	for port, info := range scanMap {
+		old, ok := assetMap[port]
+		if ok && old != "" && info != "" && !strings.EqualFold(old, info) {
+			diffs = append(diffs, port+"("+old+" → "+info+")")
+		}
+	}
+	return strings.Join(diffs, ", ")
+}
+
+// serviceMap 将服务行（"80/tcp: http Apache 2.4" 或 "80/tcp: http"）解析为 端口号 -> 服务描述。
+func serviceMap(rows []string) map[string]string {
+	out := map[string]string{}
+	for _, row := range rows {
+		row = strings.TrimSpace(row)
+		if row == "" {
+			continue
+		}
+		portPart, info := row, ""
+		if idx := strings.Index(row, ":"); idx >= 0 {
+			portPart = strings.TrimSpace(row[:idx])
+			info = strings.TrimSpace(row[idx+1:])
+		}
+		out[strings.Split(portPart, "/")[0]] = info
+	}
+	return out
 }
 
 // portSet 将端口字符串列表（"80/tcp" 或 "80"）归一化为端口号集合。
@@ -250,14 +326,14 @@ func normalizeMAC(mac string) string {
 	return b.String()
 }
 
-// absentLastRound 判断该 IP 在指定规则的上一次成功运行中是否未出现（up）。
-func absentLastRound(db *gorm.DB, ruleID uint, ip string, runID uint) (bool, error) {
+// absentInLatestRun 判断该 IP 在最近一次任意规则的成功运行中是否未出现（up）。
+// 跨规则确认：只要任一规则最近一轮仍发现该主机，就不判离线（防止"另一网段仍在线"误判）。
+func absentInLatestRun(db *gorm.DB, ip string, excludeRunID uint) (bool, error) {
 	var prev model.DiscoveryRun
-	err := db.Where("rule_id = ? AND status = ? AND id < ?",
-		ruleID, model.DiscoveryRunStatusSuccess, runID).
+	err := db.Where("status = ? AND id != ?", model.DiscoveryRunStatusSuccess, excludeRunID).
 		Order("id DESC").First(&prev).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, nil // 无上一轮记录，不满足“连续两轮”
+		return true, nil // 无任何历史成功运行，视为跨规则确认通过（等待时间窗口累计）
 	}
 	if err != nil {
 		return false, err
