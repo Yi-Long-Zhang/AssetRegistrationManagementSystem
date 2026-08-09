@@ -65,6 +65,8 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	ad.POST("/import-user", h.ImportADUser)
 
 	settings := api.Group("/settings", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
+	auditLogs := api.Group("/audit-logs", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
+	auditLogs.GET("", h.ListAuditLogs)
 	settings.GET("/mail", h.GetMailConfig)
 	settings.PUT("/mail", h.SaveMailConfig)
 	settings.POST("/mail/test", h.TestMailConfig)
@@ -87,6 +89,7 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	assets := api.Group("/assets", h.AuthRequired())
 	assets.GET("", h.ListAssets)
 	assets.GET("/stats", h.AssetStats)
+	assets.GET("/stats/export", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.ExportAssetStats)
 	assets.POST("", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.CreateAsset)
 	assets.GET("/export", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.ExportAssets)
 	assets.GET("/template", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.DownloadAssetImportTemplate)
@@ -95,6 +98,7 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	assets.GET("/:id/history", h.ListAssetHistory)
 	assets.PUT("/:id", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.UpdateAsset)
 	assets.DELETE("/:id", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.DeleteAsset)
+	assets.POST("/:id/retire", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.RetireAsset)
 	assets.POST("/batch-delete", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.BatchDeleteAssets)
 
 	discovery := api.Group("/discovery", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager))
@@ -108,6 +112,9 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	discovery.GET("/runs/:id", h.GetDiscoveryRun)
 	discovery.POST("/runs/:id/adopt", h.AdoptDiscoveryHosts)
 	discovery.POST("/runs/:id/apply", h.ApplyDiscoveryHosts)
+	discovery.GET("/stats/trend", h.GetDiscoveryTrend)
+	discovery.GET("/stats/subnets", h.GetDiscoverySubnetStats)
+	discovery.GET("/stats/services", h.GetDiscoveryServiceStats)
 
 	tickets := api.Group("/tickets", h.AuthRequired())
 	tickets.GET("", h.ListTickets)

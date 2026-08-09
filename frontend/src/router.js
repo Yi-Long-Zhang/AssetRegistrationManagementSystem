@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import LoginView from './views/LoginView.vue'
 import DashboardView from './views/DashboardView.vue'
 import AssetsView from './views/AssetsView.vue'
+import AuditLogsView from './views/AuditLogsView.vue'
 import TicketsView from './views/TicketsView.vue'
 import UsersView from './views/UsersView.vue'
 import WorkflowsView from './views/WorkflowsView.vue'
@@ -19,12 +20,14 @@ const router = createRouter({
       component: DashboardView,
       meta: { auth: true },
       children: [
-        { path: '', redirect: '/assets' },
+        { path: '', redirect: '/dashboard' },
+        { path: 'dashboard', component: DashboardView, meta: { auth: true, menu: true, title: '数据看板', icon: 'Odometer', order: 5 } },
         { path: 'assets', component: AssetsView, meta: { auth: true, menu: true, title: '服务器资产', icon: 'Monitor', order: 10 } },
         { path: 'discovery', component: () => import('./views/DiscoveryView.vue'), meta: { auth: true, menu: true, title: '资产发现', icon: 'Aim', roles: ['admin', 'asset_manager'], order: 15 } },
         { path: 'tickets', component: TicketsView, meta: { auth: true, menu: true, title: '工单流程', icon: 'Tickets', order: 20 } },
         { path: 'workflows', component: WorkflowsView, meta: { auth: true, menu: true, title: '流程配置', icon: 'Operation', roles: ['admin'], order: 30 } },
         { path: 'users', component: UsersView, meta: { auth: true, menu: true, title: '用户管理', icon: 'User', roles: ['admin'], order: 40 } },
+        { path: 'audit-logs', component: AuditLogsView, meta: { auth: true, menu: true, title: '操作审计', icon: 'Document', roles: ['admin'], order: 45 } },
         { path: 'settings', component: SettingsView, meta: { auth: true, menu: true, title: '系统配置', icon: 'Setting', roles: ['admin'], order: 50 } }
       ]
     }
@@ -37,7 +40,7 @@ router.beforeEach(async (to) => {
   const needAuth = to.matched.some((record) => record.meta.auth)
   const roles = to.matched.flatMap((record) => record.meta.roles || [])
 
-  if (to.path === '/login' && auth.isLoggedIn) return '/assets'
+  if (to.path === '/login' && auth.isLoggedIn) return '/dashboard'
   if (needAuth && !auth.isLoggedIn) return '/login'
 
   if (needAuth && auth.isLoggedIn && !auth.loaded) {

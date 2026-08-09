@@ -413,14 +413,20 @@ func (h *Handler) AssetStats(c *gin.Context) {
 		return
 	}
 	var assets []model.Asset
-	if err := applyAssetFilters(h.db.Model(&model.Asset{}), c).Select("open_ports", "running_services").Find(&assets).Error; err != nil {
+	if err := applyAssetFilters(h.db.Model(&model.Asset{}), c).Select("open_ports", "running_services", "online_status").Find(&assets).Error; err != nil {
 		errorJSON(c, http.StatusInternalServerError, "查询资产统计失败")
 		return
 	}
 	openPortValues := make([]string, 0, len(assets))
 	serviceValues := make([]string, 0, len(assets))
 	openPortAssetCount := int64(0)
+	onlineCounts := map[string]int64{}
 	for _, asset := range assets {
+		status := string(asset.OnlineStatus)
+		if status == "" {
+			status = string(model.AssetOnlineStatusUnknown)
+		}
+		onlineCounts[status]++
 		if strings.TrimSpace(asset.OpenPorts) != "" {
 			openPortAssetCount++
 			openPortValues = append(openPortValues, asset.OpenPorts)
@@ -433,6 +439,7 @@ func (h *Handler) AssetStats(c *gin.Context) {
 		"total":              total,
 		"subnetCount":        len(assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "subnet", 1000000)),
 		"openPortAssetCount": openPortAssetCount,
+		"byOnlineStatus":     onlineCounts,
 		"byAssetType":        assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "asset_type", 10),
 		"bySubnet":           assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "subnet", 10),
 		"byOwner":            assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "owner", 10),
@@ -506,6 +513,45 @@ func (h *Handler) DeleteAsset(c *gin.Context) {
 	}
 	h.audit(currentUser(c).ID, "asset", id, "delete", "")
 	c.Status(http.StatusNoContent)
+}
+
+// RetireAsset 资产退役归档：状态置为 retired，写快照与审计（保留历史数据，不删除）。
+// @Summary 资产退役归档
+// @Description 将资产状态置为退役（retired），保留快照与审计记录
+// @Tags assets
+// @Produce json
+// @Param id path int true "资产 ID"
+// @Success 200 {object} model.Asset
+// @Failure 400 {object} map[string]string
+// @Router /assets/{id}/retire [post]
+// @Security BearerAuth
+func (h *Handler) RetireAsset(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var asset model.Asset
+	if err := h.db.First(&asset, id).Error; err != nil {
+		statusForDBError(c, err, "资产不存在")
+		return
+	}
+	if asset.Status == model.AssetStatusRetired {
+		errorJSON(c, http.StatusBadRequest, "该资产已处于退役状态")
+		return
+	}
+	asset.Status = model.AssetStatusRetired
+	if err := h.db.Save(&asset).Error; err != nil {
+		errorJSON(c, http.StatusBadRequest, "退役资产失败: "+err.Error())
+		return
+	}
+	snapper := service.AssetSnapshotter{DB: h.db}
+	if err := snapper.CreateSnapshot(&asset, model.SnapshotSourceManual, nil, "retire"); err != nil {
+		errorJSON(c, http.StatusBadRequest, "生成快照失败: "+err.Error())
+		return
+	}
+	actor := currentUser(c).ID
+	h.audit(actor, "asset", asset.ID, "retire", "资产退役归档: "+asset.AssetNo)
+	c.JSON(http.StatusOK, asset)
 }
 
 type batchDeleteRequest struct {

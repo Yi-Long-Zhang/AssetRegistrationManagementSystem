@@ -289,6 +289,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/assets/batch-delete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "assets"
+                ],
+                "summary": "批量删除资产",
+                "parameters": [
+                    {
+                        "description": "资产 ID 列表",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.batchDeleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/assets/export": {
             "get": {
                 "security": [
@@ -376,6 +421,31 @@ const docTemplate = `{
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/assets/stats/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "导出资产统计汇总为 CSV（在线状态/类型/TOP 端口/TOP 服务）",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "assets"
+                ],
+                "summary": "资产统计报表导出",
+                "responses": {
+                    "200": {
+                        "description": "CSV 文件",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -572,6 +642,110 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/assets/{id}/retire": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "将资产状态置为退役（retired），保留快照与审计记录",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "assets"
+                ],
+                "summary": "资产退役归档",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "资产 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Asset"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/audit-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页查询操作审计日志（admin），支持 entity/action 过滤",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "操作审计日志",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码（默认 1）",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页条数（默认 20，最大 200）",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "实体（asset/ticket/user/...）",
+                        "name": "entity",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "动作（create/update/delete/alert/...）",
+                        "name": "action",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -1093,6 +1267,133 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/stats/services": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "按开放端口聚合资产数量（含 -sV 识别的服务名），按数量降序返回",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "端口/服务矩阵",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "返回条数（默认 50）",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_httpapi.serviceStat"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/stats/subnets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "按网段聚合资产数量（subnet 字段优先，未填时按 IP /16 兜底）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "资产网段分布",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_httpapi.subnetStat"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/discovery/stats/trend": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "按天聚合各发现运行的变更统计（默认最近 14 天，可用 days 参数调整）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "discovery"
+                ],
+                "summary": "发现趋势统计",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "统计天数（默认 14）",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_httpapi.discoveryTrendItem"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -2293,6 +2594,10 @@ const docTemplate = `{
         "asset-registration-management-system_backend_internal_model.Asset": {
             "type": "object",
             "properties": {
+                "additionalIPs": {
+                    "description": "关联 IP 列表，逗号分隔（多网卡）",
+                    "type": "string"
+                },
                 "appVersion": {
                     "type": "string"
                 },
@@ -2465,6 +2770,17 @@ const docTemplate = `{
                 "AssetStatusDecommission"
             ]
         },
+        "asset-registration-management-system_backend_internal_model.ChangeRiskLevel": {
+            "type": "string",
+            "enum": [
+                "low",
+                "high"
+            ],
+            "x-enum-varnames": [
+                "ChangeRiskLow",
+                "ChangeRiskHigh"
+            ]
+        },
         "asset-registration-management-system_backend_internal_model.DiscoveredHost": {
             "type": "object",
             "properties": {
@@ -2473,6 +2789,14 @@ const docTemplate = `{
                 },
                 "applied": {
                     "type": "boolean"
+                },
+                "changeRisk": {
+                    "description": "变更风险级别：low=可自动应用 / high=需人工确认",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.ChangeRiskLevel"
+                        }
+                    ]
                 },
                 "changeType": {
                     "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryChangeType"
@@ -2490,6 +2814,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "ip": {
+                    "type": "string"
+                },
+                "mac": {
                     "type": "string"
                 },
                 "matchedAsset": {
@@ -2541,6 +2868,10 @@ const docTemplate = `{
                 "autoApply": {
                     "type": "boolean"
                 },
+                "autoTicket": {
+                    "description": "高风险变更自动生成变更工单",
+                    "type": "boolean"
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -2549,6 +2880,10 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "incremental": {
+                    "description": "增量扫描：仅重扫上次发现的存活主机",
+                    "type": "boolean"
                 },
                 "intervalMinutes": {
                     "type": "integer"
@@ -2561,6 +2896,18 @@ const docTemplate = `{
                 },
                 "ports": {
                     "description": "端口列表，如 \"22,80,443\"；空=使用默认端口",
+                    "type": "string"
+                },
+                "probePorts": {
+                    "description": "两阶段扫描探活端口；空=使用配置默认",
+                    "type": "string"
+                },
+                "scanWindowEnd": {
+                    "description": "扫描时段结束 \"HH:MM\"，空=全天",
+                    "type": "string"
+                },
+                "scanWindowStart": {
+                    "description": "扫描时段开始 \"HH:MM\"，空=全天",
                     "type": "string"
                 },
                 "serviceDetect": {
@@ -3314,6 +3661,20 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_httpapi.batchDeleteRequest": {
+            "type": "object",
+            "required": [
+                "ids"
+            ],
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "internal_httpapi.discoveryHostActionRequest": {
             "type": "object",
             "required": [
@@ -3341,7 +3702,13 @@ const docTemplate = `{
                 "autoApply": {
                     "type": "boolean"
                 },
+                "autoTicket": {
+                    "type": "boolean"
+                },
                 "enabled": {
+                    "type": "boolean"
+                },
+                "incremental": {
                     "type": "boolean"
                 },
                 "intervalMinutes": {
@@ -3353,11 +3720,49 @@ const docTemplate = `{
                 "ports": {
                     "type": "string"
                 },
+                "probePorts": {
+                    "type": "string"
+                },
+                "scanWindowEnd": {
+                    "type": "string"
+                },
+                "scanWindowStart": {
+                    "type": "string"
+                },
                 "serviceDetect": {
                     "type": "boolean"
                 },
                 "targets": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.discoveryTrendItem": {
+            "type": "object",
+            "properties": {
+                "changed": {
+                    "description": "变更主机数",
+                    "type": "integer"
+                },
+                "date": {
+                    "description": "YYYY-MM-DD",
+                    "type": "string"
+                },
+                "new": {
+                    "description": "新增主机数",
+                    "type": "integer"
+                },
+                "offline": {
+                    "description": "离线主机数",
+                    "type": "integer"
+                },
+                "online": {
+                    "description": "恢复在线主机数",
+                    "type": "integer"
+                },
+                "runs": {
+                    "description": "成功运行次数",
+                    "type": "integer"
                 }
             }
         },
@@ -3420,6 +3825,31 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "recipient": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.serviceStat": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "port": {
+                    "type": "string"
+                },
+                "service": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.subnetStat": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "subnet": {
                     "type": "string"
                 }
             }

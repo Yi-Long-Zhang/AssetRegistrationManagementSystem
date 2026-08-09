@@ -236,6 +236,7 @@ type TicketRecord struct {
 type AuditLog struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	ActorID   uint      `json:"actorId" gorm:"not null;index"`
+	Actor     User      `json:"actor" gorm:"foreignKey:ActorID"`
 	Entity    string    `json:"entity" gorm:"size:64;not null;index"`
 	EntityID  uint      `json:"entityId" gorm:"not null;index"`
 	Action    string    `json:"action" gorm:"size:64;not null"`
@@ -254,6 +255,10 @@ type DiscoveryRule struct {
 	IntervalMinutes int        `json:"intervalMinutes" gorm:"not null;default:60"`
 	AutoAdopt       bool       `json:"autoAdopt" gorm:"not null;default:false"`
 	AutoApply       bool       `json:"autoApply" gorm:"not null;default:false"`
+	AutoTicket      bool       `json:"autoTicket" gorm:"not null;default:false"`  // 高风险变更自动生成变更工单
+	Incremental     bool       `json:"incremental" gorm:"not null;default:false"` // 增量扫描：仅重扫上次发现的存活主机
+	ScanWindowStart string     `json:"scanWindowStart" gorm:"size:5"`             // 扫描时段开始 "HH:MM"，空=全天
+	ScanWindowEnd   string     `json:"scanWindowEnd" gorm:"size:5"`               // 扫描时段结束 "HH:MM"，空=全天
 	Enabled         bool       `json:"enabled" gorm:"not null;default:true"`
 	LastRunAt       *time.Time `json:"lastRunAt"`
 	CreatedAt       time.Time  `json:"createdAt"`

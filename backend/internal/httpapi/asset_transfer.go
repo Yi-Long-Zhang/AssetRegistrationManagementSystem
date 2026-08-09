@@ -102,6 +102,94 @@ func (h *Handler) ExportAssets(c *gin.Context) {
 	writeAssetCSV(c, "assets-export.csv", assets)
 }
 
+// ExportAssetStats 导出资产统计报表（CSV）：在线状态分布、资产类型分布、TOP 开放端口、TOP 服务。
+// @Summary 资产统计报表导出
+// @Description 导出资产统计汇总为 CSV（在线状态/类型/TOP 端口/TOP 服务）
+// @Tags assets
+// @Produce text/csv
+// @Success 200 {string} string "CSV 文件"
+// @Router /assets/stats/export [get]
+// @Security BearerAuth
+func (h *Handler) ExportAssetStats(c *gin.Context) {
+	base := applyAssetFilters(h.db.Model(&model.Asset{}), c)
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "导出统计失败")
+		return
+	}
+	var assets []model.Asset
+	if err := base.Select("open_ports", "running_services", "online_status").Find(&assets).Error; err != nil {
+		errorJSON(c, http.StatusInternalServerError, "导出统计失败")
+		return
+	}
+	openPortValues := make([]string, 0, len(assets))
+	serviceValues := make([]string, 0, len(assets))
+	statusCounts := map[string]int{}
+	for _, a := range assets {
+		status := string(a.OnlineStatus)
+		if status == "" {
+			status = "unknown"
+		}
+		statusCounts[status]++
+		if strings.TrimSpace(a.OpenPorts) != "" {
+			openPortValues = append(openPortValues, a.OpenPorts)
+		}
+		if strings.TrimSpace(a.RunningServices) != "" {
+			serviceValues = append(serviceValues, a.RunningServices)
+		}
+	}
+
+	var buf strings.Builder
+	writeCSVRow := func(row ...string) {
+		for i, v := range row {
+			if i > 0 {
+				buf.WriteString(",")
+			}
+			buf.WriteString(csvEscape(v))
+		}
+		buf.WriteString("\n")
+	}
+
+	writeCSVRow("资产统计报表", "生成时间", time.Now().Format("2006-01-02 15:04:05"))
+	writeCSVRow("资产总数", fmt.Sprintf("%d", total), "")
+	writeCSVRow()
+	writeCSVRow("在线状态分布")
+	writeCSVRow("状态", "数量")
+	for _, k := range []string{"online", "offline", "unknown"} {
+		writeCSVRow(k, fmt.Sprintf("%d", statusCounts[k]))
+	}
+	writeCSVRow()
+	writeCSVRow("资产类型分布")
+	writeCSVRow("类型", "数量")
+	for _, item := range assetGroupedCounts(base, "asset_type", 20) {
+		writeCSVRow(item.Label, fmt.Sprintf("%d", item.Count))
+	}
+	writeCSVRow()
+	writeCSVRow("TOP 开放端口")
+	writeCSVRow("端口", "资产数")
+	for _, item := range topAssetTokens(openPortValues, 10, true) {
+		writeCSVRow(item.Label, fmt.Sprintf("%d", item.Count))
+	}
+	writeCSVRow()
+	writeCSVRow("TOP 服务")
+	writeCSVRow("服务", "资产数")
+	for _, item := range topAssetTokens(serviceValues, 10, false) {
+		writeCSVRow(item.Label, fmt.Sprintf("%d", item.Count))
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="asset-stats-report.csv"`)
+	c.String(http.StatusOK, "\xEF\xBB\xBF"+buf.String())
+}
+
+// csvEscape CSV 单元格转义（含逗号/引号时加引号）。
+func csvEscape(v string) string {
+	if strings.ContainsAny(v, ",\"\n") {
+		return `"` + strings.ReplaceAll(v, `"`, `""`) + `"`
+	}
+	return v
+}
+
 func (h *Handler) ImportAssets(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {

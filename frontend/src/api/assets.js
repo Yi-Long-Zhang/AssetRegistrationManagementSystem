@@ -13,6 +13,9 @@ export const assetsApi = {
   remove(id) {
     return request.delete(`/assets/${id}`).then(unwrap)
   },
+  retire(id) {
+    return request.post(`/assets/${id}/retire`).then(unwrap)
+  },
   batchDelete(ids) {
     return request.post('/assets/batch-delete', { ids }).then(unwrap)
   },
@@ -24,6 +27,9 @@ export const assetsApi = {
   },
   stats(params) {
     return request.get('/assets/stats', { params }).then(unwrap)
+  },
+  exportStatsReport() {
+    return request.get('/assets/stats/export', { responseType: 'blob' })
   },
   template(params) {
     return request.get('/assets/template', { params, responseType: 'blob' }).then(unwrap)

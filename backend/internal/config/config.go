@@ -79,6 +79,9 @@ type DiscoveryConfig struct {
 	MaxParallelScans  int    `yaml:"max_parallel_scans"`  // 大网段分片并行扫描最大并发
 	ScanChunkSize     int    `yaml:"scan_chunk_size"`     // 大网段单次扫描主机数上限
 	MaxHosts          int    `yaml:"max_hosts"`           // 单次扫描最大主机数，防止误配大网段
+	MinRate           int    `yaml:"min_rate"`            // nmap --min-rate（每秒发包下限），0=不限制
+	MaxRate           int    `yaml:"max_rate"`            // nmap --max-rate（每秒发包上限），0=不限制
+	AlertEmails       string `yaml:"alert_emails"`        // 变更告警收件人（逗号分隔），空=不发送
 	OfflineAfterHours int    `yaml:"offline_after_hours"` // 资产连续未响应超过该小时数（且跨规则最近一轮缺席）才判离线
 }
 

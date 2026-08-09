@@ -33,6 +33,16 @@ export const discoveryApi = {
   applyHosts(runId, hostIds) {
     return request.post(`/discovery/runs/${runId}/apply`, { hostIds }).then(unwrap)
   },
+  // 统计
+  getTrend(days = 14) {
+    return request.get('/discovery/stats/trend', { params: { days } }).then(unwrap)
+  },
+  getSubnetStats() {
+    return request.get('/discovery/stats/subnets').then(unwrap)
+  },
+  getServiceStats(limit = 50) {
+    return request.get('/discovery/stats/services', { params: { limit } }).then(unwrap)
+  },
   // 资产变更历史
   assetHistory(id) {
     return request.get(`/assets/${id}/history`).then(unwrap)

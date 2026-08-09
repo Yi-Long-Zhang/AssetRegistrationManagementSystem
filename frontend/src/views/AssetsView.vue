@@ -7,6 +7,7 @@
         </el-upload>
         <el-button v-if="canManage" :icon="Download" @click="downloadTemplate">下载模板</el-button>
         <el-button v-if="canManage" :icon="Download" @click="exportAssets">批量导出</el-button>
+        <el-button v-if="canManage" :icon="Download" @click="exportStatsReport">报表导出</el-button>
         <el-button v-if="canManage" :icon="Delete" type="danger" plain :disabled="!selectedIds.length" @click="batchDelete">批量删除{{ selectedIds.length ? ` (${selectedIds.length})` : '' }}</el-button>
         <el-button v-if="canManage" type="primary" :icon="Plus" @click="openCreate">新增资产</el-button>
       </template>
@@ -98,7 +99,14 @@
           :fixed="column.fixed"
           :sortable="column.sortable ? 'custom' : false"
           :show-overflow-tooltip="column.tooltip"
-        />
+        >
+          <template v-if="column.key === 'assetType'" #default="{ row }">
+            <el-tag :type="dictItem(assetTypeMap, row.assetType).type" size="small" effect="plain">
+              {{ dictItem(assetTypeMap, row.assetType).label }}
+            </el-tag>
+          </template>
+          <template v-else #default="{ row }">{{ row[column.prop] }}</template>
+        </el-table-column>
         <el-table-column label="在线状态" width="90" fixed="right">
           <template #default="{ row }">
             <el-tag :type="dictItem(onlineStatusMap, row.onlineStatus).type" size="small">{{ dictItem(onlineStatusMap, row.onlineStatus).label }}</el-tag>
@@ -155,7 +163,7 @@
     </el-dialog>
 
     <!-- 资产详情弹窗（弹出式 + 动画） -->
-    <AssetDetailDialog v-model="detail.visible" :asset="detail.asset" />
+    <AssetDetailDialog v-model="detail.visible" :asset="detail.asset" @updated="load" />
   </section>
 </template>
 
@@ -172,6 +180,7 @@ import { useAuthStore } from '../stores/auth'
 import { canManageAssets } from '../utils/permissions'
 import {
   ONLINE_STATUS_MAP,
+  ASSET_TYPE_MAP,
   dictItem,
   dictOptions
 } from '../constants/dictionaries'
@@ -249,6 +258,7 @@ const topAssetTypeText = computed(() => {
 })
 
 const onlineStatusMap = ONLINE_STATUS_MAP
+const assetTypeMap = ASSET_TYPE_MAP
 const onlineStatusOptions = dictOptions(ONLINE_STATUS_MAP)
 
 const detail = reactive({ visible: false, asset: null })
@@ -469,6 +479,15 @@ async function downloadTemplate() {
 async function exportAssets() {
   const data = await assetsApi.export(buildQuery(false))
   saveBlob(data, 'assets-export.csv')
+}
+
+async function exportStatsReport() {
+  try {
+    const data = await assetsApi.exportStatsReport()
+    saveBlob(data, 'asset-stats-report.csv')
+  } catch (e) {
+    ElMessage.error(e.message || '导出报表失败')
+  }
 }
 
 async function importAssets(options) {

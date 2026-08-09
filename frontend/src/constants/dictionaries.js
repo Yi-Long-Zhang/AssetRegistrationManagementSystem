@@ -48,6 +48,14 @@ export const DISCOVERY_CHANGE_RISK_MAP = {
   high: { label: '高风险', type: 'danger' }
 }
 
+// 资产类型（指纹推断的标准值）
+export const ASSET_TYPE_MAP = {
+  server: { label: '服务器', type: 'primary' },
+  database: { label: '数据库', type: 'warning' },
+  network: { label: '网络设备', type: 'success' },
+  workstation: { label: '工作站', type: 'info' }
+}
+
 export const SNAPSHOT_SOURCE_MAP = {
   discovery: { label: '自动发现', type: 'primary' },
   ticket: { label: '工单写回', type: 'warning' },

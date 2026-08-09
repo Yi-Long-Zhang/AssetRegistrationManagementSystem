@@ -107,6 +107,12 @@
             <el-form-item label="调度间隔(分)">
               <el-input-number v-model="ruleDialog.form.intervalMinutes" :min="5" :max="10080" />
             </el-form-item>
+            <el-form-item label="扫描时段">
+              <el-time-select v-model="ruleDialog.form.scanWindowStart" start="00:00" step="00:30" end="23:30" placeholder="开始" style="width: 100px" clearable />
+              <span style="margin: 0 4px">至</span>
+              <el-time-select v-model="ruleDialog.form.scanWindowEnd" start="00:00" step="00:30" end="23:30" placeholder="结束" style="width: 100px" clearable />
+              <span class="hint">留空=全天可扫描；支持跨天（如 22:00-06:00）</span>
+            </el-form-item>
             <el-form-item label="服务识别">
               <el-switch v-model="ruleDialog.form.serviceDetect" />
               <span class="hint">启用后扫描时执行 -sV 识别服务版本</span>
@@ -118,6 +124,14 @@
             <el-form-item label="自动应用">
               <el-switch v-model="ruleDialog.form.autoApply" />
               <span class="hint">启用后低风险变更（仅新增端口等）自动应用；高风险变更仍需人工确认</span>
+            </el-form-item>
+            <el-form-item label="增量扫描">
+              <el-switch v-model="ruleDialog.form.incremental" />
+              <span class="hint">仅重扫上次发现的存活主机，大幅缩短扫描时间；新增主机请先跑一次全量</span>
+            </el-form-item>
+            <el-form-item label="自动生成工单">
+              <el-switch v-model="ruleDialog.form.autoTicket" />
+              <span class="hint">检测到高风险变更（端口关闭/OS 变化等）自动生成变更工单进入审批流</span>
             </el-form-item>
             <el-form-item label="启用">
               <el-switch v-model="ruleDialog.form.enabled" />
@@ -228,6 +242,72 @@
           </template>
         </el-drawer>
       </el-tab-pane>
+
+      <!-- ============ 趋势统计 ============ -->
+      <el-tab-pane label="趋势统计" name="trend">
+        <div class="trend-toolbar">
+          <el-radio-group v-model="trendDays" size="small" @change="loadTrend">
+            <el-radio-button :value="7">近 7 天</el-radio-button>
+            <el-radio-button :value="14">近 14 天</el-radio-button>
+            <el-radio-button :value="30">近 30 天</el-radio-button>
+          </el-radio-group>
+        </div>
+        <div v-loading="loadingTrend" class="trend-summary">
+          <div class="trend-stat"><span class="num">{{ trendTotal.new }}</span><span class="label">累计新增</span></div>
+          <div class="trend-stat"><span class="num">{{ trendTotal.changed }}</span><span class="label">累计变更</span></div>
+          <div class="trend-stat"><span class="num">{{ trendTotal.offline }}</span><span class="label">累计离线</span></div>
+          <div class="trend-stat"><span class="num">{{ trendTotal.online }}</span><span class="label">累计恢复在线</span></div>
+        </div>
+        <div class="trend-chart">
+          <div v-for="(item, i) in trend" :key="item.date" class="trend-col">
+            <div class="trend-bars">
+              <div class="trend-bar bar-new" :style="{ height: barHeight(item.new, trendMax) + '%' }" :title="item.date + ' 新增 ' + item.new"></div>
+              <div class="trend-bar bar-changed" :style="{ height: barHeight(item.changed, trendMax) + '%' }" :title="item.date + ' 变更 ' + item.changed"></div>
+              <div class="trend-bar bar-offline" :style="{ height: barHeight(item.offline, trendMax) + '%' }" :title="item.date + ' 离线 ' + item.offline"></div>
+              <div class="trend-bar bar-online" :style="{ height: barHeight(item.online, trendMax) + '%' }" :title="item.date + ' 恢复在线 ' + item.online"></div>
+            </div>
+            <div class="trend-date">{{ shortDate(item.date) }}</div>
+          </div>
+        </div>
+        <div class="trend-legend">
+          <span><i class="dot dot-new"></i>新增</span>
+          <span><i class="dot dot-changed"></i>变更</span>
+          <span><i class="dot dot-offline"></i>离线</span>
+          <span><i class="dot dot-online"></i>恢复在线</span>
+        </div>
+      </el-tab-pane>
+
+      <!-- ============ 网段分布 ============ -->
+      <el-tab-pane label="网段分布" name="subnets">
+        <div v-loading="loadingSubnets" class="subnet-chart">
+          <div v-for="item in subnets" :key="item.subnet" class="subnet-row">
+            <span class="subnet-name">{{ item.subnet }}</span>
+            <div class="subnet-bar-wrap">
+              <div class="subnet-bar" :style="{ width: subnetBarWidth(item.count) + '%' }"></div>
+            </div>
+            <span class="subnet-count">{{ item.count }} 台</span>
+          </div>
+          <el-empty v-if="!loadingSubnets && !subnets.length" description="暂无资产" />
+        </div>
+      </el-tab-pane>
+
+      <!-- ============ 端口/服务矩阵 ============ -->
+      <el-tab-pane label="端口/服务矩阵" name="services">
+        <div v-loading="loadingServices" class="svc-chart">
+          <div
+            v-for="item in services"
+            :key="item.port"
+            class="svc-cell"
+            :style="{ background: heatColor(item.count, svcMax) }"
+            :title="`端口 ${item.port}${item.service ? ' (' + item.service + ')' : ''}：${item.count} 台资产`"
+          >
+            <div class="svc-port">{{ item.port }}</div>
+            <div class="svc-service">{{ item.service || '-' }}</div>
+            <div class="svc-count">{{ item.count }}</div>
+          </div>
+          <el-empty v-if="!loadingServices && !services.length" description="暂无端口数据" />
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -245,7 +325,6 @@ import {
 } from '../constants/dictionaries'
 
 const activeTab = ref('rules')
-
 const rules = ref([])
 const loadingRules = ref(false)
 const runningRuleId = ref(0)
@@ -266,6 +345,10 @@ const emptyRuleForm = () => ({
   intervalMinutes: 60,
   autoAdopt: false,
   autoApply: false,
+  autoTicket: false,
+  incremental: false,
+  scanWindowStart: '',
+  scanWindowEnd: '',
   enabled: true
 })
 
@@ -588,7 +671,114 @@ async function applySelected() {
 onMounted(() => {
   loadRules()
   loadRuns()
+  loadTrend()
+  loadSubnets()
+  loadServices()
 })
+
+// ===== 趋势统计 =====
+const trendDays = ref(14)
+const trend = ref([])
+const loadingTrend = ref(false)
+
+const trendTotal = computed(() => {
+  const total = { new: 0, changed: 0, offline: 0, online: 0 }
+  trend.value.forEach((item) => {
+    total.new += item.new || 0
+    total.changed += item.changed || 0
+    total.offline += item.offline || 0
+    total.online += item.online || 0
+  })
+  return total
+})
+
+const trendMax = computed(() => {
+  let max = 0
+  trend.value.forEach((item) => {
+    max = Math.max(max, item.new || 0, item.changed || 0, item.offline || 0, item.online || 0)
+  })
+  return max
+})
+
+async function loadTrend() {
+  loadingTrend.value = true
+  try {
+    trend.value = await discoveryApi.getTrend(trendDays.value)
+  } catch (e) {
+    ElMessage.error(e.message || '加载趋势统计失败')
+  } finally {
+    loadingTrend.value = false
+  }
+}
+
+function barHeight(value, max) {
+  if (!max || !value) return 4
+  return Math.max(4, Math.round((value / max) * 100))
+}
+
+function shortDate(date) {
+  return date ? date.slice(5) : ''
+}
+
+// ===== 网段分布 =====
+const subnets = ref([])
+const loadingSubnets = ref(false)
+
+const subnetMax = computed(() => {
+  let max = 0
+  subnets.value.forEach((item) => {
+    max = Math.max(max, item.count || 0)
+  })
+  return max
+})
+
+async function loadSubnets() {
+  loadingSubnets.value = true
+  try {
+    subnets.value = await discoveryApi.getSubnetStats()
+  } catch (e) {
+    ElMessage.error(e.message || '加载网段分布失败')
+  } finally {
+    loadingSubnets.value = false
+  }
+}
+
+function subnetBarWidth(count) {
+  if (!subnetMax.value || !count) return 2
+  return Math.max(2, Math.round((count / subnetMax.value) * 100))
+}
+
+// ===== 端口/服务矩阵 =====
+const services = ref([])
+const loadingServices = ref(false)
+
+const svcMax = computed(() => {
+  let max = 0
+  services.value.forEach((item) => {
+    max = Math.max(max, item.count || 0)
+  })
+  return max
+})
+
+async function loadServices() {
+  loadingServices.value = true
+  try {
+    services.value = await discoveryApi.getServiceStats(50)
+  } catch (e) {
+    ElMessage.error(e.message || '加载端口矩阵失败')
+  } finally {
+    loadingServices.value = false
+  }
+}
+
+function heatColor(count, max) {
+  if (!max || !count) return '#f3f4f6'
+  const ratio = count / max
+  if (ratio > 0.75) return '#7c3aed'
+  if (ratio > 0.5) return '#8b5cf6'
+  if (ratio > 0.25) return '#a78bfa'
+  return '#c4b5fd'
+}
 </script>
 
 <style scoped>
@@ -617,5 +807,185 @@ onMounted(() => {
   gap: 6px;
   align-items: center;
   min-height: 24px;
+}
+
+/* ===== 趋势统计 ===== */
+.trend-toolbar {
+  margin-bottom: 12px;
+}
+.trend-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.trend-stat {
+  flex: 1;
+  background: linear-gradient(135deg, #f8faff, #eef2ff);
+  border: 1px solid #e5e9f5;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trend-stat .num {
+  font-size: 26px;
+  font-weight: 700;
+  color: #4f46e5;
+}
+.trend-stat .label {
+  font-size: 12px;
+  color: #6b7280;
+}
+.trend-chart {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  height: 220px;
+  padding: 8px 4px 0;
+  border-bottom: 1px solid #e5e9f5;
+  overflow-x: auto;
+}
+.trend-col {
+  flex: 1;
+  min-width: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.trend-bars {
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  width: 100%;
+  height: 100%;
+}
+.trend-bar {
+  flex: 1;
+  border-radius: 3px 3px 0 0;
+  min-height: 4px;
+  transition: height 0.3s ease;
+}
+.bar-new {
+  background: linear-gradient(180deg, #34d399, #10b981);
+}
+.bar-changed {
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+}
+.bar-offline {
+  background: linear-gradient(180deg, #f87171, #ef4444);
+}
+.bar-online {
+  background: linear-gradient(180deg, #60a5fa, #3b82f6);
+}
+.trend-date {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+.trend-legend {
+  display: flex;
+  gap: 18px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #4b5563;
+}
+.trend-legend .dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 5px;
+}
+.dot-new {
+  background: #10b981;
+}
+.dot-changed {
+  background: #f59e0b;
+}
+.dot-offline {
+  background: #ef4444;
+}
+.dot-online {
+  background: #3b82f6;
+}
+
+/* ===== 网段分布 ===== */
+.subnet-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 6px 0;
+}
+.subnet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.subnet-name {
+  width: 150px;
+  font-size: 13px;
+  color: #4b5563;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.subnet-bar-wrap {
+  flex: 1;
+  height: 22px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.subnet-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 6px;
+  transition: width 0.4s ease;
+}
+.subnet-count {
+  width: 70px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* ===== 端口/服务矩阵 ===== */
+.svc-chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+  padding: 6px 0;
+}
+.svc-cell {
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: default;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.svc-cell:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+.svc-port {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+.svc-service {
+  font-size: 12px;
+  color: #4b5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.svc-count {
+  font-size: 12px;
+  color: #6b7280;
 }
 </style>

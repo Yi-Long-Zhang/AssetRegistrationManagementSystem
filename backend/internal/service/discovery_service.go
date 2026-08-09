@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
@@ -15,8 +16,9 @@ import (
 type DiscoveryService struct {
 	DB          *gorm.DB
 	Config      config.Config
-	Runner      NmapRunner            // nil 时使用真实 exec 实现
+	Runner      NmapRunner             // nil 时使用真实 exec 实现
 	BinResolver func() (string, error) // nil 时使用默认探测（测试可注入固定路径）
+	MailSender  MailSender             // nil 时使用 SMTPMailSender（告警邮件）
 }
 
 // NewDiscoveryService 创建发现服务。
@@ -82,7 +84,13 @@ func (s *DiscoveryService) ExecuteRun(ctx context.Context, runID uint) error {
 		return s.finishFailed(&run, err)
 	}
 
-	results, err := Scan(ctx, s.Runner, bin, rule, s.Config.Discovery)
+	// 增量扫描：仅重扫上次成功运行中发现的存活主机（新主机需先跑全量或手动触发）
+	var incrementalTargets []string
+	if rule.Incremental {
+		incrementalTargets = lastUpHosts(s.DB, rule.ID)
+	}
+
+	results, err := ScanTargets(ctx, s.Runner, bin, rule, s.Config.Discovery, incrementalTargets)
 	if err != nil {
 		return s.finishFailed(&run, err)
 	}
@@ -122,6 +130,14 @@ func (s *DiscoveryService) ExecuteRun(ctx context.Context, runID uint) error {
 		return err
 	}
 	s.DB.Model(&model.DiscoveryRule{}).Where("id = ?", rule.ID).Update("last_run_at", now)
+	// 变更告警通知（邮件）；失败不影响主流程
+	s.sendDiscoveryAlert(rule, &run)
+	// 高风险变更自动生成工单（草稿）
+	if rule.AutoTicket {
+		if _, err := s.createAutoTickets(rule, &run); err != nil {
+			log.Printf("discovery auto-ticket: %v", err)
+		}
+	}
 	return nil
 }
 

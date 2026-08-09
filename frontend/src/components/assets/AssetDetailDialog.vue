@@ -20,7 +20,7 @@
           <div class="hero-tags">
             <span class="ip-badge">{{ asset.ip }}</span>
             <el-tag size="small" effect="dark" class="hero-tag">{{ asset.macAddress ? 'MAC ' + asset.macAddress : '无 MAC 信息' }}</el-tag>
-            <el-tag size="small" effect="plain" class="hero-tag">{{ asset.assetType || 'server' }}</el-tag>
+            <el-tag size="small" effect="plain" class="hero-tag">{{ assetTypeLabel(asset.assetType) }}</el-tag>
             <el-tag v-if="asset.sequenceNo" size="small" effect="plain" class="hero-tag">序号 {{ asset.sequenceNo }}</el-tag>
             <el-tag v-if="asset.additionalIPs" size="small" effect="plain" class="hero-tag">关联 {{ asset.additionalIPs }}</el-tag>
           </div>
@@ -91,10 +91,11 @@
 
       <div class="footer-note">
         <el-icon><InfoFilled /></el-icon>
-        <span>资产编号 {{ asset.assetNo }} · 最近发现 {{ formatTime(asset.lastSeenAt) }} · 首次发现 {{ formatTime(asset.discoveredAt) }}</span>
+        <span>资产编号 {{ asset.assetNo }} · 最近发现 {{ formatTime(asset.lastSeenAt) }} · 首次发现 {{ formatTime(asset.discoveredAt) }} · 使用年限 {{ ageText }}</span>
       </div>
     </template>
     <template #footer>
+      <el-button type="danger" plain v-if="retireable" :loading="retiring" @click="handleRetire">退役归档</el-button>
       <el-button @click="$emit('update:modelValue', false)">关 闭</el-button>
     </template>
   </el-dialog>
@@ -111,7 +112,9 @@ import {
   Service
 } from '@element-plus/icons-vue'
 import { discoveryApi } from '../../api/discovery'
-import { ONLINE_STATUS_MAP, SNAPSHOT_SOURCE_MAP, dictItem } from '../../constants/dictionaries'
+import { assetsApi } from '../../api/assets'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ONLINE_STATUS_MAP, SNAPSHOT_SOURCE_MAP, ASSET_TYPE_MAP, dictItem } from '../../constants/dictionaries'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -121,9 +124,42 @@ const emit = defineEmits(['update:modelValue'])
 
 const history = ref([])
 const loading = ref(false)
+const retiring = ref(false)
 
 const snapshotSourceMap = SNAPSHOT_SOURCE_MAP
 const onlineMap = ONLINE_STATUS_MAP
+const assetTypeMap = ASSET_TYPE_MAP
+const assetTypeLabel = (type) => dictItem(assetTypeMap, type).label
+
+const retireable = computed(() => props.asset && props.asset.status !== 'retired')
+
+const ageText = computed(() => {
+  const date = props.asset?.purchaseDate
+  if (!date) return '未知'
+  const start = new Date(date)
+  const years = (Date.now() - start.getTime()) / (365.25 * 24 * 3600 * 1000)
+  if (years < 1) return `${Math.max(0, Math.round(years * 12))} 个月`
+  return `${years.toFixed(1)} 年`
+})
+
+async function handleRetire() {
+  try {
+    await ElMessageBox.confirm(`确认将资产 ${props.asset?.assetNo || props.asset?.ip} 退役归档？将保留快照与审计记录。`, '退役确认', { type: 'warning' })
+  } catch {
+    return
+  }
+  retiring.value = true
+  try {
+    await assetsApi.retire(props.asset.id)
+    ElMessage.success('已退役归档')
+    emit('updated')
+    emit('update:modelValue', false)
+  } catch (e) {
+    ElMessage.error(e.message || '退役失败')
+  } finally {
+    retiring.value = false
+  }
+}
 
 const assetIcon = computed(() => Monitor)
 const onlineClass = computed(() => (props.asset?.onlineStatus || 'unknown'))

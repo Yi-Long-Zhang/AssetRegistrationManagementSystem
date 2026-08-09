@@ -55,9 +55,14 @@ func (s *DiscoveryService) AdoptHosts(_ context.Context, runID uint, hostIDs []u
 		for i := range hosts {
 			h := &hosts[i]
 			now := time.Now()
+			inferredType := inferAssetType(
+				strings.Split(h.OpenPorts, ","),
+				strings.Split(h.Services, "\n"),
+				h.OS,
+			)
 			asset := model.Asset{
 				AssetNo:         assetNoFromIP(h.IP),
-				AssetType:       "server",
+				AssetType:       inferredType, // 指纹推断，空时前端显示为未知
 				Hostname:        h.Hostname,
 				IP:              h.IP,
 				MACAddress:      h.MAC,
@@ -140,6 +145,27 @@ func (s *DiscoveryService) ApplyHostChanges(_ context.Context, runID uint, hostI
 				}
 				if h.OS != "" {
 					asset.OS = h.OS
+				}
+				// 指纹推断：资产类型为空时按端口/服务/OS 回填
+				if asset.AssetType == "" {
+					if inferred := inferAssetType(
+						strings.Split(asset.OpenPorts, ","),
+						strings.Split(asset.RunningServices, "\n"),
+						asset.OS,
+					); inferred != "" {
+						asset.AssetType = inferred
+					}
+				}
+				// 异常端口预警：与历史快照端口基线对比，新开高危端口写审计
+				baseline := lastSnapshotPorts(tx, asset.ID)
+				added := detectSuspiciousPorts(strings.Split(asset.OpenPorts, ","), baseline)
+				if high := detectHighRiskPorts(added); len(high) > 0 {
+					if err := tx.Create(&model.AuditLog{
+						ActorID: actorID, Entity: "asset", EntityID: asset.ID, Action: "alert",
+						Detail: fmt.Sprintf("新开放高危端口: %s（相对历史基线）", strings.Join(high, ",")),
+					}).Error; err != nil {
+						return err
+					}
 				}
 				asset.OnlineStatus = model.AssetOnlineStatusOnline
 				if asset.DiscoveredAt == nil {

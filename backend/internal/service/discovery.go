@@ -252,6 +252,13 @@ func BuildNmapArgsFor(rule model.DiscoveryRule, cfg config.DiscoveryConfig, targ
 	if ports != "" {
 		args = append(args, "-p", ports)
 	}
+	// 速率限制：>0 时生效，控制扫描对生产网络的影响
+	if cfg.MinRate > 0 {
+		args = append(args, "--min-rate", fmt.Sprintf("%d", cfg.MinRate))
+	}
+	if cfg.MaxRate > 0 {
+		args = append(args, "--max-rate", fmt.Sprintf("%d", cfg.MaxRate))
+	}
 	args = append(args, targets...)
 	return args
 }
@@ -337,12 +344,27 @@ func ValidatePorts(ports string) error {
 // Scan 执行一次发现扫描：目标展开 → 分片 → 两阶段（探活 + 详扫）并行执行。
 // 单目标规则直接单次详扫（跳过探活阶段）；大网段按 ScanChunkSize 分片、MaxParallelScans 并发。
 func Scan(ctx context.Context, runner NmapRunner, bin string, rule model.DiscoveryRule, cfg config.DiscoveryConfig) ([]ScanResult, error) {
+	return ScanTargets(ctx, runner, bin, rule, cfg, nil)
+}
+
+// ScanTargets 执行扫描；targets 非空时使用给定主机列表（增量扫描场景，不再按规则目标展开），
+// 为空时按规则 Targets 展开（含 CIDR）。
+func ScanTargets(ctx context.Context, runner NmapRunner, bin string, rule model.DiscoveryRule, cfg config.DiscoveryConfig, targets []string) ([]ScanResult, error) {
 	if runner == nil {
 		runner = execNmapRunner{}
 	}
-	hosts, err := expandTargets(rule.Targets, cfg.MaxHosts)
-	if err != nil {
-		return nil, fmt.Errorf("expand targets: %w", err)
+	var hosts []string
+	if len(targets) > 0 {
+		hosts = targets
+		if cfg.MaxHosts > 0 && len(hosts) > cfg.MaxHosts {
+			hosts = hosts[:cfg.MaxHosts]
+		}
+	} else {
+		var err error
+		hosts, err = expandTargets(rule.Targets, cfg.MaxHosts)
+		if err != nil {
+			return nil, fmt.Errorf("expand targets: %w", err)
+		}
 	}
 	if len(hosts) == 0 {
 		return nil, fmt.Errorf("no targets to scan")

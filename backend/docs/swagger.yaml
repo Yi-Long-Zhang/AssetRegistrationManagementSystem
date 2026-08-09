@@ -2,6 +2,9 @@ basePath: /api/v1
 definitions:
   asset-registration-management-system_backend_internal_model.Asset:
     properties:
+      additionalIPs:
+        description: 关联 IP 列表，逗号分隔（多网卡）
+        type: string
       appVersion:
         type: string
       assetNo:
@@ -120,12 +123,24 @@ definitions:
     - AssetStatusMaintenance
     - AssetStatusRetired
     - AssetStatusDecommission
+  asset-registration-management-system_backend_internal_model.ChangeRiskLevel:
+    enum:
+    - low
+    - high
+    type: string
+    x-enum-varnames:
+    - ChangeRiskLow
+    - ChangeRiskHigh
   asset-registration-management-system_backend_internal_model.DiscoveredHost:
     properties:
       adopted:
         type: boolean
       applied:
         type: boolean
+      changeRisk:
+        allOf:
+        - $ref: '#/definitions/asset-registration-management-system_backend_internal_model.ChangeRiskLevel'
+        description: 变更风险级别：low=可自动应用 / high=需人工确认
       changeType:
         $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DiscoveryChangeType'
       createdAt:
@@ -137,6 +152,8 @@ definitions:
       id:
         type: integer
       ip:
+        type: string
+      mac:
         type: string
       matchedAsset:
         $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
@@ -173,12 +190,18 @@ definitions:
         type: boolean
       autoApply:
         type: boolean
+      autoTicket:
+        description: 高风险变更自动生成变更工单
+        type: boolean
       createdAt:
         type: string
       enabled:
         type: boolean
       id:
         type: integer
+      incremental:
+        description: 增量扫描：仅重扫上次发现的存活主机
+        type: boolean
       intervalMinutes:
         type: integer
       lastRunAt:
@@ -187,6 +210,15 @@ definitions:
         type: string
       ports:
         description: 端口列表，如 "22,80,443"；空=使用默认端口
+        type: string
+      probePorts:
+        description: 两阶段扫描探活端口；空=使用配置默认
+        type: string
+      scanWindowEnd:
+        description: 扫描时段结束 "HH:MM"，空=全天
+        type: string
+      scanWindowStart:
+        description: 扫描时段开始 "HH:MM"，空=全天
         type: string
       serviceDetect:
         type: boolean
@@ -698,6 +730,15 @@ definitions:
     required:
     - ip
     type: object
+  internal_httpapi.batchDeleteRequest:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - ids
+    type: object
   internal_httpapi.discoveryHostActionRequest:
     properties:
       hostIds:
@@ -713,13 +754,23 @@ definitions:
         type: boolean
       autoApply:
         type: boolean
+      autoTicket:
+        type: boolean
       enabled:
+        type: boolean
+      incremental:
         type: boolean
       intervalMinutes:
         type: integer
       name:
         type: string
       ports:
+        type: string
+      probePorts:
+        type: string
+      scanWindowEnd:
+        type: string
+      scanWindowStart:
         type: string
       serviceDetect:
         type: boolean
@@ -728,6 +779,27 @@ definitions:
     required:
     - name
     - targets
+    type: object
+  internal_httpapi.discoveryTrendItem:
+    properties:
+      changed:
+        description: 变更主机数
+        type: integer
+      date:
+        description: YYYY-MM-DD
+        type: string
+      new:
+        description: 新增主机数
+        type: integer
+      offline:
+        description: 离线主机数
+        type: integer
+      online:
+        description: 恢复在线主机数
+        type: integer
+      runs:
+        description: 成功运行次数
+        type: integer
     type: object
   internal_httpapi.errorResponse:
     properties:
@@ -768,6 +840,22 @@ definitions:
   internal_httpapi.mailTestRequest:
     properties:
       recipient:
+        type: string
+    type: object
+  internal_httpapi.serviceStat:
+    properties:
+      count:
+        type: integer
+      port:
+        type: string
+      service:
+        type: string
+    type: object
+  internal_httpapi.subnetStat:
+    properties:
+      count:
+        type: integer
+      subnet:
         type: string
     type: object
   internal_httpapi.ticketActionRequest:
@@ -1160,6 +1248,61 @@ paths:
       summary: 资产变更历史
       tags:
       - assets
+  /assets/{id}/retire:
+    post:
+      description: 将资产状态置为退役（retired），保留快照与审计记录
+      parameters:
+      - description: 资产 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 资产退役归档
+      tags:
+      - assets
+  /assets/batch-delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 资产 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.batchDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 批量删除资产
+      tags:
+      - assets
   /assets/export:
     get:
       produces:
@@ -1216,6 +1359,21 @@ paths:
       summary: 资产统计
       tags:
       - assets
+  /assets/stats/export:
+    get:
+      description: 导出资产统计汇总为 CSV（在线状态/类型/TOP 端口/TOP 服务）
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV 文件
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: 资产统计报表导出
+      tags:
+      - assets
   /assets/template:
     get:
       parameters:
@@ -1235,6 +1393,45 @@ paths:
       summary: 下载资产导入模板
       tags:
       - assets
+  /audit-logs:
+    get:
+      description: 分页查询操作审计日志（admin），支持 entity/action 过滤
+      parameters:
+      - description: 页码（默认 1）
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数（默认 20，最大 200）
+        in: query
+        name: pageSize
+        type: integer
+      - description: 实体（asset/ticket/user/...）
+        in: query
+        name: entity
+        type: string
+      - description: 动作（create/update/delete/alert/...）
+        in: query
+        name: action
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 操作审计日志
+      tags:
+      - system
   /auth/login:
     post:
       consumes:
@@ -1558,6 +1755,85 @@ paths:
       security:
       - BearerAuth: []
       summary: 应用发现变更到资产
+      tags:
+      - discovery
+  /discovery/stats/services:
+    get:
+      description: 按开放端口聚合资产数量（含 -sV 识别的服务名），按数量降序返回
+      parameters:
+      - description: 返回条数（默认 50）
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_httpapi.serviceStat'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 端口/服务矩阵
+      tags:
+      - discovery
+  /discovery/stats/subnets:
+    get:
+      description: 按网段聚合资产数量（subnet 字段优先，未填时按 IP /16 兜底）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_httpapi.subnetStat'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 资产网段分布
+      tags:
+      - discovery
+  /discovery/stats/trend:
+    get:
+      description: 按天聚合各发现运行的变更统计（默认最近 14 天，可用 days 参数调整）
+      parameters:
+      - description: 统计天数（默认 14）
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_httpapi.discoveryTrendItem'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 发现趋势统计
       tags:
       - discovery
   /roles:

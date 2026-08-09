@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"log"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,6 +77,9 @@ func (s *DiscoveryScheduler) tick() {
 		if rule.LastRunAt != nil && rule.LastRunAt.Add(interval).After(now) {
 			continue // 未到调度时间
 		}
+		if !inScanWindow(rule.ScanWindowStart, rule.ScanWindowEnd, now) {
+			continue // 当前不在扫描时段内，跳过本次调度（下一分钟再检查）
+		}
 		s.mu.Lock()
 		if s.running[rule.ID] {
 			s.mu.Unlock()
@@ -98,4 +103,37 @@ func (s *DiscoveryScheduler) tick() {
 			}
 		}(rule)
 	}
+}
+
+// inScanWindow 判断当前时间是否在规则限定的扫描时段内。
+// 起止均为空或任一为空时视为全天可用；格式 "HH:MM"（24 小时制）。
+func inScanWindow(start, end string, now time.Time) bool {
+	if start == "" || end == "" {
+		return true
+	}
+	sMin, ok1 := parseHHMM(start)
+	eMin, ok2 := parseHHMM(end)
+	if !ok1 || !ok2 || sMin == eMin {
+		return true // 非法或零窗口，视为不限制
+	}
+	cur := now.Hour()*60 + now.Minute()
+	if sMin < eMin {
+		return cur >= sMin && cur < eMin // 常规时段（如 09:00-18:00）
+	}
+	// 跨天时段（如 22:00-06:00）
+	return cur >= sMin || cur < eMin
+}
+
+// parseHHMM 解析 "HH:MM" 为当天分钟数。
+func parseHHMM(s string) (int, bool) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return 0, false
+	}
+	h, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+	m, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err1 != nil || err2 != nil || h < 0 || h > 23 || m < 0 || m > 59 {
+		return 0, false
+	}
+	return h*60 + m, true
 }
