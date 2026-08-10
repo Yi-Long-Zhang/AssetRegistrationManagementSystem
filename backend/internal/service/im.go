@@ -232,18 +232,22 @@ func SendIMNotification(db *gorm.DB, notifier IMNotifier, encryptionKey, title, 
 	return true, nil
 }
 
-// VerifyIMSignature 校验 IM 回调签名：sign = hex(hmac-sha256(secret, body))，
-// timestamp 与当前时间差超过 windowSec 秒拒绝（防重放）。constant-time 比较防时序攻击。
+// VerifyIMSignature 校验 IM 回调签名：sign = hex(hmac-sha256(secret, timestamp||body))，
+// timestamp（Unix 秒）必须存在且与当前时间差不超过 windowSec 秒（防重放）。
+// constant-time 比较防时序攻击。
 func VerifyIMSignature(secret, sign, timestamp string, body []byte, windowSec int64) bool {
 	if sign == "" {
 		return false
 	}
-	if ts, err := strconv.ParseInt(timestamp, 10, 64); err == nil {
-		if diff := time.Now().Unix() - ts; diff > windowSec || diff < -windowSec {
-			return false
-		}
+	ts, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return false // 必须携带时间戳
+	}
+	if diff := time.Now().Unix() - ts; diff > windowSec || diff < -windowSec {
+		return false
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(timestamp))
 	mac.Write(body)
 	expected := hex.EncodeToString(mac.Sum(nil))
 	return subtle.ConstantTimeCompare([]byte(strings.ToLower(sign)), []byte(expected)) == 1

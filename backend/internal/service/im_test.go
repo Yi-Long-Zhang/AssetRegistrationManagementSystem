@@ -108,8 +108,8 @@ func TestBuildTicketMessage(t *testing.T) {
 func TestVerifyIMSignature(t *testing.T) {
 	secret := "shared-secret"
 	body := []byte(`{"action":"approve","ticketId":1,"imUserId":"u1"}`)
-	sign := signBody(secret, body)
 	ts := fmt.Sprintf("%d", time.Now().Unix())
+	sign := signBody(secret, ts, body)
 
 	if !VerifyIMSignature(secret, sign, ts, body, 300) {
 		t.Fatal("valid signature should pass")
@@ -120,16 +120,24 @@ func TestVerifyIMSignature(t *testing.T) {
 	if VerifyIMSignature(secret, sign, ts, []byte(`{"action":"reject"}`), 300) {
 		t.Fatal("tampered body should fail")
 	}
+	// 时间戳被改写后，原签名应失效（时间戳纳入 HMAC）
+	if VerifyIMSignature(secret, sign, fmt.Sprintf("%d", time.Now().Unix()+10), body, 300) {
+		t.Fatal("rewritten timestamp with old signature should fail")
+	}
 	if VerifyIMSignature(secret, sign, fmt.Sprintf("%d", time.Now().Unix()-3600), body, 300) {
 		t.Fatal("expired timestamp should fail")
+	}
+	if VerifyIMSignature(secret, sign, "", body, 300) {
+		t.Fatal("missing timestamp should fail")
 	}
 	if VerifyIMSignature(secret, "", ts, body, 300) {
 		t.Fatal("empty sign should fail")
 	}
 }
 
-func signBody(secret string, body []byte) string {
+func signBody(secret, ts string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(ts))
 	mac.Write(body)
 	return hex.EncodeToString(mac.Sum(nil))
 }
