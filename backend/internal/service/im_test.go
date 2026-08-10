@@ -1,10 +1,15 @@
 package service
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDetectPlatform(t *testing.T) {
@@ -98,4 +103,33 @@ func TestBuildTicketMessage(t *testing.T) {
 	if !strings.Contains(text, "### 工单审批通过") || !strings.Contains(text, "#1") || !strings.Contains(text, "登录系统") {
 		t.Fatalf("unexpected message: %s", text)
 	}
+}
+
+func TestVerifyIMSignature(t *testing.T) {
+	secret := "shared-secret"
+	body := []byte(`{"action":"approve","ticketId":1,"imUserId":"u1"}`)
+	sign := signBody(secret, body)
+	ts := fmt.Sprintf("%d", time.Now().Unix())
+
+	if !VerifyIMSignature(secret, sign, ts, body, 300) {
+		t.Fatal("valid signature should pass")
+	}
+	if VerifyIMSignature(secret, "deadbeef", ts, body, 300) {
+		t.Fatal("wrong signature should fail")
+	}
+	if VerifyIMSignature(secret, sign, ts, []byte(`{"action":"reject"}`), 300) {
+		t.Fatal("tampered body should fail")
+	}
+	if VerifyIMSignature(secret, sign, fmt.Sprintf("%d", time.Now().Unix()-3600), body, 300) {
+		t.Fatal("expired timestamp should fail")
+	}
+	if VerifyIMSignature(secret, "", ts, body, 300) {
+		t.Fatal("empty sign should fail")
+	}
+}
+
+func signBody(secret string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	return hex.EncodeToString(mac.Sum(nil))
 }

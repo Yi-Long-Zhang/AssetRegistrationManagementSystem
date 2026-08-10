@@ -1461,7 +1461,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "读取钉钉/企微/飞书群机器人通知配置",
+                "description": "读取钉钉/企微/飞书群机器人通知配置（secret 不回显）",
                 "produces": [
                     "application/json"
                 ],
@@ -1473,7 +1473,8 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.IMConfig"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -1484,7 +1485,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "保存钉钉/企微/飞书群机器人通知配置（启用时必须填写 webhook）",
+                "description": "保存钉钉/企微/飞书群机器人通知配置（启用时必须填写 webhook；secret 加密存储，留空不修改）",
                 "consumes": [
                     "application/json"
                 ],
@@ -1510,7 +1511,8 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.IMConfig"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -3242,35 +3244,6 @@ const docTemplate = `{
                 },
                 "userId": {
                     "type": "integer"
-                }
-            }
-        },
-        "asset-registration-management-system_backend_internal_model.IMConfig": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "platform": {
-                    "description": "dingtalk/wecom/feishu",
-                    "type": "string"
-                },
-                "secret": {
-                    "description": "加签密钥（钉钉可选）",
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "webhook": {
-                    "description": "群机器人 webhook 地址",
-                    "type": "string"
                 }
             }
         },

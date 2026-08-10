@@ -665,7 +665,7 @@ func (h *Handler) CreateTicket(c *gin.Context) {
 
 // notifyTicketIM 发送工单事件群通知；未配置或发送失败仅记日志，不影响业务。
 func (h *Handler) notifyTicketIM(ticket *model.Ticket, event, detail string) {
-	if _, err := service.SendIMNotification(h.db, h.im,
+	if _, err := service.SendIMNotification(h.db, h.im, h.cfg.Security.ConfigEncryptionKey,
 		"工单通知: "+ticket.Title, service.BuildTicketMessage(event, detail)); err != nil {
 		log.Printf("IM notify ticket #%d: %v", ticket.ID, err)
 	}

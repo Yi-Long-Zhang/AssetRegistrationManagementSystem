@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -205,8 +208,8 @@ func BuildTicketMessage(title, detail string) string {
 }
 
 // SendIMNotification 读取 IM 配置并发送群通知；未启用或失败时仅记日志返回 nil。
-// 返回 (sent bool, err error)。
-func SendIMNotification(db *gorm.DB, notifier IMNotifier, title, text string) (bool, error) {
+// secret 若加密存储则由 encryptionKey 解密；返回 (sent bool, err error)。
+func SendIMNotification(db *gorm.DB, notifier IMNotifier, encryptionKey, title, text string) (bool, error) {
 	var cfg model.IMConfig
 	if err := db.First(&cfg).Error; err != nil {
 		return false, nil // 未配置 IM，静默跳过
@@ -214,13 +217,36 @@ func SendIMNotification(db *gorm.DB, notifier IMNotifier, title, text string) (b
 	if !cfg.Enabled || strings.TrimSpace(cfg.Webhook) == "" {
 		return false, nil
 	}
+	secret := cfg.Secret
+	if cfg.EncryptedSecret && secret != "" && encryptionKey != "" {
+		if dec, err := DecryptString(secret, encryptionKey); err == nil {
+			secret = dec
+		}
+	}
 	if notifier == nil {
 		notifier = NewIMNotifier()
 	}
-	if err := notifier.SendText(cfg.Webhook, cfg.Secret, title, text); err != nil {
+	if err := notifier.SendText(cfg.Webhook, secret, title, text); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// VerifyIMSignature 校验 IM 回调签名：sign = hex(hmac-sha256(secret, body))，
+// timestamp 与当前时间差超过 windowSec 秒拒绝（防重放）。constant-time 比较防时序攻击。
+func VerifyIMSignature(secret, sign, timestamp string, body []byte, windowSec int64) bool {
+	if sign == "" {
+		return false
+	}
+	if ts, err := strconv.ParseInt(timestamp, 10, 64); err == nil {
+		if diff := time.Now().Unix() - ts; diff > windowSec || diff < -windowSec {
+			return false
+		}
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	return subtle.ConstantTimeCompare([]byte(strings.ToLower(sign)), []byte(expected)) == 1
 }
 
 // gormDBLike 兼容 gorm.DB 的最小接口（保留扩展用）。

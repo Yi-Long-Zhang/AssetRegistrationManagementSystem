@@ -290,26 +290,6 @@ definitions:
       userId:
         type: integer
     type: object
-  asset-registration-management-system_backend_internal_model.IMConfig:
-    properties:
-      createdAt:
-        type: string
-      enabled:
-        type: boolean
-      id:
-        type: integer
-      platform:
-        description: dingtalk/wecom/feishu
-        type: string
-      secret:
-        description: 加签密钥（钉钉可选）
-        type: string
-      updatedAt:
-        type: string
-      webhook:
-        description: 群机器人 webhook 地址
-        type: string
-    type: object
   asset-registration-management-system_backend_internal_model.Priority:
     enum:
     - low
@@ -1936,14 +1916,15 @@ paths:
       - users
   /settings/im:
     get:
-      description: 读取钉钉/企微/飞书群机器人通知配置
+      description: 读取钉钉/企微/飞书群机器人通知配置（secret 不回显）
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.IMConfig'
+            additionalProperties: true
+            type: object
       security:
       - BearerAuth: []
       summary: IM 通知配置
@@ -1952,7 +1933,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: 保存钉钉/企微/飞书群机器人通知配置（启用时必须填写 webhook）
+      description: 保存钉钉/企微/飞书群机器人通知配置（启用时必须填写 webhook；secret 加密存储，留空不修改）
       parameters:
       - description: IM 配置
         in: body
@@ -1966,7 +1947,8 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.IMConfig'
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
           schema:

@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -20,27 +22,33 @@ type imConfigRequest struct {
 	Secret   string `json:"secret"`
 }
 
-// GetIMConfig 读取群机器人通知配置（admin）。
+// GetIMConfig 读取群机器人通知配置（admin）；secret 不回显明文。
 // @Summary IM 通知配置
-// @Description 读取钉钉/企微/飞书群机器人通知配置
+// @Description 读取钉钉/企微/飞书群机器人通知配置（secret 不回显）
 // @Tags settings
 // @Produce json
-// @Success 200 {object} model.IMConfig
+// @Success 200 {object} map[string]interface{}
 // @Router /settings/im [get]
 // @Security BearerAuth
 func (h *Handler) GetIMConfig(c *gin.Context) {
 	cfg := h.currentIMConfig()
-	c.JSON(http.StatusOK, cfg)
+	c.JSON(http.StatusOK, gin.H{
+		"id":        cfg.ID,
+		"enabled":   cfg.Enabled,
+		"platform":  cfg.Platform,
+		"webhook":   cfg.Webhook,
+		"hasSecret": cfg.Secret != "",
+	})
 }
 
-// SaveIMConfig 保存群机器人通知配置（admin）。
+// SaveIMConfig 保存群机器人通知配置（admin）；secret 非空时 AES-GCM 加密存储。
 // @Summary 保存 IM 通知配置
-// @Description 保存钉钉/企微/飞书群机器人通知配置（启用时必须填写 webhook）
+// @Description 保存钉钉/企微/飞书群机器人通知配置（启用时必须填写 webhook；secret 加密存储，留空不修改）
 // @Tags settings
 // @Accept json
 // @Produce json
 // @Param body body imConfigRequest true "IM 配置"
-// @Success 200 {object} model.IMConfig
+// @Success 200 {object} map[string]interface{}
 // @Failure 400 {object} map[string]string
 // @Router /settings/im [put]
 // @Security BearerAuth
@@ -53,16 +61,45 @@ func (h *Handler) SaveIMConfig(c *gin.Context) {
 	cfg.Enabled = req.Enabled
 	cfg.Platform = defaultString(strings.TrimSpace(req.Platform), string(service.IMPlatformDingTalk))
 	cfg.Webhook = strings.TrimSpace(req.Webhook)
-	cfg.Secret = strings.TrimSpace(req.Secret)
 	if cfg.Enabled && cfg.Webhook == "" {
 		errorJSON(c, http.StatusBadRequest, "启用 IM 通知必须填写群机器人 webhook 地址")
 		return
+	}
+	// secret：非空则加密存储（留空表示不修改既有密钥）
+	secret := strings.TrimSpace(req.Secret)
+	if secret != "" {
+		encrypted, err := service.EncryptString(secret, h.cfg.Security.ConfigEncryptionKey)
+		if err != nil {
+			errorJSON(c, http.StatusBadRequest, "加密 IM 密钥失败: "+err.Error())
+			return
+		}
+		cfg.Secret = encrypted
+		cfg.EncryptedSecret = true
 	}
 	if err := h.db.Save(&cfg).Error; err != nil {
 		errorJSON(c, http.StatusBadRequest, "保存 IM 配置失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, cfg)
+	c.JSON(http.StatusOK, gin.H{
+		"id": cfg.ID, "enabled": cfg.Enabled, "platform": cfg.Platform,
+		"webhook": cfg.Webhook, "hasSecret": cfg.Secret != "",
+	})
+}
+
+// imConfigSecret 解密当前 IM 配置的 secret（未加密或解密失败时返回原值）。
+func (h *Handler) imConfigSecret(cfg *model.IMConfig) string {
+	if cfg.Secret == "" {
+		return ""
+	}
+	if !cfg.EncryptedSecret {
+		return cfg.Secret
+	}
+	dec, err := service.DecryptString(cfg.Secret, h.cfg.Security.ConfigEncryptionKey)
+	if err != nil {
+		log.Printf("im config: decrypt secret: %v", err)
+		return ""
+	}
+	return dec
 }
 
 // TestIMConfig 发送测试卡片到群机器人（admin）。
@@ -84,9 +121,10 @@ func (h *Handler) TestIMConfig(c *gin.Context) {
 	if notifier == nil {
 		notifier = service.NewIMNotifier()
 	}
+	secret := h.imConfigSecret(&cfg)
 	text := service.BuildTicketMessage("IM 通知测试",
 		"- 平台："+cfg.Platform+"\n- 时间："+nowText()+"\n\n如果收到本消息，说明配置成功。")
-	if err := notifier.SendText(cfg.Webhook, cfg.Secret, "资产管理系统测试", text); err != nil {
+	if err := notifier.SendText(cfg.Webhook, secret, "资产管理系统测试", text); err != nil {
 		errorJSON(c, http.StatusBadRequest, "发送测试失败: "+err.Error())
 		return
 	}
@@ -151,6 +189,14 @@ func (h *Handler) SaveIMBinding(c *gin.Context) {
 		errorJSON(c, http.StatusBadRequest, "系统用户不存在")
 		return
 	}
+	// 平台白名单校验
+	platform := req.Platform
+	switch platform {
+	case string(service.IMPlatformDingTalk), string(service.IMPlatformWeCom), string(service.IMPlatformFeishu):
+	default:
+		errorJSON(c, http.StatusBadRequest, "不支持的 IM 平台")
+		return
+	}
 	var binding model.IMBinding
 	if err := h.db.Where("user_id = ?", req.UserID).First(&binding).Error; err != nil {
 		binding = model.IMBinding{UserID: req.UserID}
@@ -198,24 +244,49 @@ func (h *Handler) DeleteIMBinding(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /im/callback [post]
 func (h *Handler) IMCallback(c *gin.Context) {
+	raw, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	// 飞书 URL 验证：应答 challenge（平台验证阶段无签名）
+	var probe struct {
+		Challenge string `json:"challenge"`
+	}
+	if json.Unmarshal(raw, &probe) == nil && probe.Challenge != "" {
+		c.JSON(http.StatusOK, gin.H{"challenge": probe.Challenge})
+		return
+	}
+	// 交互动作（approve/reject）：必须通过共享密钥 HMAC 验签 + 时间戳防重放
+	cfg := h.currentIMConfig()
+	secret := h.imConfigSecret(&cfg)
+	if cfg.Enabled && cfg.Webhook != "" && secret != "" {
+		if !h.verifyIMSignature(c, secret, raw) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "invalid signature"})
+			return
+		}
+	} else {
+		// 未配置密钥：拒绝交互动作，避免无鉴权伪造审批
+		c.JSON(http.StatusForbidden, gin.H{"error": "IM 回调验签未配置，拒绝处理"})
+		return
+	}
 	var payload map[string]interface{}
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusOK, gin.H{"error": "invalid payload"})
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
 	}
-	// 飞书 URL 验证：应答 challenge
-	if ch, ok := payload["challenge"].(string); ok && ch != "" {
-		c.JSON(http.StatusOK, gin.H{"challenge": ch})
-		return
-	}
-	// 交互动作：approve/reject（自建应用回调；经 IM 用户绑定鉴权后流转工单）
 	action, _ := payload["action"].(string)
 	if action == "approve" || action == "reject" {
 		h.handleIMTicketAction(c, payload, action)
 		return
 	}
-	// 其它事件暂记录，等待自建应用接入
 	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "ok"})
+}
+
+// verifyIMSignature 委托 service 层纯函数校验签名与时间戳窗口。
+func (h *Handler) verifyIMSignature(c *gin.Context, secret string, raw []byte) bool {
+	return service.VerifyIMSignature(secret,
+		c.GetHeader("X-IM-Sign"), c.GetHeader("X-IM-Timestamp"), raw, 300)
 }
 
 // handleIMTicketAction 处理 IM 回调的工单审批动作：查绑定 → 鉴权 → 状态流转 → 记录。
