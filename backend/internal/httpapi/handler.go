@@ -33,6 +33,7 @@ type Handler struct {
 	ad       service.ADClient
 	archiver service.TicketArchiver
 	mail     service.MailSender
+	im       service.IMNotifier // nil 时使用默认群机器人通知器
 }
 
 type claims struct {
@@ -656,7 +657,18 @@ func (h *Handler) CreateTicket(c *gin.Context) {
 		return
 	}
 	h.addRecord(ticket.ID, user.ID, "create", "", ticket.Status, "创建工单")
+	h.notifyTicketIM(&ticket, "新工单创建",
+		fmt.Sprintf("- 工单：#%d %s\n- 类型：%s\n- 申请人：%s\n- 优先级：%s",
+			ticket.ID, ticket.Title, ticket.Type, user.Username, ticket.Priority))
 	c.JSON(http.StatusCreated, ticket)
+}
+
+// notifyTicketIM 发送工单事件群通知；未配置或发送失败仅记日志，不影响业务。
+func (h *Handler) notifyTicketIM(ticket *model.Ticket, event, detail string) {
+	if _, err := service.SendIMNotification(h.db, h.im,
+		"工单通知: "+ticket.Title, service.BuildTicketMessage(event, detail)); err != nil {
+		log.Printf("IM notify ticket #%d: %v", ticket.ID, err)
+	}
 }
 
 func (h *Handler) GetTicket(c *gin.Context) {
@@ -740,6 +752,8 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 			if !h.approveCurrentStep(c, &ticket, user, req.Remark) {
 				return
 			}
+			h.notifyTicketIM(&ticket, "工单审批通过",
+				fmt.Sprintf("- 工单：#%d %s\n- 审批人：%s", ticket.ID, ticket.Title, user.Username))
 			c.JSON(http.StatusOK, ticket)
 			return
 		}
@@ -750,6 +764,8 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 				return
 			}
 			h.addRecord(ticket.ID, user.ID, action, from, next, req.Remark)
+			h.notifyTicketIM(&ticket, "工单被驳回",
+				fmt.Sprintf("- 工单：#%d %s\n- 审批人：%s\n- 原因：%s", ticket.ID, ticket.Title, user.Username, req.Remark))
 			c.JSON(http.StatusOK, ticket)
 			return
 		}
@@ -782,6 +798,15 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 			return
 		}
 		h.addRecord(ticket.ID, user.ID, action, from, next, req.Remark)
+		if action == "accept" && next == model.TicketStatusClosed {
+			h.notifyTicketIM(&ticket, "工单已验收关闭",
+				fmt.Sprintf("- 工单：#%d %s\n- 归档号：%s\n- 验收结果：%s",
+					ticket.ID, ticket.Title, ticket.ArchiveNo, ticket.AcceptanceResult))
+		}
+		if action == "submit" && next == model.TicketStatusPendingApproval {
+			h.notifyTicketIM(&ticket, "工单待审批",
+				fmt.Sprintf("- 工单：#%d %s\n- 申请人：%s\n- 请审批人尽快处理", ticket.ID, ticket.Title, user.Username))
+		}
 		c.JSON(http.StatusOK, ticket)
 	}
 }

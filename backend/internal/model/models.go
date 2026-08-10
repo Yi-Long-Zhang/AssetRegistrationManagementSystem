@@ -40,6 +40,7 @@ type ADConfig struct {
 	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
+// MailConfig 邮件服务配置（系统级，单行）
 type MailConfig struct {
 	ID                uint      `json:"id" gorm:"primaryKey"`
 	Enabled           bool      `json:"enabled" gorm:"not null;default:false"`
@@ -53,6 +54,28 @@ type MailConfig struct {
 	StartTLS          bool      `json:"startTls" gorm:"not null;default:true"`
 	CreatedAt         time.Time `json:"createdAt"`
 	UpdatedAt         time.Time `json:"updatedAt"`
+}
+
+// IMConfig 群机器人通知配置（系统级，单行）：钉钉/企微/飞书。
+type IMConfig struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	Enabled   bool      `json:"enabled" gorm:"not null;default:false"`
+	Platform  string    `json:"platform" gorm:"size:32;not null;default:'dingtalk'"` // dingtalk/wecom/feishu
+	Webhook   string    `json:"webhook" gorm:"type:text;not null"`                   // 群机器人 webhook 地址
+	Secret    string    `json:"secret" gorm:"size:255"`                              // 加签密钥（钉钉可选）
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// IMBinding IM 用户与系统用户映射（用于 IM 回调鉴权）。
+type IMBinding struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	UserID    uint      `json:"userId" gorm:"not null;uniqueIndex"`
+	User      User      `json:"user" gorm:"foreignKey:UserID"`
+	Platform  string    `json:"platform" gorm:"size:32;not null;index"` // dingtalk/wecom/feishu
+	IMUserID  string    `json:"imUserId" gorm:"size:128;not null"`      // 平台侧用户标识（openId/userId）
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Asset struct {

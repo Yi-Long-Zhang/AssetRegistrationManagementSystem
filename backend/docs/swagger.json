@@ -1392,6 +1392,30 @@
                 }
             }
         },
+        "/im/callback": {
+            "post": {
+                "description": "接收 IM 平台事件回调（飞书 challenge 验证；approve/reject 交互动作经用户绑定鉴权后流转工单）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "IM 平台回调",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/roles": {
             "get": {
                 "security": [
@@ -1418,6 +1442,214 @@
                         "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/im": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "读取钉钉/企微/飞书群机器人通知配置",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "IM 通知配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.IMConfig"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "保存钉钉/企微/飞书群机器人通知配置（启用时必须填写 webhook）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "保存 IM 通知配置",
+                "parameters": [
+                    {
+                        "description": "IM 配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.imConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.IMConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/im/bindings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询 IM 用户与系统用户映射（用于 IM 回调鉴权）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "IM 用户绑定列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.IMBinding"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "建立 IM 用户与系统用户映射（同一用户仅保留一个平台绑定）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "新增/更新 IM 绑定",
+                "parameters": [
+                    {
+                        "description": "绑定信息",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.imBindingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.IMBinding"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/im/bindings/{userId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除指定用户的 IM 绑定",
+                "tags": [
+                    "settings"
+                ],
+                "summary": "删除 IM 绑定",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "系统用户 ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/settings/im/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "使用当前配置发送一条测试消息到群机器人",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "测试 IM 通知",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -2978,6 +3210,63 @@
                 "DiscoveryRunStatusFailed"
             ]
         },
+        "asset-registration-management-system_backend_internal_model.IMBinding": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "imUserId": {
+                    "description": "平台侧用户标识（openId/userId）",
+                    "type": "string"
+                },
+                "platform": {
+                    "description": "dingtalk/wecom/feishu",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.User"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "asset-registration-management-system_backend_internal_model.IMConfig": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "platform": {
+                    "description": "dingtalk/wecom/feishu",
+                    "type": "string"
+                },
+                "secret": {
+                    "description": "加签密钥（钉钉可选）",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "webhook": {
+                    "description": "群机器人 webhook 地址",
+                    "type": "string"
+                }
+            }
+        },
         "asset-registration-management-system_backend_internal_model.Priority": {
             "type": "string",
             "enum": [
@@ -3763,6 +4052,42 @@
             "type": "object",
             "properties": {
                 "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.imBindingRequest": {
+            "type": "object",
+            "required": [
+                "imUserId",
+                "platform",
+                "userId"
+            ],
+            "properties": {
+                "imUserId": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_httpapi.imConfigRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "string"
+                },
+                "webhook": {
                     "type": "string"
                 }
             }

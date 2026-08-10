@@ -54,6 +54,7 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	api.POST("/auth/login", h.Login)
 	api.POST("/auth/logout", h.Logout)
 	api.GET("/auth/me", h.AuthRequired(), h.Me)
+	api.POST("/im/callback", h.IMCallback)
 
 	api.GET("/roles", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin), h.ListRoles)
 
@@ -69,6 +70,12 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	auditLogs.GET("", h.ListAuditLogs)
 	settings.GET("/mail", h.GetMailConfig)
 	settings.PUT("/mail", h.SaveMailConfig)
+	settings.GET("/im", h.GetIMConfig)
+	settings.PUT("/im", h.SaveIMConfig)
+	settings.POST("/im/test", h.TestIMConfig)
+	settings.GET("/im/bindings", h.ListIMBindings)
+	settings.PUT("/im/bindings", h.SaveIMBinding)
+	settings.DELETE("/im/bindings/:userId", h.DeleteIMBinding)
 	settings.POST("/mail/test", h.TestMailConfig)
 
 	users := api.Group("/users", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))

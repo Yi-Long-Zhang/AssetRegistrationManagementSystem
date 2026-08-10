@@ -90,6 +90,65 @@
           </el-form>
         </div>
       </el-tab-pane>
+
+      <el-tab-pane label="IM 通知" name="im">
+        <div class="settings-block">
+          <h3>群机器人通知（钉钉 / 企业微信 / 飞书）</h3>
+          <p class="desc">工单创建、审批通过/驳回、验收关闭等事件推送到群机器人；支持钉钉加签。</p>
+          <el-form :model="imConfig" label-width="110px">
+            <el-row>
+              <el-col :span="8"><el-form-item label="启用"><el-switch v-model="imConfig.enabled" /></el-form-item></el-col>
+              <el-col :span="16">
+                <el-form-item label="平台">
+                  <el-select v-model="imConfig.platform" style="width: 100%">
+                    <el-option label="钉钉" value="dingtalk" />
+                    <el-option label="企业微信" value="wecom" />
+                    <el-option label="飞书" value="feishu" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="24"><el-form-item label="Webhook"><el-input v-model="imConfig.webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx" /></el-form-item></el-col>
+              <el-col :span="24"><el-form-item label="加签密钥"><el-input v-model="imConfig.secret" placeholder="钉钉安全设置加签密钥（可选）" /></el-form-item></el-col>
+            </el-row>
+            <el-form-item>
+              <el-button @click="testIM">发送测试</el-button>
+              <el-button type="primary" @click="saveIMConfig">保存配置</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <div class="settings-block">
+          <h3>IM 用户绑定（回调鉴权基础）</h3>
+          <p class="desc">建立 IM 用户与系统用户映射，为后续自建应用交互审批提供鉴权基础。</p>
+          <div class="inline-form">
+            <el-select v-model="bindingForm.userId" placeholder="选择系统用户" style="width: 180px" filterable>
+              <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.realName || '-'})`" :value="u.id" />
+            </el-select>
+            <el-select v-model="bindingForm.platform" style="width: 120px">
+              <el-option label="钉钉" value="dingtalk" />
+              <el-option label="企业微信" value="wecom" />
+              <el-option label="飞书" value="feishu" />
+            </el-select>
+            <el-input v-model="bindingForm.imUserId" placeholder="IM 用户标识（openId/userId）" style="width: 240px" />
+            <el-button type="primary" @click="saveBinding">保存绑定</el-button>
+          </div>
+          <el-table :data="imBindings" size="small" border stripe style="margin-top: 12px">
+            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column label="系统用户" min-width="140">
+              <template #default="{ row }">{{ row.user?.username || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="平台" width="110">
+              <template #default="{ row }">{{ platformLabel(row.platform) }}</template>
+            </el-table-column>
+            <el-table-column prop="imUserId" label="IM 用户标识" min-width="180" />
+            <el-table-column label="操作" width="90" align="center">
+              <template #default="{ row }">
+                <el-button size="small" type="danger" text @click="deleteBinding(row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </section>
 </template>
@@ -98,6 +157,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { adApi, settingsApi } from '../api'
+import { usersApi } from '../api/users'
 import PageHeader from '../components/common/PageHeader.vue'
 
 const activeTab = ref('ad')
@@ -126,6 +186,15 @@ const mailConfig = reactive({
   startTls: true,
   hasPassword: false
 })
+const imConfig = reactive({
+  enabled: false,
+  platform: 'dingtalk',
+  webhook: '',
+  secret: ''
+})
+const imBindings = ref([])
+const userOptions = ref([])
+const bindingForm = reactive({ userId: null, platform: 'dingtalk', imUserId: '' })
 const lookupUsername = ref('')
 const lookupResult = ref(null)
 const importRole = ref('applicant')
@@ -190,8 +259,82 @@ async function testMail() {
   }
 }
 
+async function loadIMConfig() {
+  try {
+    const data = await settingsApi.imConfig()
+    Object.assign(imConfig, {
+      enabled: data.enabled || false,
+      platform: data.platform || 'dingtalk',
+      webhook: data.webhook || '',
+      secret: data.secret || ''
+    })
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '加载 IM 配置失败')
+  }
+}
+
+async function saveIMConfig() {
+  try {
+    await settingsApi.saveIMConfig(imConfig)
+    ElMessage.success('IM 配置已保存')
+    await loadIMConfig()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '保存 IM 配置失败')
+  }
+}
+
+async function testIM() {
+  try {
+    await settingsApi.testIMConfig()
+    ElMessage.success('测试消息已发送，请查看群机器人')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '发送测试失败')
+  }
+}
+
+function platformLabel(platform) {
+  return { dingtalk: '钉钉', wecom: '企业微信', feishu: '飞书' }[platform] || platform
+}
+
+async function loadIMBindings() {
+  try {
+    imBindings.value = await settingsApi.imBindings()
+    if (!userOptions.value.length) {
+      userOptions.value = await usersApi.list()
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '加载 IM 绑定失败')
+  }
+}
+
+async function saveBinding() {
+  if (!bindingForm.userId || !bindingForm.imUserId.trim()) {
+    ElMessage.warning('请选择系统用户并填写 IM 用户标识')
+    return
+  }
+  try {
+    await settingsApi.saveIMBinding(bindingForm)
+    ElMessage.success('绑定已保存')
+    bindingForm.userId = null
+    bindingForm.imUserId = ''
+    await loadIMBindings()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '保存绑定失败')
+  }
+}
+
+async function deleteBinding(row) {
+  try {
+    await settingsApi.deleteIMBinding(row.userId)
+    ElMessage.success('已删除绑定')
+    await loadIMBindings()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '删除绑定失败')
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([loadADConfig(), loadMailConfig()])
+  await Promise.all([loadADConfig(), loadMailConfig(), loadIMConfig(), loadIMBindings()])
 })
 </script>
 

@@ -271,6 +271,45 @@ definitions:
     - DiscoveryRunStatusRunning
     - DiscoveryRunStatusSuccess
     - DiscoveryRunStatusFailed
+  asset-registration-management-system_backend_internal_model.IMBinding:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      imUserId:
+        description: 平台侧用户标识（openId/userId）
+        type: string
+      platform:
+        description: dingtalk/wecom/feishu
+        type: string
+      updatedAt:
+        type: string
+      user:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      userId:
+        type: integer
+    type: object
+  asset-registration-management-system_backend_internal_model.IMConfig:
+    properties:
+      createdAt:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: integer
+      platform:
+        description: dingtalk/wecom/feishu
+        type: string
+      secret:
+        description: 加签密钥（钉钉可选）
+        type: string
+      updatedAt:
+        type: string
+      webhook:
+        description: 群机器人 webhook 地址
+        type: string
+    type: object
   asset-registration-management-system_backend_internal_model.Priority:
     enum:
     - low
@@ -804,6 +843,30 @@ definitions:
   internal_httpapi.errorResponse:
     properties:
       error:
+        type: string
+    type: object
+  internal_httpapi.imBindingRequest:
+    properties:
+      imUserId:
+        type: string
+      platform:
+        type: string
+      userId:
+        type: integer
+    required:
+    - imUserId
+    - platform
+    - userId
+    type: object
+  internal_httpapi.imConfigRequest:
+    properties:
+      enabled:
+        type: boolean
+      platform:
+        type: string
+      secret:
+        type: string
+      webhook:
         type: string
     type: object
   internal_httpapi.loginRequest:
@@ -1836,6 +1899,22 @@ paths:
       summary: 发现趋势统计
       tags:
       - discovery
+  /im/callback:
+    post:
+      consumes:
+      - application/json
+      description: 接收 IM 平台事件回调（飞书 challenge 验证；approve/reject 交互动作经用户绑定鉴权后流转工单）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: IM 平台回调
+      tags:
+      - system
   /roles:
     get:
       produces:
@@ -1855,6 +1934,135 @@ paths:
       summary: 角色列表
       tags:
       - users
+  /settings/im:
+    get:
+      description: 读取钉钉/企微/飞书群机器人通知配置
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.IMConfig'
+      security:
+      - BearerAuth: []
+      summary: IM 通知配置
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: 保存钉钉/企微/飞书群机器人通知配置（启用时必须填写 webhook）
+      parameters:
+      - description: IM 配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.imConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.IMConfig'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 保存 IM 通知配置
+      tags:
+      - settings
+  /settings/im/bindings:
+    get:
+      description: 查询 IM 用户与系统用户映射（用于 IM 回调鉴权）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/asset-registration-management-system_backend_internal_model.IMBinding'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: IM 用户绑定列表
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: 建立 IM 用户与系统用户映射（同一用户仅保留一个平台绑定）
+      parameters:
+      - description: 绑定信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.imBindingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.IMBinding'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 新增/更新 IM 绑定
+      tags:
+      - settings
+  /settings/im/bindings/{userId}:
+    delete:
+      description: 删除指定用户的 IM 绑定
+      parameters:
+      - description: 系统用户 ID
+        in: path
+        name: userId
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: 删除 IM 绑定
+      tags:
+      - settings
+  /settings/im/test:
+    post:
+      description: 使用当前配置发送一条测试消息到群机器人
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 测试 IM 通知
+      tags:
+      - settings
   /settings/mail:
     get:
       produces:
