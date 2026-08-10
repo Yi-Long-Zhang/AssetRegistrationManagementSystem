@@ -163,6 +163,48 @@ discovery:
 - **测试发送**：`POST /settings/im/test` 发送测试卡片验证配置。
 - **用户绑定与回调网关**：`/settings/im/bindings` 维护 IM 用户 ↔ 系统用户映射；`POST /im/callback` 提供统一回调入口（飞书 challenge 验证；`approve`/`reject` 交互动作经绑定鉴权后调用现有工单状态机流转）。真正的 IM 内按钮审批需平台**自建应用** + 公网回调地址，接入时补充平台验签即可复用本网关。
 
+### 接入指南
+
+#### 档位 1：群机器人通知（内网可用，配置即用）
+
+**钉钉**
+1. 钉钉建群 → 群设置 → 智能群助手 → 添加机器人 → **自定义**；
+2. 安全设置勾选**加签**，复制 `SEC` 开头密钥（建议必配）；
+3. 复制 Webhook：`https://oapi.dingtalk.com/robot/send?access_token=xxx`；
+4. 系统配置 → IM 通知：平台=钉钉，填 Webhook 与加签密钥，启用 → **发送测试**，群内收到卡片即成功。
+
+**企业微信**
+1. 企微内部群 → 群设置 → 群机器人 → 新建，复制 Webhook：`https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx`；
+2. 系统配置 → IM 通知：平台=企业微信，填 Webhook，启用 → 测试（密钥留空即可）。
+
+#### 档位 2：IM 内按钮审批（需平台自建应用 + 公网 HTTPS 回调）
+
+回调统一入口：`POST /api/v1/im/callback`（当前实现：飞书 challenge 应答；`approve`/`reject` 交互动作要求 `X-IM-Sign = hex(hmac-sha256(secret, timestamp||body))` + `X-IM-Timestamp`（300s 窗口），经 IM 用户绑定鉴权后调用工单状态机流转）。
+
+**钉钉自建应用**
+1. [钉钉开放平台](https://open.dingtalk.com) 创建**企业内部应用**，记录 `AppKey`/`AppSecret`；
+2. 事件订阅配置回调 URL 为上述地址并完成地址验证（网关已应答 challenge）；
+3. 应用内发送带按钮的 actionCard，`actionURL` 指向回调地址；
+4. 系统配置 → IM 通知 → 用户绑定：钉钉 openId ↔ 系统用户；
+5. 接入时在 `IMCallback` 前补钉钉事件验签（`timestamp`+`sign` 头）分支。
+
+**企业微信自建应用**
+1. [企微管理后台](https://work.weixin.qq.com) 应用管理 → 创建自建应用，获得 `AgentId`/`Secret`/`CorpId`；
+2. 应用 → 接收消息 → 设置 API 接收：URL 同上，Token/EncodingAESKey 按企微生成；
+3. **企微回调采用强制加解密协议**（WXBizMsgCrypt），接入时在网关实现解密后再进入动作处理；
+4. 系统配置 → 用户绑定：企微 userId ↔ 系统用户。
+
+**飞书**：开放平台创建企业自建应用，事件订阅回调 URL 同上，验签头 `X-Lark-Signature` + timestamp。
+
+#### 两种方式速查
+
+| | 群机器人（档位 1，已就绪） | 自建应用审批（档位 2，待平台验签） |
+|---|---|---|
+| 依赖 | 无（内网可用） | 公网 HTTPS 回调地址 |
+| 能力 | 群内通知 + 查看详情跳转 | IM 内点按钮直接审批 |
+| 配置 | 系统配置页 5 步 | 平台开放平台 + 系统用户绑定 |
+| 验签 | 已实现（HMAC 共享密钥） | 需按平台协议补充（钉钉 sign / 企微 WXBizMsgCrypt / 飞书 X-Lark-Signature） |
+
 ## v2.6 UI 现代化（明亮现代风 + 动效）- 前端整体 UI 升级为**明亮现代风**：品牌渐变主色（indigo→purple）、大圆角、精致阴影、柔和渐变页面背景，通过 Element Plus CSS 变量主题覆盖实现，全站组件（按钮/表格/标签/弹窗/输入框/标签页）统一焕新。
 - **布局**：侧边栏渐变 Logo 区、菜单项圆角悬浮 + 当前项渐变高亮；顶栏毛玻璃（backdrop blur）+ 渐变页标题 + 圆形用户头像。
 - **登录页**：品牌光晕漂浮背景 + 毛玻璃卡片弹入动画 + 图标输入框 + 渐变主按钮。
