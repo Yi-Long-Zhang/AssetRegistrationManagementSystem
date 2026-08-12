@@ -29,22 +29,22 @@ func TestSLASchedulerTick(t *testing.T) {
 
 	// 1) 审批阶段已超时（未通知）→ 应标记并生成审计
 	overdue := model.Ticket{
-		Type: model.TicketTypeMaintenance, Title: "超时审批单", ApplicantID: user.ID, ArchiveNo: "sla-test-1",
+		Type: model.TicketTypeMaintenance, Title: "超时审批单", ApplicantID: user.ID, ArchiveNo: strPtr("sla-test-1"),
 		Status: model.TicketStatusPendingApproval, SLAApprovalDeadline: &past,
 	}
 	// 2) 审批阶段未超时 → 不处理
 	okTicket := model.Ticket{
-		Type: model.TicketTypeMaintenance, Title: "未超时单", ApplicantID: user.ID, ArchiveNo: "sla-test-2",
+		Type: model.TicketTypeMaintenance, Title: "未超时单", ApplicantID: user.ID, ArchiveNo: strPtr("sla-test-2"),
 		Status: model.TicketStatusPendingApproval, SLAApprovalDeadline: &future,
 	}
 	// 3) 执行阶段已超时（未通知）→ 应标记
 	execOverdue := model.Ticket{
-		Type: model.TicketTypeMaintenance, Title: "超时执行单", ApplicantID: user.ID, ArchiveNo: "sla-test-3",
+		Type: model.TicketTypeMaintenance, Title: "超时执行单", ApplicantID: user.ID, ArchiveNo: strPtr("sla-test-3"),
 		Status: model.TicketStatusInProgress, SLACompletionDeadline: &past,
 	}
 	// 4) 已通知过的超时 → 不重复处理
 	notified := model.Ticket{
-		Type: model.TicketTypeMaintenance, Title: "已通知单", ApplicantID: user.ID, ArchiveNo: "sla-test-4",
+		Type: model.TicketTypeMaintenance, Title: "已通知单", ApplicantID: user.ID, ArchiveNo: strPtr("sla-test-4"),
 		Status: model.TicketStatusPendingApproval, SLAApprovalDeadline: &past, SLAOverdueNotified: true,
 	}
 	for _, tk := range []*model.Ticket{&overdue, &okTicket, &execOverdue, &notified} {
@@ -102,4 +102,8 @@ func TestSLASchedulerTick(t *testing.T) {
 	if count != 2 {
 		t.Fatalf("expect still 2 records after second tick, got %d", count)
 	}
+}
+
+func strPtr(s string) *string {
+	return &s
 }

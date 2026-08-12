@@ -137,7 +137,7 @@ type Ticket struct {
 	Executor                *User                `json:"executor,omitempty" gorm:"foreignKey:ExecutorID"`
 	CurrentWorkflowStepID   *uint                `json:"currentWorkflowStepId" gorm:"index"`
 	CurrentWorkflowStepName string               `json:"currentWorkflowStepName" gorm:"size:128"`
-	ArchiveNo               string               `json:"archiveNo" gorm:"size:64;uniqueIndex"`
+	ArchiveNo               *string              `json:"archiveNo" gorm:"size:64;uniqueIndex"` // 归档号（关闭归档时生成，草稿为空）
 	ArchivePath             string               `json:"-" gorm:"size:512"`
 	ArchivedAt              *time.Time           `json:"archivedAt"`
 	Priority                Priority             `json:"priority" gorm:"size:32;not null"`

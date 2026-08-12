@@ -133,6 +133,8 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	tickets := api.Group("/tickets", h.AuthRequired())
 	tickets.GET("", h.ListTickets)
 	tickets.POST("", h.CreateTicket)
+	tickets.GET("/stats", h.RequireAnyRole(model.RoleAdmin), h.GetTicketStats)
+	tickets.GET("/stats/export", h.RequireAnyRole(model.RoleAdmin), h.ExportTicketStats)
 	tickets.POST("/archives/download", h.DownloadTicketArchives)
 	tickets.GET("/:id", h.GetTicket)
 	tickets.PUT("/:id", h.UpdateTicket)

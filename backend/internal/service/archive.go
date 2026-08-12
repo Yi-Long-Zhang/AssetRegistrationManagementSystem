@@ -32,7 +32,7 @@ func (LibreOfficeTicketArchiver) Generate(ctx context.Context, data TicketArchiv
 		return "", "", err
 	}
 	archiveNo := fmt.Sprintf("ITCFG-%s-%06d", time.Now().Format("20060102"), data.Ticket.ID)
-	data.Ticket.ArchiveNo = archiveNo
+	data.Ticket.ArchiveNo = &archiveNo
 	workDir, err := os.MkdirTemp(archiveDir, ".archive-*")
 	if err != nil {
 		return "", "", err
@@ -121,7 +121,7 @@ func ticketArchiveValues(ticket model.Ticket) map[string]string {
 	copy(workflow, ticket.WorkflowSteps)
 	sort.Slice(workflow, func(i, j int) bool { return workflow[i].SortOrder < workflow[j].SortOrder })
 	return map[string]string{
-		"ArchiveNo":        ticket.ArchiveNo,
+		"ArchiveNo":        derefStr(ticket.ArchiveNo),
 		"Department":       ticket.Applicant.Department,
 		"Applicant":        applicant,
 		"ApplyTime":        formatTime(ticket.CreatedAt),
@@ -208,6 +208,14 @@ func formatTimePtr(value *time.Time) string {
 
 func xmlEscape(value string) string {
 	return html.EscapeString(value)
+}
+
+// derefStr 解引用字符串指针，空指针返回空串。
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func defaultTicketTemplate() ([]byte, error) {

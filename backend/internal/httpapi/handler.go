@@ -822,7 +822,7 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 			if !ok {
 				return
 			}
-			ticket.ArchiveNo = archiveNo
+			ticket.ArchiveNo = &archiveNo
 			ticket.ArchivePath = archivePath
 			now := time.Now()
 			ticket.ArchivedAt = &now
@@ -835,7 +835,7 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 		if action == "accept" && next == model.TicketStatusClosed {
 			h.notifyTicketIM(&ticket, "工单已验收关闭",
 				fmt.Sprintf("- 工单：#%d %s\n- 归档号：%s\n- 验收结果：%s",
-					ticket.ID, ticket.Title, ticket.ArchiveNo, ticket.AcceptanceResult))
+					ticket.ID, ticket.Title, derefStr(ticket.ArchiveNo), ticket.AcceptanceResult))
 		}
 		if action == "submit" && next == model.TicketStatusPendingApproval {
 			h.notifyTicketIM(&ticket, "工单待审批",
@@ -862,11 +862,11 @@ func (h *Handler) DownloadTicketArchive(c *gin.Context) {
 		errorJSON(c, http.StatusBadRequest, "工单关闭后才能下载归档 PDF")
 		return
 	}
-	if ticket.ArchivePath == "" || ticket.ArchiveNo == "" {
+	if ticket.ArchivePath == "" || ticket.ArchiveNo == nil || *ticket.ArchiveNo == "" {
 		errorJSON(c, http.StatusBadRequest, "工单归档 PDF 尚未生成")
 		return
 	}
-	c.FileAttachment(ticket.ArchivePath, ticket.ArchiveNo+".pdf")
+	c.FileAttachment(ticket.ArchivePath, *ticket.ArchiveNo+".pdf")
 }
 
 func (h *Handler) DownloadTicketArchives(c *gin.Context) {
@@ -906,7 +906,7 @@ func (h *Handler) DownloadTicketArchives(c *gin.Context) {
 			errorJSON(c, http.StatusBadRequest, fmt.Sprintf("工单 #%d 关闭后才能下载归档 PDF", ticket.ID))
 			return
 		}
-		if ticket.ArchivePath == "" || ticket.ArchiveNo == "" {
+		if ticket.ArchivePath == "" || ticket.ArchiveNo == nil || *ticket.ArchiveNo == "" {
 			errorJSON(c, http.StatusBadRequest, fmt.Sprintf("工单 #%d 归档 PDF 尚未生成", ticket.ID))
 			return
 		}
@@ -924,11 +924,11 @@ func (h *Handler) DownloadTicketArchives(c *gin.Context) {
 	defer zipWriter.Close()
 	usedNames := map[string]int{}
 	for _, ticket := range ordered {
-		name := ticket.ArchiveNo + ".pdf"
+		name := *ticket.ArchiveNo + ".pdf"
 		if usedNames[name] > 0 {
-			name = fmt.Sprintf("%s-%d.pdf", ticket.ArchiveNo, usedNames[name]+1)
+			name = fmt.Sprintf("%s-%d.pdf", *ticket.ArchiveNo, usedNames[name]+1)
 		}
-		usedNames[ticket.ArchiveNo+".pdf"]++
+		usedNames[*ticket.ArchiveNo+".pdf"]++
 		if err := addFileToZip(zipWriter, ticket.ArchivePath, name); err != nil {
 			errorJSON(c, http.StatusInternalServerError, "打包归档 PDF 失败: "+err.Error())
 			return
@@ -1237,6 +1237,14 @@ func uniqueStoredName(original string) string {
 		return fmt.Sprintf("%d-%s", time.Now().UnixNano(), filepath.Base(original))
 	}
 	return fmt.Sprintf("%d-%s-%s", time.Now().UnixNano(), hex.EncodeToString(random[:]), filepath.Base(original))
+}
+
+// derefStr 解引用字符串指针，空指针返回空串。
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func addFileToZip(zipWriter *zip.Writer, sourcePath, archiveName string) error {

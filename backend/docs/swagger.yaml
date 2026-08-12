@@ -380,6 +380,7 @@ definitions:
       approverId:
         type: integer
       archiveNo:
+        description: 归档号（关闭归档时生成，草稿为空）
         type: string
       archivedAt:
         type: string
@@ -710,6 +711,44 @@ definitions:
       username:
         type: string
     type: object
+  internal_httpapi.SLASummary:
+    properties:
+      applicable:
+        type: boolean
+      met:
+        type: integer
+      overdue:
+        type: integer
+      rate:
+        description: 达标率 0-100
+        type: number
+      total:
+        type: integer
+    type: object
+  internal_httpapi.TicketStats:
+    properties:
+      byPriority:
+        items:
+          $ref: '#/definitions/internal_httpapi.ticketGroupedCounts'
+        type: array
+      byStatus:
+        items:
+          $ref: '#/definitions/internal_httpapi.ticketGroupedCounts'
+        type: array
+      byType:
+        items:
+          $ref: '#/definitions/internal_httpapi.ticketGroupedCounts'
+        type: array
+      monthlyTrend:
+        description: 近 12 个月（按创建月份）
+        items:
+          $ref: '#/definitions/internal_httpapi.ticketGroupedCounts'
+        type: array
+      slaSummary:
+        $ref: '#/definitions/internal_httpapi.SLASummary'
+      total:
+        type: integer
+    type: object
   internal_httpapi.adConfigRequest:
     properties:
       advancedFilter:
@@ -1026,6 +1065,13 @@ definitions:
         type: string
     required:
     - content
+    type: object
+  internal_httpapi.ticketGroupedCounts:
+    properties:
+      count:
+        type: integer
+      label:
+        type: string
     type: object
   internal_httpapi.ticketRequest:
     properties:
@@ -2814,6 +2860,38 @@ paths:
       security:
       - BearerAuth: []
       summary: 批量下载工单归档 ZIP
+      tags:
+      - tickets
+  /tickets/stats:
+    get:
+      consumes:
+      - application/json
+      description: 按类型/状态/优先级分布、月度趋势与 SLA 达标率统计（admin）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_httpapi.TicketStats'
+      security:
+      - BearerAuth: []
+      summary: 工单统计报表
+      tags:
+      - tickets
+  /tickets/stats/export:
+    get:
+      description: 导出工单统计汇总为 CSV（状态/类型/优先级/SLA 达标率/月度趋势，admin）
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV 文件
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: 导出工单统计报表
       tags:
       - tickets
   /users:

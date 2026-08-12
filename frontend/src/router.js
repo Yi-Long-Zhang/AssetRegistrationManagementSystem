@@ -25,6 +25,7 @@ const router = createRouter({
         { path: 'assets', component: AssetsView, meta: { auth: true, menu: true, title: '服务器资产', icon: 'Monitor', order: 10 } },
         { path: 'discovery', component: () => import('./views/DiscoveryView.vue'), meta: { auth: true, menu: true, title: '资产发现', icon: 'Aim', roles: ['admin', 'asset_manager'], order: 15 } },
         { path: 'tickets', component: TicketsView, meta: { auth: true, menu: true, title: '工单流程', icon: 'Tickets', order: 20 } },
+        { path: 'ticket-stats', component: () => import('./views/TicketsStatsView.vue'), meta: { auth: true, menu: true, title: '工单报表', icon: 'TrendCharts', roles: ['admin'], order: 22 } },
         { path: 'inspection', component: () => import('./views/InspectionRulesView.vue'), meta: { auth: true, menu: true, title: '巡检规则', icon: 'AlarmClock', roles: ['admin'], order: 25 } },
         { path: 'workflows', component: WorkflowsView, meta: { auth: true, menu: true, title: '流程配置', icon: 'Operation', roles: ['admin'], order: 30 } },
         { path: 'users', component: UsersView, meta: { auth: true, menu: true, title: '用户管理', icon: 'User', roles: ['admin'], order: 40 } },

@@ -4,6 +4,12 @@ export const ticketsApi = {
   list(params) {
     return request.get('/tickets', { params }).then(unwrap)
   },
+  stats() {
+    return request.get('/tickets/stats').then(unwrap)
+  },
+  statsExport() {
+    return request.get('/tickets/stats/export', { responseType: 'blob' })
+  },
   detail(id) {
     return request.get(`/tickets/${id}`).then(unwrap)
   },

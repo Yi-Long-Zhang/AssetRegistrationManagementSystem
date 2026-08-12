@@ -2069,6 +2069,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/tickets/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "按类型/状态/优先级分布、月度趋势与 SLA 达标率统计（admin）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "工单统计报表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.TicketStats"
+                        }
+                    }
+                }
+            }
+        },
+        "/tickets/stats/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "导出工单统计汇总为 CSV（状态/类型/优先级/SLA 达标率/月度趋势，admin）",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "tickets"
+                ],
+                "summary": "导出工单统计报表",
+                "responses": {
+                    "200": {
+                        "description": "CSV 文件",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/tickets/{id}": {
             "get": {
                 "security": [
@@ -3542,6 +3595,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "archiveNo": {
+                    "description": "归档号（关闭归档时生成，草稿为空）",
                     "type": "string"
                 },
                 "archivedAt": {
@@ -4029,6 +4083,63 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_httpapi.SLASummary": {
+            "type": "object",
+            "properties": {
+                "applicable": {
+                    "type": "boolean"
+                },
+                "met": {
+                    "type": "integer"
+                },
+                "overdue": {
+                    "type": "integer"
+                },
+                "rate": {
+                    "description": "达标率 0-100",
+                    "type": "number"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_httpapi.TicketStats": {
+            "type": "object",
+            "properties": {
+                "byPriority": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_httpapi.ticketGroupedCounts"
+                    }
+                },
+                "byStatus": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_httpapi.ticketGroupedCounts"
+                    }
+                },
+                "byType": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_httpapi.ticketGroupedCounts"
+                    }
+                },
+                "monthlyTrend": {
+                    "description": "近 12 个月（按创建月份）",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_httpapi.ticketGroupedCounts"
+                    }
+                },
+                "slaSummary": {
+                    "$ref": "#/definitions/internal_httpapi.SLASummary"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_httpapi.adConfigRequest": {
             "type": "object",
             "required": [
@@ -4502,6 +4613,17 @@ const docTemplate = `{
             ],
             "properties": {
                 "content": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.ticketGroupedCounts": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "label": {
                     "type": "string"
                 }
             }
