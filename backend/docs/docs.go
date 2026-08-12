@@ -3400,6 +3400,22 @@ const docTemplate = `{
                 "runningServices": {
                     "type": "string"
                 },
+                "slaApprovalDeadline": {
+                    "description": "SLA：审批截止时间（submit 时按流程类型写入）",
+                    "type": "string"
+                },
+                "slaCompletionDeadline": {
+                    "description": "SLA：执行完成截止时间（start 时写入）",
+                    "type": "string"
+                },
+                "slaOverdueNotified": {
+                    "description": "SLA：是否已发送超时通知（防重复）",
+                    "type": "boolean"
+                },
+                "slaStartedAt": {
+                    "description": "SLA：进入执行阶段时间（用于剩余时限展示）",
+                    "type": "string"
+                },
                 "status": {
                     "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.TicketStatus"
                 },
@@ -3548,6 +3564,14 @@ const docTemplate = `{
         "asset-registration-management-system_backend_internal_model.TicketWorkflow": {
             "type": "object",
             "properties": {
+                "approvalHours": {
+                    "description": "SLA：审批时限（小时），nil=不启用",
+                    "type": "integer"
+                },
+                "completionHours": {
+                    "description": "SLA：执行完成时限（小时），nil=不启用",
+                    "type": "integer"
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -4309,6 +4333,14 @@ const docTemplate = `{
                 "nodes"
             ],
             "properties": {
+                "approvalHours": {
+                    "description": "SLA 审批时限（小时），空=不启用",
+                    "type": "integer"
+                },
+                "completionHours": {
+                    "description": "SLA 执行完成时限（小时），空=不启用",
+                    "type": "integer"
+                },
                 "enabled": {
                     "type": "boolean"
                 },

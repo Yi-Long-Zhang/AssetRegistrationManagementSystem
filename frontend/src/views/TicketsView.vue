@@ -33,6 +33,12 @@
         </el-table-column>
         <el-table-column label="申请人" width="120"><template #default="{ row }">{{ row.applicant?.name }}</template></el-table-column>
         <el-table-column prop="currentWorkflowStepName" label="当前节点" width="160" />
+        <el-table-column label="SLA" width="130">
+          <template #default="{ row }">
+            <span v-if="slaInfo(row)" :class="slaInfo(row).overdue ? 'sla-overdue' : 'sla-ok'">{{ slaInfo(row).text }}</span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="360">
           <template #default="{ row }">
             <el-button link type="primary" @click="view(row)">详情</el-button>
@@ -74,6 +80,9 @@
           <el-descriptions-item label="标题">{{ detail.title }}</el-descriptions-item>
           <el-descriptions-item label="状态"><StatusTag :value="detail.status" :map="TICKET_STATUS_MAP" /></el-descriptions-item>
           <el-descriptions-item label="当前节点">{{ detail.currentWorkflowStepName || '-' }}</el-descriptions-item>
+          <el-descriptions-item v-if="slaInfo(detail)" label="SLA 时效">
+            <span :class="slaInfo(detail).overdue ? 'sla-overdue' : 'sla-ok'">{{ slaInfo(detail).text }}</span>
+          </el-descriptions-item>
           <el-descriptions-item label="设备">{{ detail.deviceType || '-' }} / {{ detail.deviceName || '-' }} / {{ detail.ipAddress || '-' }}</el-descriptions-item>
           <el-descriptions-item label="服务信息">{{ detail.openPorts || '-' }} / {{ detail.runningServices || '-' }} / {{ detail.appVersion || '-' }}</el-descriptions-item>
           <el-descriptions-item label="厂商/防病毒">{{ detail.manufacturer || '-' }} / {{ detail.antivirus || '-' }}</el-descriptions-item>
@@ -144,6 +153,26 @@ const commentText = ref('')
 const form = reactive(emptyForm())
 const ticketTypeOptions = dictOptions(TICKET_TYPE_MAP)
 const priorityOptions = dictOptions(PRIORITY_MAP)
+
+// slaInfo 计算工单 SLA 剩余/超时信息：审批阶段看审批截止，执行阶段看完成截止。
+function slaInfo(row) {
+  if (!row) return null
+  const deadline =
+    row.status === 'pending_approval'
+      ? row.slaApprovalDeadline
+      : row.status === 'in_progress'
+        ? row.slaCompletionDeadline
+        : null
+  if (!deadline) return null
+  const diff = new Date(deadline).getTime() - Date.now()
+  const overdue = diff < 0
+  const hours = Math.abs(diff) / 3600000
+  let span
+  if (hours >= 24) span = `${(hours / 24).toFixed(1)} 天`
+  else if (hours >= 1) span = `${hours.toFixed(1)} 小时`
+  else span = `${Math.max(1, Math.round(hours * 60))} 分钟`
+  return { text: `${overdue ? '已超时 ' : '剩余 '}${span}`, overdue }
+}
 
 async function load() {
   loading.value = true
@@ -317,6 +346,15 @@ onMounted(load)
 </script>
 
 <style scoped>
+.sla-overdue {
+  color: #f56c6c;
+  font-weight: 600;
+}
+
+.sla-ok {
+  color: #67c23a;
+}
+
 .timeline {
   margin-top: 24px;
 }

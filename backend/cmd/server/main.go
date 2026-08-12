@@ -50,6 +50,10 @@ func main() {
 	scheduler.Start()
 	defer scheduler.Stop()
 
+	slaScheduler := service.NewSLAScheduler(db, cfg.Security.ConfigEncryptionKey)
+	slaScheduler.Start()
+	defer slaScheduler.Stop()
+
 	log.Printf("asset registration management backend listening on %s", cfg.HTTP.Addr)
 	if err := router.Run(cfg.HTTP.Addr); err != nil {
 		log.Fatalf("run server: %v", err)

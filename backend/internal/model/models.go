@@ -157,6 +157,10 @@ type Ticket struct {
 	Remark                  string               `json:"remark" gorm:"type:text"`
 	CreatedAt               time.Time            `json:"createdAt"`
 	UpdatedAt               time.Time            `json:"updatedAt"`
+	SLAApprovalDeadline     *time.Time           `json:"slaApprovalDeadline"`   // SLA：审批截止时间（submit 时按流程类型写入）
+	SLACompletionDeadline   *time.Time           `json:"slaCompletionDeadline"` // SLA：执行完成截止时间（start 时写入）
+	SLAStartedAt            *time.Time           `json:"slaStartedAt"`          // SLA：进入执行阶段时间（用于剩余时限展示）
+	SLAOverdueNotified      bool                 `json:"slaOverdueNotified"`    // SLA：是否已发送超时通知（防重复）
 	Records                 []TicketRecord       `json:"records,omitempty"`
 	Comments                []TicketComment      `json:"comments,omitempty"`
 	Attachments             []TicketAttachment   `json:"attachments,omitempty"`
@@ -164,13 +168,15 @@ type Ticket struct {
 }
 
 type TicketWorkflow struct {
-	ID        uint                 `json:"id" gorm:"primaryKey"`
-	Type      TicketType           `json:"type" gorm:"uniqueIndex;size:32;not null"`
-	Name      string               `json:"name" gorm:"size:128;not null"`
-	Enabled   bool                 `json:"enabled" gorm:"not null;default:true"`
-	CreatedAt time.Time            `json:"createdAt"`
-	UpdatedAt time.Time            `json:"updatedAt"`
-	Nodes     []TicketWorkflowNode `json:"nodes,omitempty" gorm:"foreignKey:WorkflowID;constraint:OnDelete:CASCADE"`
+	ID              uint                 `json:"id" gorm:"primaryKey"`
+	Type            TicketType           `json:"type" gorm:"uniqueIndex;size:32;not null"`
+	Name            string               `json:"name" gorm:"size:128;not null"`
+	Enabled         bool                 `json:"enabled" gorm:"not null;default:true"`
+	ApprovalHours   *int                 `json:"approvalHours"`   // SLA：审批时限（小时），nil=不启用
+	CompletionHours *int                 `json:"completionHours"` // SLA：执行完成时限（小时），nil=不启用
+	CreatedAt       time.Time            `json:"createdAt"`
+	UpdatedAt       time.Time            `json:"updatedAt"`
+	Nodes           []TicketWorkflowNode `json:"nodes,omitempty" gorm:"foreignKey:WorkflowID;constraint:OnDelete:CASCADE"`
 }
 
 type TicketWorkflowNode struct {

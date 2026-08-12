@@ -131,9 +131,11 @@ type ticketTypeApproverRequest struct {
 }
 
 type workflowRequest struct {
-	Name    string                `json:"name"`
-	Enabled bool                  `json:"enabled"`
-	Nodes   []workflowNodeRequest `json:"nodes" binding:"required"`
+	Name            string                `json:"name"`
+	Enabled         bool                  `json:"enabled"`
+	ApprovalHours   *int                  `json:"approvalHours"`   // SLA 审批时限（小时），空=不启用
+	CompletionHours *int                  `json:"completionHours"` // SLA 执行完成时限（小时），空=不启用
+	Nodes           []workflowNodeRequest `json:"nodes" binding:"required"`
 }
 
 type workflowNodeRequest struct {

@@ -778,6 +778,14 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 		ticket.Status = next
 		if action == "start" {
 			ticket.ExecutorID = &user.ID
+			// SLA：进入执行阶段时按流程类型写入完成截止时间
+			var wf model.TicketWorkflow
+			if err := h.db.Where("type = ?", ticket.Type).First(&wf).Error; err == nil && wf.CompletionHours != nil && *wf.CompletionHours > 0 {
+				now := time.Now()
+				deadline := now.Add(time.Duration(*wf.CompletionHours) * time.Hour)
+				ticket.SLACompletionDeadline = &deadline
+				ticket.SLAStartedAt = &now
+			}
 		}
 		if action == "complete" {
 			ticket.Result = req.Result

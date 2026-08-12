@@ -67,6 +67,8 @@ func (h *Handler) SaveWorkflow(c *gin.Context) {
 	}
 	workflow.Name = defaultString(req.Name, string(ticketType)+" 流程")
 	workflow.Enabled = req.Enabled
+	workflow.ApprovalHours = req.ApprovalHours
+	workflow.CompletionHours = req.CompletionHours
 	if workflow.Name == "" {
 		workflow.Name = string(ticketType) + " 流程"
 	}
@@ -140,6 +142,11 @@ func (h *Handler) createWorkflowSnapshot(c *gin.Context, ticket *model.Ticket) b
 	if len(workflow.Nodes) == 0 {
 		errorJSON(c, http.StatusBadRequest, "该工单类型审批流程没有审批节点")
 		return false
+	}
+	// SLA：提交时按流程类型写入审批截止时间（重新提交会重新计时）
+	if workflow.ApprovalHours != nil && *workflow.ApprovalHours > 0 {
+		deadline := time.Now().Add(time.Duration(*workflow.ApprovalHours) * time.Hour)
+		ticket.SLAApprovalDeadline = &deadline
 	}
 	if err := h.db.Where("ticket_id = ?", ticket.ID).Delete(&model.TicketWorkflowStep{}).Error; err != nil {
 		errorJSON(c, http.StatusBadRequest, "重置流程快照失败: "+err.Error())

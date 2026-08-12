@@ -12,6 +12,15 @@
         <el-form-item label="启用">
           <el-switch v-model="form.enabled" />
         </el-form-item>
+        <el-divider content-position="left">SLA 时效（留空=不启用）</el-divider>
+        <el-form-item label="审批时限">
+          <el-input-number v-model="form.approvalHours" :min="1" :max="720" placeholder="小时" />
+          <span class="sla-unit">小时</span>
+        </el-form-item>
+        <el-form-item label="完成时限">
+          <el-input-number v-model="form.completionHours" :min="1" :max="720" placeholder="小时" />
+          <span class="sla-unit">小时</span>
+        </el-form-item>
       </el-form>
       <div class="toolbar">
         <h3>审批节点</h3>
@@ -47,7 +56,7 @@ import { TICKET_TYPE_MAP, dictOptions } from '../constants/dictionaries'
 const ticketTypes = dictOptions(TICKET_TYPE_MAP)
 const activeType = ref(ticketTypes[0]?.value || 'asset_register')
 const users = ref([])
-const form = reactive({ name: '', enabled: true, nodes: [] })
+const form = reactive({ name: '', enabled: true, approvalHours: null, completionHours: null, nodes: [] })
 const approverUsers = computed(() => users.value.filter((user) => user.status === 'active'))
 
 function blankNode(name = '') {
@@ -64,6 +73,8 @@ async function loadWorkflow() {
     const data = await workflowsApi.detail(activeType.value)
     form.name = data.name || `${TICKET_TYPE_MAP[activeType.value]?.label || activeType.value}流程`
     form.enabled = data.enabled !== false
+    form.approvalHours = data.approvalHours ?? null
+    form.completionHours = data.completionHours ?? null
     form.nodes = (data.nodes || []).map((node) => ({
       localId: `${node.id}-${Math.random()}`,
       name: node.name,
@@ -72,6 +83,8 @@ async function loadWorkflow() {
   } catch {
     form.name = `${TICKET_TYPE_MAP[activeType.value]?.label || activeType.value}流程`
     form.enabled = true
+    form.approvalHours = null
+    form.completionHours = null
     form.nodes = [blankNode('IT运维主管审核'), blankNode('信息技术部经理审批')]
   }
 }
@@ -104,6 +117,8 @@ async function saveWorkflow() {
   await workflowsApi.save(activeType.value, {
     name: form.name,
     enabled: form.enabled,
+    approvalHours: form.approvalHours || null,
+    completionHours: form.completionHours || null,
     nodes: form.nodes.map((node) => ({ name: node.name, approverIds: node.approverIds }))
   })
   ElMessage.success('流程配置已保存')
@@ -120,6 +135,12 @@ onMounted(async () => {
 .nodes {
   display: grid;
   gap: 12px;
+}
+
+.sla-unit {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 
 .node-row {
