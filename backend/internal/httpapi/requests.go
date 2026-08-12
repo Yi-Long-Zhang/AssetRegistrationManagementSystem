@@ -111,6 +111,7 @@ type ticketRequest struct {
 	Type            model.TicketType `json:"type" binding:"required"`
 	Title           string           `json:"title" binding:"required"`
 	AssetID         *uint            `json:"assetId"`
+	AssetIDs        []uint           `json:"assetIds"` // 关联资产（多资产），优先于 assetId
 	Priority        model.Priority   `json:"priority"`
 	Description     string           `json:"description"`
 	DeviceType      string           `json:"deviceType"`

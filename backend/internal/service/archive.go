@@ -130,6 +130,7 @@ func ticketArchiveValues(ticket model.Ticket) map[string]string {
 		"DeviceType":       ticket.DeviceType,
 		"DeviceName":       ticket.DeviceName,
 		"IPAddress":        ticket.IPAddress,
+		"RelatedAssets":    relatedAssetsText(ticket),
 		"OpenPorts":        ticket.OpenPorts,
 		"RunningServices":  ticket.RunningServices,
 		"AppVersion":       ticket.AppVersion,
@@ -144,6 +145,24 @@ func ticketArchiveValues(ticket model.Ticket) map[string]string {
 		"WorkflowRecords":  workflowText(workflow),
 		"TimelineRecords":  recordText(records),
 	}
+}
+
+func relatedAssetsText(ticket model.Ticket) string {
+	var lines []string
+	for _, link := range ticket.Assets {
+		asset := link.Asset
+		name := asset.Hostname
+		if name == "" {
+			name = asset.AssetNo
+		}
+		lines = append(lines, fmt.Sprintf("%s / %s / %s", asset.IP, name, asset.AssetType))
+	}
+	if len(lines) == 0 {
+		if ticket.DeviceName != "" || ticket.IPAddress != "" {
+			lines = append(lines, fmt.Sprintf("%s / %s / %s", ticket.IPAddress, ticket.DeviceName, ticket.DeviceType))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func workflowText(steps []model.TicketWorkflowStep) string {
@@ -199,6 +218,7 @@ func defaultTicketTemplate() ([]byte, error) {
 <w:p><w:r><w:t>部门：{{Department}}  申请人：{{Applicant}}  申请时间：{{ApplyTime}}</w:t></w:r></w:p>
 <w:p><w:r><w:t>设备类型：{{DeviceType}}</w:t></w:r></w:p>
 <w:p><w:r><w:t>设备名称或IP地址：{{DeviceName}} / {{IPAddress}}</w:t></w:r></w:p>
+<w:p><w:r><w:t>关联资产清单：{{RelatedAssets}}</w:t></w:r></w:p>
 <w:p><w:r><w:t>开放端口：{{OpenPorts}}</w:t></w:r></w:p>
 <w:p><w:r><w:t>运行服务/应用：{{RunningServices}}</w:t></w:r></w:p>
 <w:p><w:r><w:t>应用版本：{{AppVersion}}  厂商：{{Manufacturer}}  防病毒软件：{{Antivirus}}</w:t></w:r></w:p>

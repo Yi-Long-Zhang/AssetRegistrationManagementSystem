@@ -656,6 +656,10 @@ func (h *Handler) CreateTicket(c *gin.Context) {
 		errorJSON(c, http.StatusBadRequest, "创建工单失败: "+err.Error())
 		return
 	}
+	if err := h.saveTicketAssets(ticket.ID, req.AssetIDs, req.AssetID); err != nil {
+		errorJSON(c, http.StatusBadRequest, "保存关联资产失败: "+err.Error())
+		return
+	}
 	h.addRecord(ticket.ID, user.ID, "create", "", ticket.Status, "创建工单")
 	h.notifyTicketIM(&ticket, "新工单创建",
 		fmt.Sprintf("- 工单：#%d %s\n- 类型：%s\n- 申请人：%s\n- 优先级：%s",
@@ -677,7 +681,7 @@ func (h *Handler) GetTicket(c *gin.Context) {
 		return
 	}
 	var ticket model.Ticket
-	if err := h.db.Preload("Applicant").Preload("Asset").Preload("Approver").Preload("Executor").
+	if err := h.db.Preload("Applicant").Preload("Asset").Preload("Assets.Asset").Preload("Approver").Preload("Executor").
 		Preload("Records.Actor").Preload("Comments.Actor").Preload("Attachments.Uploader").
 		Preload("WorkflowSteps.Actor").Preload("WorkflowSteps.Approvers.User", func(db *gorm.DB) *gorm.DB { return db.Order("id asc") }).
 		Preload("WorkflowSteps", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order asc") }).
@@ -713,7 +717,29 @@ func (h *Handler) UpdateTicket(c *gin.Context) {
 		errorJSON(c, http.StatusBadRequest, "更新工单失败: "+err.Error())
 		return
 	}
+	if err := h.saveTicketAssets(ticket.ID, req.AssetIDs, req.AssetID); err != nil {
+		errorJSON(c, http.StatusBadRequest, "保存关联资产失败: "+err.Error())
+		return
+	}
 	c.JSON(http.StatusOK, ticket)
+}
+
+// saveTicketAssets 保存工单关联资产（先删后插）。
+// assetIDs 优先；为空时回退到单资产 assetID（兼容旧调用）。
+func (h *Handler) saveTicketAssets(ticketID uint, assetIDs []uint, assetID *uint) error {
+	ids := uniqueUint(assetIDs)
+	if len(ids) == 0 && assetID != nil && *assetID > 0 {
+		ids = []uint{*assetID}
+	}
+	if err := h.db.Where("ticket_id = ?", ticketID).Delete(&model.TicketAsset{}).Error; err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := h.db.Create(&model.TicketAsset{TicketID: ticketID, AssetID: id}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *Handler) TicketAction(action string) gin.HandlerFunc {
@@ -1130,7 +1156,7 @@ func applyTicketRequest(ticket *model.Ticket, req ticketRequest) {
 
 func (h *Handler) closeTicketWithArchive(c *gin.Context, ticket *model.Ticket) (string, string, bool) {
 	var full model.Ticket
-	if err := h.db.Preload("Applicant").Preload("Asset").Preload("Executor").Preload("Records.Actor").
+	if err := h.db.Preload("Applicant").Preload("Asset").Preload("Assets.Asset").Preload("Executor").Preload("Records.Actor").
 		Preload("WorkflowSteps.Actor").Preload("WorkflowSteps", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order asc") }).
 		First(&full, ticket.ID).Error; err != nil {
 		errorJSON(c, http.StatusInternalServerError, "加载归档数据失败")
@@ -1153,40 +1179,54 @@ func (h *Handler) closeTicketWithArchive(c *gin.Context, ticket *model.Ticket) (
 }
 
 func (h *Handler) writeBackTicketAsset(ticket *model.Ticket) error {
-	if ticket.AssetID == nil {
+	// 多资产：优先取关联表；空则回退到单资产 AssetID（兼容旧工单）
+	assetIDs := []uint{}
+	var links []model.TicketAsset
+	if err := h.db.Where("ticket_id = ?", ticket.ID).Find(&links).Error; err != nil {
+		return err
+	}
+	for _, link := range links {
+		assetIDs = append(assetIDs, link.AssetID)
+	}
+	if len(assetIDs) == 0 && ticket.AssetID != nil {
+		assetIDs = []uint{*ticket.AssetID}
+	}
+	if len(assetIDs) == 0 {
 		return nil
 	}
-	var asset model.Asset
-	if err := h.db.First(&asset, *ticket.AssetID).Error; err != nil {
-		return err
-	}
-	if ticket.DeviceType != "" {
-		asset.AssetType = ticket.DeviceType
-	}
-	if ticket.DeviceName != "" {
-		asset.Hostname = ticket.DeviceName
-	}
-	if ticket.IPAddress != "" {
-		asset.IP = ticket.IPAddress
-	}
-	if ticket.OpenPorts != "" {
-		asset.OpenPorts = ticket.OpenPorts
-	}
-	if ticket.RunningServices != "" {
-		asset.RunningServices = ticket.RunningServices
-	}
-	if ticket.AppVersion != "" {
-		asset.AppVersion = ticket.AppVersion
-	}
-	if ticket.Manufacturer != "" {
-		asset.Manufacturer = ticket.Manufacturer
-	}
-	if err := h.db.Save(&asset).Error; err != nil {
-		return err
-	}
-	actorID := uint(0)
-	if err := (&service.AssetSnapshotter{DB: h.db}).CreateSnapshot(&asset, model.SnapshotSourceTicket, &actorID, "update"); err != nil {
-		return err
+	for _, assetID := range assetIDs {
+		var asset model.Asset
+		if err := h.db.First(&asset, assetID).Error; err != nil {
+			return err
+		}
+		if ticket.DeviceType != "" {
+			asset.AssetType = ticket.DeviceType
+		}
+		if ticket.DeviceName != "" {
+			asset.Hostname = ticket.DeviceName
+		}
+		if ticket.IPAddress != "" {
+			asset.IP = ticket.IPAddress
+		}
+		if ticket.OpenPorts != "" {
+			asset.OpenPorts = ticket.OpenPorts
+		}
+		if ticket.RunningServices != "" {
+			asset.RunningServices = ticket.RunningServices
+		}
+		if ticket.AppVersion != "" {
+			asset.AppVersion = ticket.AppVersion
+		}
+		if ticket.Manufacturer != "" {
+			asset.Manufacturer = ticket.Manufacturer
+		}
+		if err := h.db.Save(&asset).Error; err != nil {
+			return err
+		}
+		actorID := uint(0)
+		if err := (&service.AssetSnapshotter{DB: h.db}).CreateSnapshot(&asset, model.SnapshotSourceTicket, &actorID, "update"); err != nil {
+			return err
+		}
 	}
 	return nil
 }

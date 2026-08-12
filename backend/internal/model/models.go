@@ -165,6 +165,16 @@ type Ticket struct {
 	Comments                []TicketComment      `json:"comments,omitempty"`
 	Attachments             []TicketAttachment   `json:"attachments,omitempty"`
 	WorkflowSteps           []TicketWorkflowStep `json:"workflowSteps,omitempty"`
+	Assets                  []TicketAsset        `json:"assets,omitempty" gorm:"foreignKey:TicketID"` // 关联资产（多资产）
+}
+
+// TicketAsset 工单与资产多对多关联。
+type TicketAsset struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	TicketID  uint      `json:"ticketId" gorm:"not null;index"`
+	AssetID   uint      `json:"assetId" gorm:"not null;index"`
+	Asset     Asset     `json:"asset,omitempty" gorm:"foreignKey:AssetID"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type TicketWorkflow struct {

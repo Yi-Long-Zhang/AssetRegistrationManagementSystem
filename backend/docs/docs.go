@@ -3328,6 +3328,13 @@ const docTemplate = `{
                 "assetId": {
                     "type": "integer"
                 },
+                "assets": {
+                    "description": "关联资产（多资产）",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.TicketAsset"
+                    }
+                },
                 "attachments": {
                     "type": "array",
                     "items": {
@@ -3433,6 +3440,26 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.TicketWorkflowStep"
                     }
+                }
+            }
+        },
+        "asset-registration-management-system_backend_internal_model.TicketAsset": {
+            "type": "object",
+            "properties": {
+                "asset": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Asset"
+                },
+                "assetId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ticketId": {
+                    "type": "integer"
                 }
             }
         },
@@ -4230,6 +4257,13 @@ const docTemplate = `{
                 },
                 "assetId": {
                     "type": "integer"
+                },
+                "assetIds": {
+                    "description": "关联资产（多资产），优先于 assetId",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "changeContent": {
                     "type": "string"

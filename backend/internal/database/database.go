@@ -37,6 +37,7 @@ func Migrate(db *gorm.DB) error {
 		&model.TicketComment{},
 		&model.TicketAttachment{},
 		&model.TicketRecord{},
+		&model.TicketAsset{},
 		&model.AuditLog{},
 		&model.DiscoveryRule{},
 		&model.DiscoveryRun{},

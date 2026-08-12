@@ -350,6 +350,11 @@ definitions:
         $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
       assetId:
         type: integer
+      assets:
+        description: 关联资产（多资产）
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketAsset'
+        type: array
       attachments:
         items:
           $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketAttachment'
@@ -422,6 +427,19 @@ definitions:
         items:
           $ref: '#/definitions/asset-registration-management-system_backend_internal_model.TicketWorkflowStep'
         type: array
+    type: object
+  asset-registration-management-system_backend_internal_model.TicketAsset:
+    properties:
+      asset:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+      assetId:
+        type: integer
+      createdAt:
+        type: string
+      id:
+        type: integer
+      ticketId:
+        type: integer
     type: object
   asset-registration-management-system_backend_internal_model.TicketAttachment:
     properties:
@@ -952,6 +970,11 @@ definitions:
         type: string
       assetId:
         type: integer
+      assetIds:
+        description: 关联资产（多资产），优先于 assetId
+        items:
+          type: integer
+        type: array
       changeContent:
         type: string
       description:

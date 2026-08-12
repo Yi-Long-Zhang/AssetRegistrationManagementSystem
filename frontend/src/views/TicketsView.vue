@@ -52,6 +52,11 @@
       <el-form :model="form" label-width="90px">
         <el-form-item label="类型"><el-select v-model="form.type"><el-option v-for="option in ticketTypeOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
         <el-form-item label="标题"><el-input v-model="form.title" /></el-form-item>
+        <el-form-item label="关联资产">
+          <el-select v-model="form.assetIds" multiple filterable clearable placeholder="选择受影响资产（可多选）" style="width: 100%">
+            <el-option v-for="asset in assetOptions" :key="asset.id" :label="`${asset.hostname || asset.assetNo} (${asset.ip})`" :value="asset.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="优先级"><el-select v-model="form.priority"><el-option v-for="option in priorityOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
         <el-row :gutter="12">
           <el-col :span="12"><el-form-item label="设备类型"><el-input v-model="form.deviceType" placeholder="服务器/交换机/防火墙" /></el-form-item></el-col>
@@ -84,6 +89,14 @@
             <span :class="slaInfo(detail).overdue ? 'sla-overdue' : 'sla-ok'">{{ slaInfo(detail).text }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="设备">{{ detail.deviceType || '-' }} / {{ detail.deviceName || '-' }} / {{ detail.ipAddress || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="关联资产">
+            <template v-if="detail.assets?.length">
+              <div v-for="link in detail.assets" :key="link.id" class="linked-asset">
+                {{ link.asset?.hostname || link.asset?.assetNo || '资产#' + link.assetId }} ({{ link.asset?.ip || '-' }})
+              </div>
+            </template>
+            <span v-else>-</span>
+          </el-descriptions-item>
           <el-descriptions-item label="服务信息">{{ detail.openPorts || '-' }} / {{ detail.runningServices || '-' }} / {{ detail.appVersion || '-' }}</el-descriptions-item>
           <el-descriptions-item label="厂商/防病毒">{{ detail.manufacturer || '-' }} / {{ detail.antivirus || '-' }}</el-descriptions-item>
           <el-descriptions-item label="申请原因">{{ detail.description || '-' }}</el-descriptions-item>
@@ -134,6 +147,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { ticketsApi } from '../api'
+import { assetsApi } from '../api'
 import PageHeader from '../components/common/PageHeader.vue'
 import StatusTag from '../components/common/StatusTag.vue'
 import { PRIORITY_MAP, TICKET_STATUS_MAP, TICKET_TYPE_MAP, dictOptions } from '../constants/dictionaries'
@@ -153,6 +167,16 @@ const commentText = ref('')
 const form = reactive(emptyForm())
 const ticketTypeOptions = dictOptions(TICKET_TYPE_MAP)
 const priorityOptions = dictOptions(PRIORITY_MAP)
+const assetOptions = ref([])
+
+async function loadAssets() {
+  try {
+    const data = await assetsApi.list({ page: 1, pageSize: 200 })
+    assetOptions.value = data.items || []
+  } catch {
+    assetOptions.value = []
+  }
+}
 
 // slaInfo 计算工单 SLA 剩余/超时信息：审批阶段看审批截止，执行阶段看完成截止。
 function slaInfo(row) {
@@ -194,6 +218,7 @@ function emptyForm() {
   return {
     type: 'asset_register',
     title: '',
+    assetIds: [],
     priority: 'normal',
     description: '',
     deviceType: '',
@@ -342,7 +367,10 @@ const activeStepIndex = computed(() => {
   return pending === -1 ? detail.value.workflowSteps.length : pending
 })
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadAssets()
+})
 </script>
 
 <style scoped>
@@ -353,6 +381,10 @@ onMounted(load)
 
 .sla-ok {
   color: #67c23a;
+}
+
+.linked-asset {
+  line-height: 1.8;
 }
 
 .timeline {
