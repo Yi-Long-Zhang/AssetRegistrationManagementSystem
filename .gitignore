@@ -27,3 +27,7 @@ tools/nmap/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local Go test cache dirs (root-level)
+.gocache/
+.tmp/
