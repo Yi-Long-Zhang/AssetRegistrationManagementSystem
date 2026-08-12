@@ -1423,6 +1423,179 @@ const docTemplate = `{
                 }
             }
         },
+        "/inspection/rules": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询定期巡检规则（admin）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "inspection"
+                ],
+                "summary": "巡检规则列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "创建定期巡检规则（admin）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "inspection"
+                ],
+                "summary": "新增巡检规则",
+                "parameters": [
+                    {
+                        "description": "巡检规则",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.inspectionRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.InspectionRule"
+                        }
+                    }
+                }
+            }
+        },
+        "/inspection/rules/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新定期巡检规则（admin）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "inspection"
+                ],
+                "summary": "更新巡检规则",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "巡检规则",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.inspectionRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.InspectionRule"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除定期巡检规则（admin）",
+                "tags": [
+                    "inspection"
+                ],
+                "summary": "删除巡检规则",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/inspection/rules/{id}/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "立即生成一张巡检工单（admin）",
+                "tags": [
+                    "inspection"
+                ],
+                "summary": "试运行巡检规则",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "规则 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Ticket"
+                        }
+                    }
+                }
+            }
+        },
         "/roles": {
             "get": {
                 "security": [
@@ -3247,6 +3420,58 @@ const docTemplate = `{
                 }
             }
         },
+        "asset-registration-management-system_backend_internal_model.InspectionRule": {
+            "type": "object",
+            "properties": {
+                "assignee": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.User"
+                },
+                "assigneeId": {
+                    "description": "巡检执行人",
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "dayOfMonth": {
+                    "description": "monthly：1-31",
+                    "type": "integer"
+                },
+                "dayOfWeek": {
+                    "description": "weekly：0=周日 ~ 6=周六",
+                    "type": "integer"
+                },
+                "description": {
+                    "description": "巡检内容说明",
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "frequency": {
+                    "description": "daily/weekly/monthly",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "lastRunAt": {
+                    "description": "上次生成巡检工单时间",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "规则名称",
+                    "type": "string"
+                },
+                "timeOfDay": {
+                    "description": "\"HH:MM\" 执行时间",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "asset-registration-management-system_backend_internal_model.Priority": {
             "type": "string",
             "enum": [
@@ -3579,13 +3804,15 @@ const docTemplate = `{
                 "asset_register",
                 "asset_change",
                 "asset_retire",
-                "maintenance"
+                "maintenance",
+                "inspection"
             ],
             "x-enum-varnames": [
                 "TicketTypeAssetRegister",
                 "TicketTypeAssetChange",
                 "TicketTypeAssetRetire",
-                "TicketTypeMaintenance"
+                "TicketTypeMaintenance",
+                "TicketTypeInspection"
             ]
         },
         "asset-registration-management-system_backend_internal_model.TicketWorkflow": {
@@ -4119,6 +4346,43 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "webhook": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.inspectionRuleRequest": {
+            "type": "object",
+            "required": [
+                "assigneeId",
+                "frequency",
+                "name",
+                "timeOfDay"
+            ],
+            "properties": {
+                "assigneeId": {
+                    "type": "integer"
+                },
+                "dayOfMonth": {
+                    "type": "integer"
+                },
+                "dayOfWeek": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "frequency": {
+                    "description": "daily/weekly/monthly",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "timeOfDay": {
+                    "description": "\"HH:MM\"",
                     "type": "string"
                 }
             }

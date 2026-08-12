@@ -30,6 +30,7 @@ const (
 	TicketTypeAssetChange   TicketType = "asset_change"
 	TicketTypeAssetRetire   TicketType = "asset_retire"
 	TicketTypeMaintenance   TicketType = "maintenance"
+	TicketTypeInspection    TicketType = "inspection"
 )
 
 type TicketStatus string

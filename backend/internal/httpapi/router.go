@@ -118,6 +118,13 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	discovery.GET("/runs", h.ListDiscoveryRuns)
 	discovery.GET("/runs/:id", h.GetDiscoveryRun)
 	discovery.POST("/runs/:id/adopt", h.AdoptDiscoveryHosts)
+
+	inspection := api.Group("/inspection", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
+	inspection.GET("/rules", h.ListInspectionRules)
+	inspection.POST("/rules", h.CreateInspectionRule)
+	inspection.PUT("/rules/:id", h.UpdateInspectionRule)
+	inspection.DELETE("/rules/:id", h.DeleteInspectionRule)
+	inspection.POST("/rules/:id/test", h.TestInspectionRule)
 	discovery.POST("/runs/:id/apply", h.ApplyDiscoveryHosts)
 	discovery.GET("/stats/trend", h.GetDiscoveryTrend)
 	discovery.GET("/stats/subnets", h.GetDiscoverySubnetStats)

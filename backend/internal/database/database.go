@@ -40,6 +40,7 @@ func Migrate(db *gorm.DB) error {
 		&model.TicketAsset{},
 		&model.AuditLog{},
 		&model.DiscoveryRule{},
+		&model.InspectionRule{},
 		&model.DiscoveryRun{},
 		&model.DiscoveredHost{},
 		&model.AssetSnapshot{},

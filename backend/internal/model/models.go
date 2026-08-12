@@ -305,6 +305,23 @@ type DiscoveryRule struct {
 	UpdatedAt       time.Time  `json:"updatedAt"`
 }
 
+// InspectionRule 定期巡检规则：按频率自动生成巡检工单（草稿，需人工提交审批）。
+type InspectionRule struct {
+	ID          uint       `json:"id" gorm:"primaryKey"`
+	Name        string     `json:"name" gorm:"size:128;not null"`                   // 规则名称
+	Description string     `json:"description" gorm:"type:text"`                    // 巡检内容说明
+	Frequency   string     `json:"frequency" gorm:"size:32;not null;default:daily"` // daily/weekly/monthly
+	DayOfWeek   int        `json:"dayOfWeek" gorm:"not null;default:1"`             // weekly：0=周日 ~ 6=周六
+	DayOfMonth  int        `json:"dayOfMonth" gorm:"not null;default:1"`            // monthly：1-31
+	TimeOfDay   string     `json:"timeOfDay" gorm:"size:8;not null;default:09:00"`  // "HH:MM" 执行时间
+	AssigneeID  uint       `json:"assigneeId" gorm:"not null;index"`                // 巡检执行人
+	Assignee    User       `json:"assignee,omitempty" gorm:"foreignKey:AssigneeID"`
+	Enabled     bool       `json:"enabled" gorm:"not null;default:true"`
+	LastRunAt   *time.Time `json:"lastRunAt"` // 上次生成巡检工单时间
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
 // DiscoveryRun 一次发现执行记录
 type DiscoveryRun struct {
 	ID           uint               `json:"id" gorm:"primaryKey"`

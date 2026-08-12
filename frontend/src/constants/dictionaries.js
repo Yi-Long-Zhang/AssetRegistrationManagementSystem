@@ -78,7 +78,8 @@ export const TICKET_TYPE_MAP = {
   asset_register: { label: '资产登记', type: 'primary' },
   asset_change: { label: '资产变更', type: 'warning' },
   asset_retire: { label: '资产下线/报废', type: 'danger' },
-  maintenance: { label: '权限/维护申请', type: 'success' }
+  maintenance: { label: '权限/维护申请', type: 'success' },
+  inspection: { label: '定期巡检', type: 'info' }
 }
 
 export const PRIORITY_MAP = {

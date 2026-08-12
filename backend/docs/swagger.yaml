@@ -290,6 +290,43 @@ definitions:
       userId:
         type: integer
     type: object
+  asset-registration-management-system_backend_internal_model.InspectionRule:
+    properties:
+      assignee:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      assigneeId:
+        description: 巡检执行人
+        type: integer
+      createdAt:
+        type: string
+      dayOfMonth:
+        description: monthly：1-31
+        type: integer
+      dayOfWeek:
+        description: weekly：0=周日 ~ 6=周六
+        type: integer
+      description:
+        description: 巡检内容说明
+        type: string
+      enabled:
+        type: boolean
+      frequency:
+        description: daily/weekly/monthly
+        type: string
+      id:
+        type: integer
+      lastRunAt:
+        description: 上次生成巡检工单时间
+        type: string
+      name:
+        description: 规则名称
+        type: string
+      timeOfDay:
+        description: '"HH:MM" 执行时间'
+        type: string
+      updatedAt:
+        type: string
+    type: object
   asset-registration-management-system_backend_internal_model.Priority:
     enum:
     - low
@@ -524,12 +561,14 @@ definitions:
     - asset_change
     - asset_retire
     - maintenance
+    - inspection
     type: string
     x-enum-varnames:
     - TicketTypeAssetRegister
     - TicketTypeAssetChange
     - TicketTypeAssetRetire
     - TicketTypeMaintenance
+    - TicketTypeInspection
   asset-registration-management-system_backend_internal_model.TicketWorkflow:
     properties:
       approvalHours:
@@ -884,6 +923,32 @@ definitions:
         type: string
       webhook:
         type: string
+    type: object
+  internal_httpapi.inspectionRuleRequest:
+    properties:
+      assigneeId:
+        type: integer
+      dayOfMonth:
+        type: integer
+      dayOfWeek:
+        type: integer
+      description:
+        type: string
+      enabled:
+        type: boolean
+      frequency:
+        description: daily/weekly/monthly
+        type: string
+      name:
+        type: string
+      timeOfDay:
+        description: '"HH:MM"'
+        type: string
+    required:
+    - assigneeId
+    - frequency
+    - name
+    - timeOfDay
     type: object
   internal_httpapi.loginRequest:
     properties:
@@ -1942,6 +2007,114 @@ paths:
       summary: IM 平台回调
       tags:
       - system
+  /inspection/rules:
+    get:
+      consumes:
+      - application/json
+      description: 查询定期巡检规则（admin）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 巡检规则列表
+      tags:
+      - inspection
+    post:
+      consumes:
+      - application/json
+      description: 创建定期巡检规则（admin）
+      parameters:
+      - description: 巡检规则
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.inspectionRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.InspectionRule'
+      security:
+      - BearerAuth: []
+      summary: 新增巡检规则
+      tags:
+      - inspection
+  /inspection/rules/{id}:
+    delete:
+      description: 删除定期巡检规则（admin）
+      parameters:
+      - description: 规则 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除巡检规则
+      tags:
+      - inspection
+    put:
+      consumes:
+      - application/json
+      description: 更新定期巡检规则（admin）
+      parameters:
+      - description: 规则 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 巡检规则
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.inspectionRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.InspectionRule'
+      security:
+      - BearerAuth: []
+      summary: 更新巡检规则
+      tags:
+      - inspection
+  /inspection/rules/{id}/test:
+    post:
+      description: 立即生成一张巡检工单（admin）
+      parameters:
+      - description: 规则 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Ticket'
+      security:
+      - BearerAuth: []
+      summary: 试运行巡检规则
+      tags:
+      - inspection
   /roles:
     get:
       produces:
