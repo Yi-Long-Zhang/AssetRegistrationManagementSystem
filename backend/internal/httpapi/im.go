@@ -257,7 +257,24 @@ func (h *Handler) IMCallback(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"challenge": probe.Challenge})
 		return
 	}
-	// 交互动作（approve/reject）：必须通过共享密钥 HMAC 验签 + 时间戳防重放
+	// 平台原生验签分派（按 URL query / header 特征识别）
+	switch {
+	case c.Query("msg_signature") != "":
+		h.handleWeComCallback(c, raw)
+		return
+	case c.Query("signature") != "" || c.Query("sign") != "":
+		h.handleDingTalkCallback(c, raw)
+		return
+	case c.GetHeader("X-Lark-Signature") != "":
+		h.handleFeishuCallback(c, raw)
+		return
+	}
+	// 兜底：通用共享密钥 HMAC 验签（X-IM-Sign / X-IM-Timestamp）
+	h.handleGenericCallback(c, raw)
+}
+
+// handleGenericCallback 通用 HMAC 验签路径（原逻辑，供测试与简易接入）。
+func (h *Handler) handleGenericCallback(c *gin.Context, raw []byte) {
 	cfg := h.currentIMConfig()
 	secret := h.imConfigSecret(&cfg)
 	if cfg.Enabled && cfg.Webhook != "" && secret != "" {
@@ -266,10 +283,104 @@ func (h *Handler) IMCallback(c *gin.Context) {
 			return
 		}
 	} else {
-		// 未配置密钥：拒绝交互动作，避免无鉴权伪造审批
 		c.JSON(http.StatusForbidden, gin.H{"error": "IM 回调验签未配置，拒绝处理"})
 		return
 	}
+	h.dispatchIMAction(c, raw)
+}
+
+// handleDingTalkCallback 钉钉自建应用回调：URL 参数 signature/timestamp 用 AppSecret 验签。
+func (h *Handler) handleDingTalkCallback(c *gin.Context, raw []byte) {
+	cb := h.currentIMCallbackConfig()
+	secret := h.imCallbackSecret(cb, "app_secret")
+	if !cb.Enabled || secret == "" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "钉钉回调验签未配置，拒绝处理"})
+		return
+	}
+	timestamp := c.Query("timestamp")
+	sign := c.Query("signature")
+	if sign == "" {
+		sign = c.Query("sign")
+	}
+	if !service.VerifyDingTalkSignature(secret, timestamp, sign) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "钉钉验签失败"})
+		return
+	}
+	h.dispatchIMAction(c, raw)
+}
+
+// handleFeishuCallback 飞书事件回调：X-Lark-Signature 验签。
+func (h *Handler) handleFeishuCallback(c *gin.Context, raw []byte) {
+	cb := h.currentIMCallbackConfig()
+	secret := h.imCallbackSecret(cb, "app_secret")
+	if !cb.Enabled || secret == "" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "飞书回调验签未配置，拒绝处理"})
+		return
+	}
+	timestamp := c.GetHeader("X-Lark-Request-Timestamp")
+	nonce := c.GetHeader("X-Lark-Request-Nonce")
+	signature := c.GetHeader("X-Lark-Signature")
+	if !service.VerifyFeishuSignature(secret, timestamp, nonce, raw, signature) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "飞书验签失败"})
+		return
+	}
+	h.dispatchIMAction(c, raw)
+}
+
+// handleWeComCallback 企微回调：msg_signature 验签 + AES 解密后处理。
+func (h *Handler) handleWeComCallback(c *gin.Context, raw []byte) {
+	cb := h.currentIMCallbackConfig()
+	token := h.imCallbackSecret(cb, "token")
+	aesKey := h.imCallbackSecret(cb, "aes_key")
+	if !cb.Enabled || token == "" || aesKey == "" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "企微回调验签未配置，拒绝处理"})
+		return
+	}
+	wc := service.WeComCallback{Token: token, EncodingAESKey: aesKey, CorpID: cb.CorpID}
+	msgSignature := c.Query("msg_signature")
+	timestamp := c.Query("timestamp")
+	nonce := c.Query("nonce")
+	// 解密消息
+	decrypted, err := h.decryptWeComPayload(wc, raw, msgSignature, timestamp, nonce)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "企微消息解密失败: " + err.Error()})
+		return
+	}
+	h.dispatchIMAction(c, decrypted)
+}
+
+// decryptWeComPayload 从企微回调 body 提取 <Encrypt> 密文，验签并解密为明文。
+func (h *Handler) decryptWeComPayload(wc service.WeComCallback, raw []byte, msgSignature, timestamp, nonce string) ([]byte, error) {
+	encrypt := extractWeComEncrypt(raw)
+	if encrypt == "" {
+		return nil, fmt.Errorf("未找到加密内容")
+	}
+	if !wc.VerifyWeComSignature(msgSignature, timestamp, nonce, encrypt) {
+		return nil, fmt.Errorf("msg_signature 校验失败")
+	}
+	return wc.Decrypt(encrypt)
+}
+
+// extractWeComEncrypt 从企微回调 body 提取 <Encrypt> 文本；若非 XML 则按 JSON 的 Encrypt 字段。
+func extractWeComEncrypt(raw []byte) string {
+	s := string(raw)
+	if i := strings.Index(s, "<Encrypt>"); i >= 0 {
+		j := strings.Index(s, "</Encrypt>")
+		if j > i {
+			return s[i+len("<Encrypt>") : j]
+		}
+	}
+	var obj struct {
+		Encrypt string `json:"Encrypt"`
+	}
+	if json.Unmarshal(raw, &obj) == nil && obj.Encrypt != "" {
+		return obj.Encrypt
+	}
+	return ""
+}
+
+// dispatchIMAction 解析回调 payload 并处理 approve/reject 动作。
+func (h *Handler) dispatchIMAction(c *gin.Context, raw []byte) {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})

@@ -19,6 +19,12 @@ export const settingsApi = {
   testIMConfig() {
     return request.post('/settings/im/test').then(unwrap)
   },
+  imCallbackConfig() {
+    return request.get('/settings/im/callback').then(unwrap)
+  },
+  saveIMCallbackConfig(payload) {
+    return request.put('/settings/im/callback', payload).then(unwrap)
+  },
   imBindings() {
     return request.get('/settings/im/bindings').then(unwrap)
   },

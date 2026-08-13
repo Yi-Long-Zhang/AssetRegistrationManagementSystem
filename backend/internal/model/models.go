@@ -68,6 +68,21 @@ type IMConfig struct {
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
+// IMCallbackConfig IM 回调验签配置（档位 2 自建应用，系统级单行）。
+// 敏感字段（AppSecret/Token/EncodingAESKey）AES-GCM 加密存储。
+type IMCallbackConfig struct {
+	ID             uint      `json:"id" gorm:"primaryKey"`
+	Platform       string    `json:"platform" gorm:"size:32;not null;default:'dingtalk'"` // dingtalk/wecom/feishu
+	Enabled        bool      `json:"enabled" gorm:"not null;default:false"`
+	AppSecret      string    `json:"-" gorm:"type:text"`              // 钉钉 AppSecret / 飞书应用 secret
+	CorpID         string    `json:"corpId" gorm:"size:128"`          // 企微 CorpID（非敏感）
+	Token          string    `json:"-" gorm:"size:255"`               // 企微 Token / 飞书 verification token
+	EncodingAESKey string    `json:"-" gorm:"size:128"`               // 企微 EncodingAESKey
+	Encrypted      bool      `json:"-" gorm:"not null;default:false"` // 敏感字段是否已加密
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
 // IMBinding IM 用户与系统用户映射（用于 IM 回调鉴权）。
 type IMBinding struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`

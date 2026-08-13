@@ -118,6 +118,32 @@
         </div>
 
         <div class="settings-block">
+          <h3>回调验签配置（自建应用，档位 2）</h3>
+          <p class="desc">IM 内按钮审批需平台自建应用 + 公网回调地址（POST /api/v1/im/callback）。配置对应平台密钥后即可校验回调签名。</p>
+          <el-form :model="imCallbackConfig" label-width="120px">
+            <el-row>
+              <el-col :span="8"><el-form-item label="启用"><el-switch v-model="imCallbackConfig.enabled" /></el-form-item></el-col>
+              <el-col :span="16">
+                <el-form-item label="平台">
+                  <el-select v-model="imCallbackConfig.platform" style="width: 100%">
+                    <el-option label="钉钉" value="dingtalk" />
+                    <el-option label="企业微信" value="wecom" />
+                    <el-option label="飞书" value="feishu" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12"><el-form-item label="AppSecret"><el-input v-model="imCallbackConfig.appSecret" placeholder="钉钉 AppSecret / 飞书应用 secret（留空不修改）" /></el-form-item></el-col>
+              <el-col :span="12"><el-form-item label="CorpID"><el-input v-model="imCallbackConfig.corpId" placeholder="企业微信 CorpID" /></el-form-item></el-col>
+              <el-col :span="12"><el-form-item label="Token"><el-input v-model="imCallbackConfig.token" placeholder="企微 Token / 飞书 verification token（留空不修改）" /></el-form-item></el-col>
+              <el-col :span="12"><el-form-item label="EncodingAESKey"><el-input v-model="imCallbackConfig.encodingAESKey" placeholder="企业微信 EncodingAESKey（留空不修改）" /></el-form-item></el-col>
+            </el-row>
+            <el-form-item>
+              <el-button type="primary" @click="saveIMCallbackConfig">保存回调配置</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <div class="settings-block">
           <h3>IM 用户绑定（回调鉴权基础）</h3>
           <p class="desc">建立 IM 用户与系统用户映射，为后续自建应用交互审批提供鉴权基础。</p>
           <div class="inline-form">
@@ -191,6 +217,14 @@ const imConfig = reactive({
   platform: 'dingtalk',
   webhook: '',
   secret: ''
+})
+const imCallbackConfig = reactive({
+  enabled: false,
+  platform: 'dingtalk',
+  appSecret: '',
+  corpId: '',
+  token: '',
+  encodingAESKey: ''
 })
 const imBindings = ref([])
 const userOptions = ref([])
@@ -283,6 +317,32 @@ async function saveIMConfig() {
   }
 }
 
+async function loadIMCallbackConfig() {
+  try {
+    const data = await settingsApi.imCallbackConfig()
+    Object.assign(imCallbackConfig, {
+      enabled: data.enabled || false,
+      platform: data.platform || 'dingtalk',
+      corpId: data.corpId || '',
+      appSecret: '',
+      token: '',
+      encodingAESKey: ''
+    })
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '加载回调配置失败')
+  }
+}
+
+async function saveIMCallbackConfig() {
+  try {
+    await settingsApi.saveIMCallbackConfig(imCallbackConfig)
+    ElMessage.success('回调配置已保存')
+    await loadIMCallbackConfig()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '保存回调配置失败')
+  }
+}
+
 async function testIM() {
   try {
     await settingsApi.testIMConfig()
@@ -334,7 +394,7 @@ async function deleteBinding(row) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadADConfig(), loadMailConfig(), loadIMConfig(), loadIMBindings()])
+  await Promise.all([loadADConfig(), loadMailConfig(), loadIMConfig(), loadIMCallbackConfig(), loadIMBindings()])
 })
 </script>
 

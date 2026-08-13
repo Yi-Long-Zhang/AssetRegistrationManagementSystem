@@ -1795,6 +1795,70 @@
                 }
             }
         },
+        "/settings/im/callback": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "读取钉钉/企微/飞书自建应用回调验签配置（敏感字段不回显）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "IM 回调验签配置",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "保存钉钉/企微/飞书自建应用回调验签配置（敏感字段加密存储，留空不修改）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "保存 IM 回调验签配置",
+                "parameters": [
+                    {
+                        "description": "回调验签配置",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.imCallbackConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/settings/im/test": {
             "post": {
                 "security": [
@@ -4434,6 +4498,29 @@
                 },
                 "userId": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_httpapi.imCallbackConfigRequest": {
+            "type": "object",
+            "properties": {
+                "appSecret": {
+                    "type": "string"
+                },
+                "corpId": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "encodingAESKey": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
                 }
             }
         },

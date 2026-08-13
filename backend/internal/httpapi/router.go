@@ -73,6 +73,8 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	settings.GET("/im", h.GetIMConfig)
 	settings.PUT("/im", h.SaveIMConfig)
 	settings.POST("/im/test", h.TestIMConfig)
+	settings.GET("/im/callback", h.GetIMCallbackConfig)
+	settings.PUT("/im/callback", h.SaveIMCallbackConfig)
 	settings.GET("/im/bindings", h.ListIMBindings)
 	settings.PUT("/im/bindings", h.SaveIMBinding)
 	settings.DELETE("/im/bindings/:userId", h.DeleteIMBinding)

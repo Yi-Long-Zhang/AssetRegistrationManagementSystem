@@ -157,6 +157,12 @@ discovery:
 - **可视化与报表**：数据看板首页（资产概览/类型分布/发现趋势/最近运行）、发现趋势统计（`/discovery/stats/trend`）、网段分布（`/discovery/stats/subnets`）、端口/服务矩阵热力图（`/discovery/stats/services`）、资产统计报表导出（`/assets/stats/export`）、操作审计日志页（`/audit-logs`）。
 - **资产生命周期**：资产详情支持**退役归档**（状态置 retired、保留快照与审计）、展示**使用年限**（按 `purchaseDate` 计算）。
 
+## v2.12 IM 回调验签（自建应用审批）
+
+- **回调验签配置**：系统配置 → IM 通知新增「回调验签配置」区块，按平台配置验签密钥（钉钉 AppSecret / 企微 Token+EncodingAESKey+CorpID / 飞书应用 secret），敏感字段 AES-GCM 加密存储。
+- **平台原生验签**：`POST /api/v1/im/callback` 按 URL/header 特征分派——钉钉 `signature/timestamp`（HMAC-SHA256）、企微 `msg_signature` + WXBizMsgCrypt AES 解密、飞书 `X-Lark-Signature`；验签通过后进入 IM 用户绑定鉴权与工单状态机流转。
+- 兜底保留通用共享密钥 HMAC 验签（`X-IM-Sign`/`X-IM-Timestamp`）。
+
 ## v2.11 工单统计报表
 
 - **统计报表页**：「工单报表」页面（admin）展示：工单总数、SLA 达标率（已关闭且带 SLA 截止时间的工单，达标 = 归档时间不晚于截止）、SLA 超时数；状态/类型/优先级分布（CSS 条形图）、近 12 个月创建趋势（柱状图）。

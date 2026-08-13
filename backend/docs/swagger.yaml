@@ -952,6 +952,21 @@ definitions:
     - platform
     - userId
     type: object
+  internal_httpapi.imCallbackConfigRequest:
+    properties:
+      appSecret:
+        type: string
+      corpId:
+        type: string
+      enabled:
+        type: boolean
+      encodingAESKey:
+        type: string
+      platform:
+        type: string
+      token:
+        type: string
+    type: object
   internal_httpapi.imConfigRequest:
     properties:
       enabled:
@@ -2287,6 +2302,46 @@ paths:
       security:
       - BearerAuth: []
       summary: 删除 IM 绑定
+      tags:
+      - settings
+  /settings/im/callback:
+    get:
+      description: 读取钉钉/企微/飞书自建应用回调验签配置（敏感字段不回显）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: IM 回调验签配置
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: 保存钉钉/企微/飞书自建应用回调验签配置（敏感字段加密存储，留空不修改）
+      parameters:
+      - description: 回调验签配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.imCallbackConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 保存 IM 回调验签配置
       tags:
       - settings
   /settings/im/test:
