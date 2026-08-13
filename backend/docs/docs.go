@@ -2014,6 +2014,225 @@ const docTemplate = `{
                 }
             }
         },
+        "/stocktakes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询盘点单列表（admin/asset_manager）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stocktakes"
+                ],
+                "summary": "盘点单列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "按范围快照资产并生成盘点明细（admin/asset_manager）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stocktakes"
+                ],
+                "summary": "创建盘点单",
+                "parameters": [
+                    {
+                        "description": "盘点单",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.createStocktakeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.StocktakeTask"
+                        }
+                    }
+                }
+            }
+        },
+        "/stocktakes/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询盘点单与明细（admin/asset_manager）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stocktakes"
+                ],
+                "summary": "盘点单详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "盘点单 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.StocktakeTask"
+                        }
+                    }
+                }
+            }
+        },
+        "/stocktakes/{id}/close": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "关闭盘点单并产出差异统计（admin/asset_manager）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stocktakes"
+                ],
+                "summary": "关闭盘点单",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "盘点单 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/stocktakes/{id}/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "导出盘点明细为 CSV（含盘亏资产，admin/asset_manager）",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "stocktakes"
+                ],
+                "summary": "导出盘点差异报告",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "盘点单 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "CSV 文件",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/stocktakes/{id}/items/{itemId}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "标记盘点项为 matched/missing（admin/asset_manager）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stocktakes"
+                ],
+                "summary": "核对盘点项",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "盘点单 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "盘点项 ID",
+                        "name": "itemId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "核对结果",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.stocktakeItemRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.StocktakeItem"
+                        }
+                    }
+                }
+            }
+        },
         "/tickets": {
             "get": {
                 "security": [
@@ -3634,6 +3853,72 @@ const docTemplate = `{
                 "SnapshotSourceManual"
             ]
         },
+        "asset-registration-management-system_backend_internal_model.StocktakeItem": {
+            "type": "object",
+            "properties": {
+                "asset": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Asset"
+                },
+                "assetId": {
+                    "type": "integer"
+                },
+                "checkedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "remark": {
+                    "type": "string"
+                },
+                "result": {
+                    "description": "pending / matched / missing",
+                    "type": "string"
+                },
+                "taskId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "asset-registration-management-system_backend_internal_model.StocktakeTask": {
+            "type": "object",
+            "properties": {
+                "closedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "creator": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.User"
+                },
+                "creatorId": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.StocktakeItem"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "remark": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "in_progress / closed",
+                    "type": "string"
+                }
+            }
+        },
         "asset-registration-management-system_backend_internal_model.Ticket": {
             "type": "object",
             "properties": {
@@ -4390,6 +4675,24 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_httpapi.createStocktakeRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "assetType": {
+                    "description": "可选：按资产类型过滤盘点范围，空=全部",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "remark": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_httpapi.discoveryHostActionRequest": {
             "type": "object",
             "required": [
@@ -4650,6 +4953,21 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "service": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.stocktakeItemRequest": {
+            "type": "object",
+            "required": [
+                "result"
+            ],
+            "properties": {
+                "remark": {
+                    "type": "string"
+                },
+                "result": {
+                    "description": "matched / missing",
                     "type": "string"
                 }
             }

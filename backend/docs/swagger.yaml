@@ -363,6 +363,50 @@ definitions:
     - SnapshotSourceTicket
     - SnapshotSourceImport
     - SnapshotSourceManual
+  asset-registration-management-system_backend_internal_model.StocktakeItem:
+    properties:
+      asset:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+      assetId:
+        type: integer
+      checkedAt:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      remark:
+        type: string
+      result:
+        description: pending / matched / missing
+        type: string
+      taskId:
+        type: integer
+    type: object
+  asset-registration-management-system_backend_internal_model.StocktakeTask:
+    properties:
+      closedAt:
+        type: string
+      createdAt:
+        type: string
+      creator:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      creatorId:
+        type: integer
+      id:
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.StocktakeItem'
+        type: array
+      name:
+        type: string
+      remark:
+        type: string
+      status:
+        description: in_progress / closed
+        type: string
+    type: object
   asset-registration-management-system_backend_internal_model.Ticket:
     properties:
       acceptanceResult:
@@ -872,6 +916,18 @@ definitions:
     required:
     - ids
     type: object
+  internal_httpapi.createStocktakeRequest:
+    properties:
+      assetType:
+        description: 可选：按资产类型过滤盘点范围，空=全部
+        type: string
+      name:
+        type: string
+      remark:
+        type: string
+    required:
+    - name
+    type: object
   internal_httpapi.discoveryHostActionRequest:
     properties:
       hostIds:
@@ -1048,6 +1104,16 @@ definitions:
         type: string
       service:
         type: string
+    type: object
+  internal_httpapi.stocktakeItemRequest:
+    properties:
+      remark:
+        type: string
+      result:
+        description: matched / missing
+        type: string
+    required:
+    - result
     type: object
   internal_httpapi.subnetStat:
     properties:
@@ -2436,6 +2502,143 @@ paths:
       summary: 测试邮件发送
       tags:
       - settings
+  /stocktakes:
+    get:
+      description: 查询盘点单列表（admin/asset_manager）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 盘点单列表
+      tags:
+      - stocktakes
+    post:
+      consumes:
+      - application/json
+      description: 按范围快照资产并生成盘点明细（admin/asset_manager）
+      parameters:
+      - description: 盘点单
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.createStocktakeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.StocktakeTask'
+      security:
+      - BearerAuth: []
+      summary: 创建盘点单
+      tags:
+      - stocktakes
+  /stocktakes/{id}:
+    get:
+      description: 查询盘点单与明细（admin/asset_manager）
+      parameters:
+      - description: 盘点单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.StocktakeTask'
+      security:
+      - BearerAuth: []
+      summary: 盘点单详情
+      tags:
+      - stocktakes
+  /stocktakes/{id}/close:
+    post:
+      description: 关闭盘点单并产出差异统计（admin/asset_manager）
+      parameters:
+      - description: 盘点单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 关闭盘点单
+      tags:
+      - stocktakes
+  /stocktakes/{id}/export:
+    get:
+      description: 导出盘点明细为 CSV（含盘亏资产，admin/asset_manager）
+      parameters:
+      - description: 盘点单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV 文件
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: 导出盘点差异报告
+      tags:
+      - stocktakes
+  /stocktakes/{id}/items/{itemId}:
+    put:
+      consumes:
+      - application/json
+      description: 标记盘点项为 matched/missing（admin/asset_manager）
+      parameters:
+      - description: 盘点单 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 盘点项 ID
+        in: path
+        name: itemId
+        required: true
+        type: integer
+      - description: 核对结果
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.stocktakeItemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.StocktakeItem'
+      security:
+      - BearerAuth: []
+      summary: 核对盘点项
+      tags:
+      - stocktakes
   /tickets:
     get:
       parameters:

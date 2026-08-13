@@ -1653,6 +1653,16 @@ func parseID(c *gin.Context) (uint, bool) {
 	return uint(id64), true
 }
 
+// parseIDPath 解析指定名称的路径参数为 uint。
+func parseIDPath(c *gin.Context, name string) (uint, bool) {
+	id64, err := strconv.ParseUint(c.Param(name), 10, 64)
+	if err != nil {
+		errorJSON(c, http.StatusBadRequest, "无效 "+name)
+		return 0, false
+	}
+	return uint(id64), true
+}
+
 func bind(c *gin.Context, out interface{}) bool {
 	if err := c.ShouldBindJSON(out); err != nil {
 		errorJSON(c, http.StatusBadRequest, "请求参数无效: "+err.Error())

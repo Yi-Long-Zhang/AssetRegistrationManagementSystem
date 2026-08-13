@@ -288,6 +288,31 @@ type TicketRecord struct {
 	CreatedAt  time.Time    `json:"createdAt"`
 }
 
+// StocktakeTask 资产盘点单。
+type StocktakeTask struct {
+	ID        uint            `json:"id" gorm:"primaryKey"`
+	Name      string          `json:"name" gorm:"size:128;not null"`
+	Status    string          `json:"status" gorm:"size:32;not null;default:in_progress;index"` // in_progress / closed
+	CreatorID uint            `json:"creatorId" gorm:"not null;index"`
+	Creator   User            `json:"creator,omitempty" gorm:"foreignKey:CreatorID"`
+	Remark    string          `json:"remark" gorm:"type:text"`
+	CreatedAt time.Time       `json:"createdAt"`
+	ClosedAt  *time.Time      `json:"closedAt"`
+	Items     []StocktakeItem `json:"items,omitempty" gorm:"foreignKey:TaskID"`
+}
+
+// StocktakeItem 盘点明细（创建盘点单时对资产快照）。
+type StocktakeItem struct {
+	ID        uint       `json:"id" gorm:"primaryKey"`
+	TaskID    uint       `json:"taskId" gorm:"not null;index"`
+	AssetID   uint       `json:"assetId" gorm:"not null;index"`
+	Asset     Asset      `json:"asset,omitempty" gorm:"foreignKey:AssetID"`
+	Result    string     `json:"result" gorm:"size:32;not null;default:pending;index"` // pending / matched / missing
+	Remark    string     `json:"remark" gorm:"type:text"`
+	CheckedAt *time.Time `json:"checkedAt"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
+
 type AuditLog struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	ActorID   uint      `json:"actorId" gorm:"not null;index"`
