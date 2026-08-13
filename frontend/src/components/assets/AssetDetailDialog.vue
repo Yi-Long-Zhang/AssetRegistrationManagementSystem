@@ -44,6 +44,17 @@
         </div>
       </div>
 
+      <!-- 资产标签（二维码） -->
+      <div class="qrcode-row">
+        <div class="qrcode-box">
+          <QrCode :value="assetQrUrl" :size="120" downloadable />
+          <div class="qrcode-meta">
+            <div class="qrcode-title">{{ asset.assetNo }}</div>
+            <div class="qrcode-sub">{{ asset.hostname }} · {{ asset.ip }}</div>
+          </div>
+        </div>
+      </div>
+
       <div class="content-row">
         <!-- 左栏：端口与服务 -->
         <div class="col col-ports">
@@ -115,6 +126,7 @@ import {
 import { discoveryApi } from '../../api/discovery'
 import { assetsApi } from '../../api/assets'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import QrCode from '../common/QrCode.vue'
 import { ONLINE_STATUS_MAP, SNAPSHOT_SOURCE_MAP, ASSET_TYPE_MAP, dictItem } from '../../constants/dictionaries'
 
 const props = defineProps({
@@ -173,6 +185,13 @@ const rackLabel = computed(() => {
   const parts = [a.location, a.rack].filter(Boolean)
   if (a.rackPosition) parts.push(`U${a.rackPosition}`)
   return parts.length ? parts.join(' / ') : ''
+})
+
+// assetQrUrl 二维码内容：前端资产详情地址（扫码打开详情）。
+const assetQrUrl = computed(() => {
+  const id = props.asset?.id
+  if (!id) return ''
+  return `${window.location.origin}/assets?assetId=${id}`
 })
 
 const metrics = computed(() => {
@@ -502,6 +521,32 @@ watch(
 }
 
 /* ---------- 内容双栏 ---------- */
+.qrcode-row {
+  display: flex;
+  justify-content: center;
+  margin: 14px 0;
+}
+
+.qrcode-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.qrcode-title {
+  font-weight: 600;
+}
+
+.qrcode-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .content-row {
   display: grid;
   grid-template-columns: 1.15fr 1fr;

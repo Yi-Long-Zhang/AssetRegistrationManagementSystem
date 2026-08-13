@@ -4,6 +4,9 @@ export const assetsApi = {
   list(params) {
     return request.get('/assets', { params }).then(unwrap)
   },
+  detail(id) {
+    return request.get(`/assets/${id}`).then(unwrap)
+  },
   create(payload) {
     return request.post('/assets', payload).then(unwrap)
   },

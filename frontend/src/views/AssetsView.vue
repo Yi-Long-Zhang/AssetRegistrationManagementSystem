@@ -9,6 +9,7 @@
         <el-button v-if="canManage" :icon="Download" @click="exportAssets">批量导出</el-button>
         <el-button v-if="canManage" :icon="Download" @click="exportStatsReport">报表导出</el-button>
         <el-button v-if="canManage" :icon="Delete" type="danger" plain :disabled="!selectedIds.length" @click="batchDelete">批量删除{{ selectedIds.length ? ` (${selectedIds.length})` : '' }}</el-button>
+        <el-button v-if="canManage" :icon="Printer" plain :disabled="!selectedIds.length" @click="printLabels">打印标签</el-button>
         <el-button v-if="canManage" type="primary" :icon="Plus" @click="openCreate">新增资产</el-button>
       </template>
     </PageHeader>
@@ -178,8 +179,9 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Delete, Download, Plus, Refresh, Search, Setting, Upload } from '@element-plus/icons-vue'
+import { Delete, Download, Plus, Printer, Refresh, Search, Setting, Upload } from '@element-plus/icons-vue'
 import { assetsApi } from '../api'
 import { rackApi } from '../api'
 import AssetDetailDialog from '../components/assets/AssetDetailDialog.vue'
@@ -285,10 +287,31 @@ function warrantyStatus(row) {
 }
 
 const detail = reactive({ visible: false, asset: null })
+const route = useRoute()
+const router = useRouter()
 
 async function openDetail(row) {
   detail.asset = row
   detail.visible = true
+}
+
+// 扫码落地：URL 带 assetId 时自动打开对应资产详情。
+async function openAssetFromQuery() {
+  const assetId = route.query.assetId
+  if (!assetId) return
+  try {
+    const asset = await assetsApi.detail(assetId)
+    openDetail(asset)
+  } catch {
+    ElMessage.warning('未找到对应资产')
+  }
+}
+
+// 打印选中资产的标签。
+function printLabels() {
+  if (!selectedIds.value.length) return ElMessage.warning('请先勾选资产')
+  const url = router.resolve({ path: '/asset-labels', query: { ids: selectedIds.value.join(',') } }).href
+  window.open(url, '_blank')
 }
 
 function emptyAsset() {
@@ -631,6 +654,7 @@ watch(
 onMounted(() => {
   load()
   loadRackOptions()
+  openAssetFromQuery()
 })
 </script>
 

@@ -27,6 +27,7 @@ const router = createRouter({
         { path: 'stocktakes', component: () => import('./views/StocktakeView.vue'), meta: { auth: true, menu: true, title: '资产盘点', icon: 'Finished', roles: ['admin', 'asset_manager'], order: 17 } },
         { path: 'racks', component: () => import('./views/RackManageView.vue'), meta: { auth: true, menu: true, title: '机房机柜', icon: 'OfficeBuilding', roles: ['admin', 'asset_manager'], order: 18 } },
         { path: 'rack-view', component: () => import('./views/RackView.vue'), meta: { auth: true, menu: true, title: '机柜视图', icon: 'Grid', roles: ['admin', 'asset_manager'], order: 19 } },
+        { path: 'asset-labels', component: () => import('./views/AssetLabelsPrintView.vue'), meta: { auth: true, menu: false, title: '资产标签打印' } },
         { path: 'tickets', component: TicketsView, meta: { auth: true, menu: true, title: '工单流程', icon: 'Tickets', order: 20 } },
         { path: 'ticket-stats', component: () => import('./views/TicketsStatsView.vue'), meta: { auth: true, menu: true, title: '工单报表', icon: 'TrendCharts', roles: ['admin'], order: 22 } },
         { path: 'inspection', component: () => import('./views/InspectionRulesView.vue'), meta: { auth: true, menu: true, title: '巡检规则', icon: 'AlarmClock', roles: ['admin'], order: 25 } },
