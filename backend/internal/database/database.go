@@ -41,6 +41,8 @@ func Migrate(db *gorm.DB) error {
 		&model.TicketAsset{},
 		&model.StocktakeTask{},
 		&model.StocktakeItem{},
+		&model.DatacenterRoom{},
+		&model.Rack{},
 		&model.AuditLog{},
 		&model.DiscoveryRule{},
 		&model.InspectionRule{},

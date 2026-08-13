@@ -135,6 +135,18 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	stocktakes.PUT("/:id/items/:itemId", h.UpdateStocktakeItem)
 	stocktakes.POST("/:id/close", h.CloseStocktake)
 	stocktakes.GET("/:id/export", h.ExportStocktake)
+
+	rooms := api.Group("/rooms", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager))
+	rooms.GET("", h.ListRooms)
+	rooms.POST("", h.CreateRoom)
+	rooms.PUT("/:id", h.UpdateRoom)
+	rooms.DELETE("/:id", h.DeleteRoom)
+
+	racks := api.Group("/racks", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager))
+	racks.GET("", h.ListRacks)
+	racks.POST("", h.CreateRack)
+	racks.PUT("/:id", h.UpdateRack)
+	racks.DELETE("/:id", h.DeleteRack)
 	discovery.POST("/runs/:id/apply", h.ApplyDiscoveryHosts)
 	discovery.GET("/stats/trend", h.GetDiscoveryTrend)
 	discovery.GET("/stats/subnets", h.GetDiscoverySubnetStats)

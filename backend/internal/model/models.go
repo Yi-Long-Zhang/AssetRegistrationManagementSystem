@@ -313,6 +313,29 @@ type StocktakeItem struct {
 	CreatedAt time.Time  `json:"createdAt"`
 }
 
+// DatacenterRoom 机房。
+type DatacenterRoom struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	Name      string    `json:"name" gorm:"size:128;not null;uniqueIndex"`
+	Location  string    `json:"location" gorm:"size:128"` // 位置/地址
+	Remark    string    `json:"remark" gorm:"type:text"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Racks     []Rack    `json:"racks,omitempty" gorm:"foreignKey:RoomID"`
+}
+
+// Rack 机柜。
+type Rack struct {
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	RoomID    uint           `json:"roomId" gorm:"not null;index"`
+	Room      DatacenterRoom `json:"room,omitempty" gorm:"foreignKey:RoomID"`
+	Name      string         `json:"name" gorm:"size:128;not null"`
+	Units     int            `json:"units" gorm:"not null;default:42"` // U 位数，默认 42
+	Remark    string         `json:"remark" gorm:"type:text"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+}
+
 type AuditLog struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	ActorID   uint      `json:"actorId" gorm:"not null;index"`

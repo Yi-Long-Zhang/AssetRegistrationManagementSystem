@@ -131,6 +131,26 @@ definitions:
     x-enum-varnames:
     - ChangeRiskLow
     - ChangeRiskHigh
+  asset-registration-management-system_backend_internal_model.DatacenterRoom:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      location:
+        description: 位置/地址
+        type: string
+      name:
+        type: string
+      racks:
+        items:
+          $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Rack'
+        type: array
+      remark:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   asset-registration-management-system_backend_internal_model.DiscoveredHost:
     properties:
       adopted:
@@ -339,6 +359,26 @@ definitions:
     - PriorityNormal
     - PriorityHigh
     - PriorityUrgent
+  asset-registration-management-system_backend_internal_model.Rack:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      remark:
+        type: string
+      room:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DatacenterRoom'
+      roomId:
+        type: integer
+      units:
+        description: U 位数，默认 42
+        type: integer
+      updatedAt:
+        type: string
+    type: object
   asset-registration-management-system_backend_internal_model.Role:
     enum:
     - admin
@@ -1095,6 +1135,31 @@ definitions:
     properties:
       recipient:
         type: string
+    type: object
+  internal_httpapi.rackRequest:
+    properties:
+      name:
+        type: string
+      remark:
+        type: string
+      roomId:
+        type: integer
+      units:
+        type: integer
+    required:
+    - name
+    - roomId
+    type: object
+  internal_httpapi.roomRequest:
+    properties:
+      location:
+        type: string
+      name:
+        type: string
+      remark:
+        type: string
+    required:
+    - name
     type: object
   internal_httpapi.serviceStat:
     properties:
@@ -2242,6 +2307,98 @@ paths:
       summary: 试运行巡检规则
       tags:
       - inspection
+  /racks:
+    get:
+      description: 查询机柜列表（可按 roomId 过滤，admin/asset_manager）
+      parameters:
+      - description: 机房 ID
+        in: query
+        name: roomId
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 机柜列表
+      tags:
+      - racks
+    post:
+      consumes:
+      - application/json
+      description: 创建机柜（admin/asset_manager）
+      parameters:
+      - description: 机柜
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.rackRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Rack'
+      security:
+      - BearerAuth: []
+      summary: 新增机柜
+      tags:
+      - racks
+  /racks/{id}:
+    delete:
+      description: 删除机柜（admin/asset_manager）
+      parameters:
+      - description: 机柜 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除机柜
+      tags:
+      - racks
+    put:
+      consumes:
+      - application/json
+      description: 更新机柜信息（admin/asset_manager）
+      parameters:
+      - description: 机柜 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 机柜
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.rackRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Rack'
+      security:
+      - BearerAuth: []
+      summary: 更新机柜
+      tags:
+      - racks
   /roles:
     get:
       produces:
@@ -2261,6 +2418,93 @@ paths:
       summary: 角色列表
       tags:
       - users
+  /rooms:
+    get:
+      description: 查询机房及机柜列表（admin/asset_manager）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 机房列表
+      tags:
+      - rooms
+    post:
+      consumes:
+      - application/json
+      description: 创建机房（admin/asset_manager）
+      parameters:
+      - description: 机房
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.roomRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DatacenterRoom'
+      security:
+      - BearerAuth: []
+      summary: 新增机房
+      tags:
+      - rooms
+  /rooms/{id}:
+    delete:
+      description: 删除机房及其机柜（admin/asset_manager）
+      parameters:
+      - description: 机房 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除机房
+      tags:
+      - rooms
+    put:
+      consumes:
+      - application/json
+      description: 更新机房信息（admin/asset_manager）
+      parameters:
+      - description: 机房 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 机房
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.roomRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.DatacenterRoom'
+      security:
+      - BearerAuth: []
+      summary: 更新机房
+      tags:
+      - rooms
   /settings/im:
     get:
       description: 读取钉钉/企微/飞书群机器人通知配置（secret 不回显）

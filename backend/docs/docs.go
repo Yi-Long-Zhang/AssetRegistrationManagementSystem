@@ -1596,6 +1596,153 @@ const docTemplate = `{
                 }
             }
         },
+        "/racks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询机柜列表（可按 roomId 过滤，admin/asset_manager）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "racks"
+                ],
+                "summary": "机柜列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "机房 ID",
+                        "name": "roomId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "创建机柜（admin/asset_manager）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "racks"
+                ],
+                "summary": "新增机柜",
+                "parameters": [
+                    {
+                        "description": "机柜",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.rackRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Rack"
+                        }
+                    }
+                }
+            }
+        },
+        "/racks/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新机柜信息（admin/asset_manager）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "racks"
+                ],
+                "summary": "更新机柜",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "机柜 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "机柜",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.rackRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Rack"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除机柜（admin/asset_manager）",
+                "tags": [
+                    "racks"
+                ],
+                "summary": "删除机柜",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "机柜 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/roles": {
             "get": {
                 "security": [
@@ -1622,6 +1769,145 @@ const docTemplate = `{
                         "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/rooms": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询机房及机柜列表（admin/asset_manager）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms"
+                ],
+                "summary": "机房列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "创建机房（admin/asset_manager）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms"
+                ],
+                "summary": "新增机房",
+                "parameters": [
+                    {
+                        "description": "机房",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.roomRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DatacenterRoom"
+                        }
+                    }
+                }
+            }
+        },
+        "/rooms/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新机房信息（admin/asset_manager）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rooms"
+                ],
+                "summary": "更新机房",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "机房 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "机房",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.roomRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DatacenterRoom"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除机房及其机柜（admin/asset_manager）",
+                "tags": [
+                    "rooms"
+                ],
+                "summary": "删除机房",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "机房 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -3524,6 +3810,36 @@ const docTemplate = `{
                 "ChangeRiskHigh"
             ]
         },
+        "asset-registration-management-system_backend_internal_model.DatacenterRoom": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "location": {
+                    "description": "位置/地址",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "racks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Rack"
+                    }
+                },
+                "remark": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "asset-registration-management-system_backend_internal_model.DiscoveredHost": {
             "type": "object",
             "properties": {
@@ -3822,6 +4138,36 @@ const docTemplate = `{
                 "PriorityHigh",
                 "PriorityUrgent"
             ]
+        },
+        "asset-registration-management-system_backend_internal_model.Rack": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "remark": {
+                    "type": "string"
+                },
+                "room": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.DatacenterRoom"
+                },
+                "roomId": {
+                    "type": "integer"
+                },
+                "units": {
+                    "description": "U 位数，默认 42",
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
         },
         "asset-registration-management-system_backend_internal_model.Role": {
             "type": "string",
@@ -4939,6 +5285,44 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "recipient": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.rackRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "roomId"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "remark": {
+                    "type": "string"
+                },
+                "roomId": {
+                    "type": "integer"
+                },
+                "units": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_httpapi.roomRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "location": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "remark": {
                     "type": "string"
                 }
             }
