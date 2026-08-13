@@ -2,39 +2,39 @@
   <AppLayout>
     <div class="dashboard">
       <!-- 概览卡片 -->
-      <div class="stat-grid">
+      <div class="stat-grid stagger">
         <div class="stat-card">
           <div class="stat-icon icon-total">📦</div>
           <div class="stat-body">
-            <div class="stat-num">{{ stats.total || 0 }}</div>
+            <div class="stat-num">{{ totalNum }}</div>
             <div class="stat-label">资产总数</div>
           </div>
         </div>
       <div class="stat-card">
         <div class="stat-icon icon-online">🟢</div>
         <div class="stat-body">
-          <div class="stat-num">{{ stats.byOnlineStatus?.online || 0 }}</div>
+          <div class="stat-num">{{ onlineNum }}</div>
           <div class="stat-label">在线</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon icon-offline">🔴</div>
         <div class="stat-body">
-          <div class="stat-num">{{ stats.byOnlineStatus?.offline || 0 }}</div>
+          <div class="stat-num">{{ offlineNum }}</div>
           <div class="stat-label">离线</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon icon-unknown">⚪</div>
         <div class="stat-body">
-          <div class="stat-num">{{ stats.byOnlineStatus?.unknown || 0 }}</div>
+          <div class="stat-num">{{ unknownNum }}</div>
           <div class="stat-label">未知</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon icon-port">🌐</div>
         <div class="stat-body">
-          <div class="stat-num">{{ stats.openPortAssetCount || 0 }}</div>
+          <div class="stat-num">{{ portNum }}</div>
           <div class="stat-label">开放端口资产</div>
         </div>
       </div>
@@ -104,11 +104,19 @@ import AppLayout from '../layouts/AppLayout.vue'
 import { assetsApi } from '../api/assets'
 import { discoveryApi } from '../api/discovery'
 import { ASSET_TYPE_MAP, DISCOVERY_RUN_STATUS_MAP, dictItem } from '../constants/dictionaries'
+import { useCountUp } from '../composables/useCountUp'
 
 const stats = ref({})
 const trend = ref([])
 const recentRuns = ref([])
 const loadingRuns = ref(false)
+
+// 统计数字滚动（零依赖，数据到达后从 0 缓动到目标值）
+const totalNum = useCountUp(() => stats.value.total || 0)
+const onlineNum = useCountUp(() => stats.value.byOnlineStatus?.online || 0)
+const offlineNum = useCountUp(() => stats.value.byOnlineStatus?.offline || 0)
+const unknownNum = useCountUp(() => stats.value.byOnlineStatus?.unknown || 0)
+const portNum = useCountUp(() => stats.value.openPortAssetCount || 0)
 
 const runStatusMap = DISCOVERY_RUN_STATUS_MAP
 
@@ -275,7 +283,7 @@ onMounted(load)
   height: 100%;
   background: linear-gradient(90deg, #6366f1, #8b5cf6);
   border-radius: 5px;
-  transition: width 0.4s ease;
+  transition: width var(--dur-slow) var(--ease-out);
 }
 .type-count {
   width: 40px;
@@ -304,6 +312,7 @@ onMounted(load)
   flex: 1;
   border-radius: 2px 2px 0 0;
   min-height: 2px;
+  transition: height var(--dur-slow) var(--ease-out);
 }
 .mb-new {
   background: linear-gradient(180deg, #34d399, #10b981);

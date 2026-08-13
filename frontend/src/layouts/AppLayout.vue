@@ -87,7 +87,7 @@ async function handleCommand(command) {
   background:
     radial-gradient(400px 300px at 0% 0%, rgba(99, 102, 241, 0.25), transparent 70%),
     #0f1420;
-  transition: width 0.25s ease;
+  transition: width var(--dur-base) var(--ease-out);
   overflow-x: hidden;
 }
 
@@ -145,7 +145,7 @@ async function handleCommand(command) {
   line-height: 44px;
   border-radius: 10px;
   margin-bottom: 4px;
-  transition: background-color 0.2s ease, transform 0.2s ease, color 0.2s ease;
+  transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-standard);
 }
 
 .side-menu :deep(.el-menu-item:hover) {
@@ -155,6 +155,7 @@ async function handleCommand(command) {
 .side-menu :deep(.el-menu-item.is-active) {
   background: var(--brand-gradient);
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+  transform: translateX(3px);
 }
 
 .side-menu :deep(.el-menu--collapse .el-menu-item) {
@@ -244,19 +245,22 @@ async function handleCommand(command) {
 }
 
 /* ---------- 页面切换过渡 ---------- */
-.route-fade-enter-active,
+.route-fade-enter-active {
+  transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out);
+}
+
 .route-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 
 .route-fade-enter-from {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(12px) scale(0.995);
 }
 
 .route-fade-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(-8px) scale(0.998);
 }
 
 .el-main {

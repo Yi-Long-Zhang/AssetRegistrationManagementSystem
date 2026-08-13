@@ -12,7 +12,13 @@
         <el-tab-pane label="我提交的" name="submitted" />
         <el-tab-pane label="全部" name="all" />
       </el-tabs>
-      <el-table :data="items" v-loading="loading" @selection-change="selectedRows = $event">
+      <el-skeleton :loading="loading" :throttle="300">
+        <template #template>
+          <div class="table-skeleton">
+            <div v-for="i in 8" :key="i" class="table-skeleton-row skeleton-shimmer"></div>
+          </div>
+        </template>
+        <el-table :data="items" @selection-change="selectedRows = $event">
         <el-table-column type="selection" width="46" :selectable="canSelectArchive" />
         <el-table-column prop="id" label="编号" width="80" />
         <el-table-column prop="title" label="标题" min-width="180" />
@@ -46,6 +52,7 @@
           </template>
         </el-table-column>
       </el-table>
+      </el-skeleton>
     </div>
 
     <el-dialog v-model="dialogVisible" title="新建工单" width="640px">
@@ -374,6 +381,19 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 表格骨架屏（配合 el-skeleton 自定义 template） */
+.table-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.table-skeleton-row {
+  height: 40px;
+  border-radius: 8px;
+}
+
 .sla-overdue {
   color: #f56c6c;
   font-weight: 600;

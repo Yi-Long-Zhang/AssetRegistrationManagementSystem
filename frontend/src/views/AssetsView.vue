@@ -88,7 +88,13 @@
       <el-button link type="primary" size="small" @click="resetFilters">清除全部</el-button>
     </div>
     <div class="panel">
-      <el-table :data="items" v-loading="loading" border height="560" @sort-change="handleSortChange" @row-click="openDetail" @selection-change="handleSelectionChange">
+      <el-skeleton :loading="loading" :throttle="300">
+        <template #template>
+          <div class="table-skeleton">
+            <div v-for="i in 9" :key="i" class="table-skeleton-row skeleton-shimmer"></div>
+          </div>
+        </template>
+        <el-table :data="items" border height="560" @sort-change="handleSortChange" @row-click="openDetail" @selection-change="handleSelectionChange">
         <el-table-column v-if="canManage" type="selection" width="45" fixed="left" />
         <el-table-column
           v-for="column in visibleColumns"
@@ -126,6 +132,7 @@
           </template>
         </el-table-column>
       </el-table>
+      </el-skeleton>
       <div class="pagination-bar">
         <el-pagination
           v-model:current-page="pagination.page"
@@ -695,6 +702,19 @@ onMounted(() => {
 
 .panel {
   overflow: hidden;
+}
+
+/* 表格骨架屏（配合 el-skeleton 自定义 template） */
+.table-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.table-skeleton-row {
+  height: 40px;
+  border-radius: 8px;
 }
 
 .pagination-bar {

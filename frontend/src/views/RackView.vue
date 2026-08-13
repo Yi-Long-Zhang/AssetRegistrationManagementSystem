@@ -112,6 +112,11 @@ function renderChart(rack) {
   }
 
   chart.setOption({
+    animation: true,
+    animationDuration: 400,
+    animationEasing: 'cubicOut',
+    animationDurationUpdate: 300,
+    animationEasingUpdate: 'cubicOut',
     tooltip: {
       trigger: 'item',
       formatter: (params) => {
