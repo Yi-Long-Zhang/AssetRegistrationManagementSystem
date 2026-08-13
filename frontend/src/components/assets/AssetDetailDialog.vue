@@ -23,6 +23,7 @@
             <el-tag size="small" effect="plain" class="hero-tag">{{ assetTypeLabel(asset.assetType) }}</el-tag>
             <el-tag v-if="asset.sequenceNo" size="small" effect="plain" class="hero-tag">序号 {{ asset.sequenceNo }}</el-tag>
             <el-tag v-if="asset.additionalIPs" size="small" effect="plain" class="hero-tag">关联 {{ asset.additionalIPs }}</el-tag>
+            <el-tag v-if="rackLabel" size="small" effect="plain" class="hero-tag">{{ rackLabel }}</el-tag>
           </div>
         </div>
         <div class="hero-icon">
@@ -164,6 +165,15 @@ async function handleRetire() {
 const assetIcon = computed(() => Monitor)
 const onlineClass = computed(() => (props.asset?.onlineStatus || 'unknown'))
 const onlineLabel = computed(() => dictItem(onlineMap, props.asset?.onlineStatus).label)
+
+// rackLabel 组合机房/机柜/U 位展示。
+const rackLabel = computed(() => {
+  const a = props.asset
+  if (!a) return ''
+  const parts = [a.location, a.rack].filter(Boolean)
+  if (a.rackPosition) parts.push(`U${a.rackPosition}`)
+  return parts.length ? parts.join(' / ') : ''
+})
 
 const metrics = computed(() => {
   const asset = props.asset || {}

@@ -152,6 +152,9 @@
           <el-col :span="8"><el-form-item label="操作系统"><el-input v-model="form.os" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="资产归属"><el-input v-model="form.owner" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="所在网段"><el-input v-model="form.subnet" /></el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="机房"><el-select v-model="form.location" filterable allow-create clearable placeholder="选择/输入机房"><el-option v-for="room in roomOptions" :key="room.name" :label="room.name" :value="room.name" /></el-select></el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="机柜"><el-select v-model="form.rack" filterable allow-create clearable placeholder="选择/输入机柜"><el-option v-for="rack in rackOptions" :key="rack.name" :label="rack.name" :value="rack.name" /></el-select></el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="U位"><el-input v-model="form.rackPosition" placeholder="如 12 或 12-14" /></el-form-item></el-col>
         </el-row>
 
         <el-divider content-position="left">端口与服务</el-divider>
@@ -178,6 +181,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Delete, Download, Plus, Refresh, Search, Setting, Upload } from '@element-plus/icons-vue'
 import { assetsApi } from '../api'
+import { rackApi } from '../api'
 import AssetDetailDialog from '../components/assets/AssetDetailDialog.vue'
 import ConfirmAction from '../components/common/ConfirmAction.vue'
 import DataToolbar from '../components/common/DataToolbar.vue'
@@ -197,6 +201,9 @@ const items = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const form = reactive(emptyAsset())
+const roomOptions = ref([])
+const rackOptions = ref([])
+const allRacks = ref([])
 const filters = reactive({
   q: '',
   assetType: '',
@@ -322,8 +329,35 @@ function emptyAsset() {
   }
 }
 
-async function load() {
-  loading.value = true
+// loadRackOptions 加载机房与机柜选项（用于资产表单的机房/机柜下拉）。
+async function loadRackOptions() {
+  try {
+    const data = await rackApi.listRooms()
+    roomOptions.value = data.items || []
+    const racks = []
+    for (const room of roomOptions.value) {
+      if (room.racks?.length) {
+        for (const r of room.racks) racks.push({ name: r.name, roomName: room.name })
+      }
+    }
+    allRacks.value = racks
+    updateRackOptions()
+  } catch {
+    roomOptions.value = []
+  }
+}
+
+function updateRackOptions() {
+  if (form.location) {
+    rackOptions.value = allRacks.value.filter((r) => r.roomName === form.location)
+  } else {
+    rackOptions.value = allRacks.value
+  }
+}
+
+watch(() => form.location, updateRackOptions)
+
+async function load() {  loading.value = true
   try {
     const data = await assetsApi.list(buildQuery())
     items.value = data.items
@@ -594,7 +628,10 @@ watch(
   { deep: true }
 )
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadRackOptions()
+})
 </script>
 
 <style scoped>

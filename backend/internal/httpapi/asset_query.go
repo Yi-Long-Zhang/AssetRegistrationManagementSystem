@@ -48,6 +48,12 @@ func applyAssetFilters(db *gorm.DB, c *gin.Context) *gorm.DB {
 	if value := strings.TrimSpace(c.Query("owner")); value != "" {
 		db = db.Where("owner = ?", value)
 	}
+	if value := strings.TrimSpace(c.Query("rack")); value != "" {
+		db = db.Where("rack = ?", value)
+	}
+	if value := strings.TrimSpace(c.Query("location")); value != "" {
+		db = db.Where("location = ?", value)
+	}
 	if value := strings.TrimSpace(c.Query("manufacturer")); value != "" {
 		db = db.Where("manufacturer = ?", value)
 	}

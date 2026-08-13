@@ -157,6 +157,11 @@ discovery:
 - **可视化与报表**：数据看板首页（资产概览/类型分布/发现趋势/最近运行）、发现趋势统计（`/discovery/stats/trend`）、网段分布（`/discovery/stats/subnets`）、端口/服务矩阵热力图（`/discovery/stats/services`）、资产统计报表导出（`/assets/stats/export`）、操作审计日志页（`/audit-logs`）。
 - **资产生命周期**：资产详情支持**退役归档**（状态置 retired、保留快照与审计）、展示**使用年限**（按 `purchaseDate` 计算）。
 
+## v2.16 机柜视图
+
+- **机柜 U 位可视化**：「机柜视图」页面（ECharts）选择机房 → 机柜卡片 → 机柜正视图，按 U 位数渲染网格，资产按 `rackPosition`（`12` 单 U / `12-14` 多 U）色块定位，tooltip 显示主机名/IP/类型，点击跳转资产详情。
+- 资产筛选接口新增 `rack`/`location` 参数；资产编辑表单补机房/机柜/U 位下拉（机柜按机房联动），详情展示机柜位置。
+
 ## v2.15 机房机柜管理
 
 - **机房/机柜实体**：新增机房（`datacenter_rooms`）与机柜（`racks`，U 位数默认 42）模型，`/rooms`、`/racks` CRUD（admin/资产管理员），删除机房连带删除其机柜。
