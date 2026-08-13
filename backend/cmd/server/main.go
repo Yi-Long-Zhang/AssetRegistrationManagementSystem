@@ -58,6 +58,10 @@ func main() {
 	inspectionScheduler.Start()
 	defer inspectionScheduler.Stop()
 
+	warrantyScheduler := service.NewWarrantyReminderScheduler(db, cfg.Security.ConfigEncryptionKey)
+	warrantyScheduler.Start()
+	defer warrantyScheduler.Stop()
+
 	log.Printf("asset registration management backend listening on %s", cfg.HTTP.Addr)
 	if err := router.Run(cfg.HTTP.Addr); err != nil {
 		log.Fatalf("run server: %v", err)

@@ -107,6 +107,12 @@
           </template>
           <template v-else #default="{ row }">{{ row[column.prop] }}</template>
         </el-table-column>
+        <el-table-column label="维保到期" width="110" fixed="right">
+          <template #default="{ row }">
+            <el-tag v-if="warrantyStatus(row)" :type="warrantyStatus(row).type" size="small" effect="plain">{{ warrantyStatus(row).text }}</el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="在线状态" width="90" fixed="right">
           <template #default="{ row }">
             <el-tag :type="dictItem(onlineStatusMap, row.onlineStatus).type" size="small">{{ dictItem(onlineStatusMap, row.onlineStatus).label }}</el-tag>
@@ -260,6 +266,16 @@ const topAssetTypeText = computed(() => {
 const onlineStatusMap = ONLINE_STATUS_MAP
 const assetTypeMap = ASSET_TYPE_MAP
 const onlineStatusOptions = dictOptions(ONLINE_STATUS_MAP)
+
+// warrantyStatus 计算维保到期状态：已过期/30 天内到期高亮。
+function warrantyStatus(row) {
+  if (!row.warrantyExpireDate) return null
+  const expire = new Date(row.warrantyExpireDate).getTime()
+  const diff = expire - Date.now()
+  if (diff < 0) return { text: '已过期', type: 'danger' }
+  if (diff <= 30 * 86400000) return { text: '即将到期', type: 'warning' }
+  return null
+}
 
 const detail = reactive({ visible: false, asset: null })
 
