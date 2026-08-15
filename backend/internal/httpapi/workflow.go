@@ -46,14 +46,17 @@ func (h *Handler) SaveWorkflow(c *gin.Context) {
 		return
 	}
 	for _, node := range req.Nodes {
-		if strings.TrimSpace(node.Name) == "" || len(node.ApproverIDs) == 0 {
-			errorJSON(c, http.StatusBadRequest, "审批节点名称和审批人不能为空")
+		if strings.TrimSpace(node.Name) == "" {
+			errorJSON(c, http.StatusBadRequest, "审批节点名称不能为空")
 			return
 		}
-		var count int64
-		if err := h.db.Model(&model.User{}).Where("id IN ? AND status = ?", node.ApproverIDs, "active").Count(&count).Error; err != nil || count != int64(len(uniqueUint(node.ApproverIDs))) {
-			errorJSON(c, http.StatusBadRequest, "审批人必须是有效启用用户")
-			return
+		// 审批人可为空（提交工单时按资产负责人/类型默认审批人自动分派）；非空时校验为有效启用用户
+		if len(node.ApproverIDs) > 0 {
+			var count int64
+			if err := h.db.Model(&model.User{}).Where("id IN ? AND status = ?", node.ApproverIDs, "active").Count(&count).Error; err != nil || count != int64(len(uniqueUint(node.ApproverIDs))) {
+				errorJSON(c, http.StatusBadRequest, "审批人必须是有效启用用户")
+				return
+			}
 		}
 	}
 
@@ -124,6 +127,42 @@ func (h *Handler) workflowByType(c *gin.Context, ticketType model.TicketType) (m
 	return workflow, true
 }
 
+// resolveAutoApprovers 按工单关联资产的负责人解析候选审批人：
+// 资产 owner 命中系统用户（admin/asset_manager/approver 且 active）时返回其 ID，
+// 多资产、多命中去重；无命中返回空切片。
+func (h *Handler) resolveAutoApprovers(db *gorm.DB, ticket *model.Ticket) []uint {
+	var assets []model.Asset
+	if err := db.Joins("JOIN ticket_assets ON ticket_assets.asset_id = assets.id").
+		Where("ticket_assets.ticket_id = ?", ticket.ID).Find(&assets).Error; err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(assets))
+	for _, asset := range assets {
+		if owner := strings.TrimSpace(asset.Owner); owner != "" {
+			names = append(names, owner)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	var users []model.User
+	if err := db.Where("(username IN ? OR name IN ?)", names, names).
+		Where("status = ?", "active").
+		Where("role IN ?", []model.Role{model.RoleAdmin, model.RoleAssetManager, model.RoleApprover}).
+		Find(&users).Error; err != nil {
+		return nil
+	}
+	ids := make([]uint, 0, len(users))
+	seen := map[uint]bool{}
+	for _, user := range users {
+		if !seen[user.ID] {
+			seen[user.ID] = true
+			ids = append(ids, user.ID)
+		}
+	}
+	return ids
+}
+
 func (h *Handler) createWorkflowSnapshot(c *gin.Context, ticket *model.Ticket) bool {
 	var workflow model.TicketWorkflow
 	err := h.db.Preload("Nodes.Approvers", func(db *gorm.DB) *gorm.DB {
@@ -158,8 +197,27 @@ func (h *Handler) createWorkflowSnapshot(c *gin.Context, ticket *model.Ticket) b
 			errorJSON(c, http.StatusBadRequest, "创建审批节点失败: "+err.Error())
 			return false
 		}
+		// 收集节点已配置的审批人；节点未配置时自动分派（资产负责人 → 类型默认审批人）
+		approverIDs := make([]uint, 0, len(node.Approvers))
 		for _, approver := range node.Approvers {
-			if err := h.db.Create(&model.TicketWorkflowStepApprover{StepID: step.ID, UserID: approver.UserID}).Error; err != nil {
+			approverIDs = append(approverIDs, approver.UserID)
+		}
+		if len(approverIDs) == 0 {
+			approverIDs = h.resolveAutoApprovers(h.db, ticket)
+			if len(approverIDs) == 0 {
+				if defaultID, ok := h.defaultApproverID(c, ticket.Type); ok {
+					approverIDs = []uint{defaultID}
+				} else {
+					return false // defaultApproverID 已输出「未配置默认审批人」错误
+				}
+			}
+		}
+		if len(approverIDs) == 0 {
+			errorJSON(c, http.StatusBadRequest, "审批节点「"+node.Name+"」无审批人且无法自动分派，请配置审批人或类型默认审批人")
+			return false
+		}
+		for _, userID := range approverIDs {
+			if err := h.db.Create(&model.TicketWorkflowStepApprover{StepID: step.ID, UserID: userID}).Error; err != nil {
 				errorJSON(c, http.StatusBadRequest, "创建审批人快照失败: "+err.Error())
 				return false
 			}
@@ -262,7 +320,10 @@ func (h *Handler) currentStep(c *gin.Context, ticket *model.Ticket, out *model.T
 
 func (h *Handler) isStepApprover(stepID, userID uint) bool {
 	var count int64
-	_ = h.db.Model(&model.TicketWorkflowStepApprover{}).Where("step_id = ? AND user_id = ?", stepID, userID).Count(&count).Error
+	_ = h.db.Model(&model.TicketWorkflowStepApprover{}).
+		Joins("JOIN users ON users.id = ticket_workflow_step_approvers.user_id").
+		Where("ticket_workflow_step_approvers.step_id = ? AND (ticket_workflow_step_approvers.user_id = ? OR users.proxy_user_id = ?)", stepID, userID, userID).
+		Count(&count).Error
 	return count > 0
 }
 

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -227,12 +228,21 @@ func (c *Config) applyDefaults() {
 }
 
 func (c Config) Validate() error {
+	// 生产环境：默认密钥直接拒绝启动，防止误部署弱密钥。
 	if strings.EqualFold(c.App.Env, EnvProduction) {
 		if c.Security.JWTSecret == "" || c.Security.JWTSecret == DefaultJWTSecret {
 			return fmt.Errorf("security.jwt_secret must be set to a non-default value in production")
 		}
 		if c.Security.ConfigEncryptionKey == "" || c.Security.ConfigEncryptionKey == DefaultConfigKey {
 			return fmt.Errorf("security.config_encryption_key must be set to a non-default value in production")
+		}
+	} else {
+		// 非生产环境使用默认密钥仅告警（开发便利），但仍提示潜在风险。
+		if c.Security.JWTSecret == "" || c.Security.JWTSecret == DefaultJWTSecret {
+			log.Printf("[security] WARNING: security.jwt_secret is using the default value; set a strong secret for any shared environment")
+		}
+		if c.Security.ConfigEncryptionKey == "" || c.Security.ConfigEncryptionKey == DefaultConfigKey {
+			log.Printf("[security] WARNING: security.config_encryption_key is using the default value; set a strong key for any shared environment")
 		}
 	}
 	return nil

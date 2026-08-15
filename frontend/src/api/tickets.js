@@ -19,6 +19,12 @@ export const ticketsApi = {
   action(id, action, payload) {
     return request.post(`/tickets/${id}/${action}`, payload).then(unwrap)
   },
+  transfer(id, toUserId) {
+    return request.post(`/tickets/${id}/transfer`, { toUserId }).then(unwrap)
+  },
+  batchApprove(ids, remark) {
+    return request.post('/tickets/batch-approve', { ids, remark }).then(unwrap)
+  },
   comments(id) {
     return request.get(`/tickets/${id}/comments`).then(unwrap)
   },

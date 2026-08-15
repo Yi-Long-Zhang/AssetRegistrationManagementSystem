@@ -46,6 +46,11 @@
         <el-form-item label="状态"><el-select v-model="form.status"><el-option v-for="option in userStatusOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
         <el-form-item label="邮箱"><el-input v-model="form.email" /></el-form-item>
         <el-form-item label="部门"><el-input v-model="form.department" /></el-form-item>
+        <el-form-item label="代理审批人">
+          <el-select v-model="form.proxyUserId" clearable filterable placeholder="设置后由代理处理我的审批待办（用于请假/转交）" style="width: 100%">
+            <el-option v-for="user in userOptions" :key="user.id" :label="`${user.name || user.username} (${user.username})`" :value="user.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item v-if="form.authSource !== 'ad'" label="密码"><el-input v-model="form.password" type="password" show-password placeholder="编辑时留空则不修改" /></el-form-item>
       </el-form>
       <template #footer>
@@ -72,9 +77,10 @@ const dialogVisible = ref(false)
 const form = reactive(emptyUser())
 const roleOptions = dictOptions(ROLE_MAP)
 const userStatusOptions = dictOptions(USER_STATUS_MAP)
+const userOptions = ref([])
 
 function emptyUser() {
-  return { username: '', name: '', role: 'applicant', status: 'active', password: '', authSource: 'local', email: '', department: '' }
+  return { username: '', name: '', role: 'applicant', status: 'active', password: '', authSource: 'local', email: '', department: '', proxyUserId: null }
 }
 
 async function load() {
@@ -82,6 +88,7 @@ async function load() {
   try {
     const data = await usersApi.list()
     items.value = data.items
+    userOptions.value = (data.items || []).filter((u) => u.status === 'active')
   } finally {
     loading.value = false
   }

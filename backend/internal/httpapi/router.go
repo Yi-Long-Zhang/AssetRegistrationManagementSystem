@@ -54,6 +54,7 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	api.POST("/auth/login", h.Login)
 	api.POST("/auth/logout", h.Logout)
 	api.GET("/auth/me", h.AuthRequired(), h.Me)
+	api.POST("/auth/change-password", h.AuthRequired(), h.ChangePassword)
 	api.POST("/im/callback", h.IMCallback)
 
 	api.GET("/roles", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin), h.ListRoles)
@@ -109,6 +110,7 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	assets.DELETE("/:id", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.DeleteAsset)
 	assets.POST("/:id/retire", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.RetireAsset)
 	assets.POST("/batch-delete", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.BatchDeleteAssets)
+	assets.POST("/batch-update", h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager), h.BatchUpdateAssets)
 
 	discovery := api.Group("/discovery", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager))
 	discovery.GET("/rules", h.ListDiscoveryRules)
@@ -147,6 +149,13 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	racks.POST("", h.CreateRack)
 	racks.PUT("/:id", h.UpdateRack)
 	racks.DELETE("/:id", h.DeleteRack)
+
+	ipSegments := api.Group("/ip-segments", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager))
+	ipSegments.GET("", h.ListIPSegments)
+	ipSegments.POST("", h.CreateIPSegment)
+	ipSegments.PUT("/:id", h.UpdateIPSegment)
+	ipSegments.DELETE("/:id", h.DeleteIPSegment)
+	ipSegments.GET("/:id/usage", h.GetIPSegmentUsage)
 	discovery.POST("/runs/:id/apply", h.ApplyDiscoveryHosts)
 	discovery.GET("/stats/trend", h.GetDiscoveryTrend)
 	discovery.GET("/stats/subnets", h.GetDiscoverySubnetStats)
@@ -158,6 +167,7 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	tickets.GET("/stats", h.RequireAnyRole(model.RoleAdmin), h.GetTicketStats)
 	tickets.GET("/stats/export", h.RequireAnyRole(model.RoleAdmin), h.ExportTicketStats)
 	tickets.POST("/archives/download", h.DownloadTicketArchives)
+	tickets.POST("/batch-approve", h.BatchApproveTickets)
 	tickets.GET("/:id", h.GetTicket)
 	tickets.PUT("/:id", h.UpdateTicket)
 	tickets.GET("/:id/comments", h.ListTicketComments)
@@ -166,7 +176,8 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	tickets.POST("/:id/attachments", h.UploadTicketAttachment)
 	tickets.GET("/:id/attachments/:attachmentId/download", h.DownloadTicketAttachment)
 	tickets.GET("/:id/archive/download", h.DownloadTicketArchive)
-	for _, action := range []string{"submit", "approve", "reject", "start", "complete", "accept", "cancel"} {
+	tickets.POST("/:id/transfer", h.TransferTicketApprover)
+	for _, action := range []string{"submit", "withdraw", "approve", "reject", "start", "complete", "accept", "cancel"} {
 		tickets.POST("/:id/"+action, h.TicketAction(action))
 	}
 

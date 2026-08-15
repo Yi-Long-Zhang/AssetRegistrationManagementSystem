@@ -49,6 +49,7 @@ func Migrate(db *gorm.DB) error {
 		&model.DiscoveryRun{},
 		&model.DiscoveredHost{},
 		&model.AssetSnapshot{},
+		&model.IPSegment{},
 	)
 }
 
@@ -68,10 +69,11 @@ func SeedAdmin(db *gorm.DB, username, password string) error {
 	}
 
 	return db.Create(&model.User{
-		Username:     username,
-		Name:         "系统管理员",
-		Role:         model.RoleAdmin,
-		Status:       "active",
-		PasswordHash: string(hash),
+		Username:           username,
+		Name:               "系统管理员",
+		Role:               model.RoleAdmin,
+		Status:             "active",
+		PasswordHash:       string(hash),
+		MustChangePassword: true,
 	}).Error
 }

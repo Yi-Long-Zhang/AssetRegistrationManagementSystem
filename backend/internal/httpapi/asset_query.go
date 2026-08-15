@@ -191,3 +191,28 @@ func cleanExistingAssetPlaceholders(db *gorm.DB) error {
 	}
 	return nil
 }
+
+// scopeAssetsByRole 按角色限定资产数据范围（数据级权限）：
+// admin / asset_manager 看全量；approver / applicant 等普通用户仅看自己负责的资产
+// （owner 字段匹配用户姓名或用户名，两者任一命中即可）。
+func scopeAssetsByRole(db *gorm.DB, user model.User) *gorm.DB {
+	if user.Role == model.RoleAdmin || user.Role == model.RoleAssetManager {
+		return db
+	}
+	names := []string{user.Username}
+	if user.Name != "" && user.Name != user.Username {
+		names = append(names, user.Name)
+	}
+	return db.Where("owner IN ?", names)
+}
+
+// canViewAsset 判断用户是否有权查看单条资产（数据级权限，配合 GetAsset 使用）。
+func canViewAsset(user model.User, asset model.Asset) bool {
+	if user.Role == model.RoleAdmin || user.Role == model.RoleAssetManager {
+		return true
+	}
+	if asset.Owner == user.Username {
+		return true
+	}
+	return user.Name != "" && asset.Owner == user.Name
+}

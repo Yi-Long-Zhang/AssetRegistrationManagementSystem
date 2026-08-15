@@ -70,6 +70,43 @@ func (h *Handler) Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+// ChangePassword 修改当前用户密码（本地账号），成功后清除强制改密标记。
+func (h *Handler) ChangePassword(c *gin.Context) {
+	var req struct {
+		OldPassword string `json:"oldPassword" binding:"required"`
+		NewPassword string `json:"newPassword" binding:"required"`
+	}
+	if !bind(c, &req) {
+		return
+	}
+	user := currentUser(c)
+	if user.AuthSource == "ad" {
+		errorJSON(c, http.StatusBadRequest, "AD 用户密码请在域控修改")
+		return
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)) != nil {
+		errorJSON(c, http.StatusBadRequest, "原密码错误")
+		return
+	}
+	if len(req.NewPassword) < 8 {
+		errorJSON(c, http.StatusBadRequest, "新密码长度不能少于 8 位")
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		errorJSON(c, http.StatusInternalServerError, "生成密码失败")
+		return
+	}
+	user.PasswordHash = string(hash)
+	user.MustChangePassword = false
+	if err := h.db.Save(&user).Error; err != nil {
+		errorJSON(c, http.StatusBadRequest, "修改密码失败")
+		return
+	}
+	h.audit(user.ID, "user", user.ID, "change_password", "修改密码")
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func (h *Handler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": currentUser(c)})
 }
@@ -341,6 +378,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		Role:         req.Role,
 		Status:       defaultString(req.Status, "active"),
 		AuthSource:   authSource,
+		ProxyUserID:  req.ProxyUserID,
 		PasswordHash: string(hash),
 	}
 	if err := h.db.Create(&user).Error; err != nil {
@@ -370,6 +408,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	user.Department = req.Department
 	user.Role = req.Role
 	user.Status = defaultString(req.Status, "active")
+	user.ProxyUserID = req.ProxyUserID
 	if user.AuthSource == "ad" && req.Password != "" {
 		errorJSON(c, http.StatusBadRequest, "AD 用户不能在本系统修改密码")
 		return
@@ -392,7 +431,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 func (h *Handler) ListAssets(c *gin.Context) {
 	var assets []model.Asset
 	page, pageSize := assetPagination(c)
-	db := applyAssetFilters(h.db.Model(&model.Asset{}), c)
+	db := scopeAssetsByRole(applyAssetFilters(h.db.Model(&model.Asset{}), c), currentUser(c))
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		errorJSON(c, http.StatusInternalServerError, "查询资产失败")
@@ -407,14 +446,18 @@ func (h *Handler) ListAssets(c *gin.Context) {
 }
 
 func (h *Handler) AssetStats(c *gin.Context) {
-	base := applyAssetFilters(h.db.Model(&model.Asset{}), c)
+	user := currentUser(c)
+	scoped := func(db *gorm.DB) *gorm.DB {
+		return scopeAssetsByRole(db, user)
+	}
+	base := scoped(applyAssetFilters(h.db.Model(&model.Asset{}), c))
 	var total int64
 	if err := base.Count(&total).Error; err != nil {
 		errorJSON(c, http.StatusInternalServerError, "查询资产统计失败")
 		return
 	}
 	var assets []model.Asset
-	if err := applyAssetFilters(h.db.Model(&model.Asset{}), c).Select("open_ports", "running_services", "online_status").Find(&assets).Error; err != nil {
+	if err := scoped(applyAssetFilters(h.db.Model(&model.Asset{}), c)).Select("open_ports", "running_services", "online_status").Find(&assets).Error; err != nil {
 		errorJSON(c, http.StatusInternalServerError, "查询资产统计失败")
 		return
 	}
@@ -438,12 +481,12 @@ func (h *Handler) AssetStats(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"total":              total,
-		"subnetCount":        len(assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "subnet", 1000000)),
+		"subnetCount":        len(assetGroupedCounts(scoped(applyAssetFilters(h.db.Model(&model.Asset{}), c)), "subnet", 1000000)),
 		"openPortAssetCount": openPortAssetCount,
 		"byOnlineStatus":     onlineCounts,
-		"byAssetType":        assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "asset_type", 10),
-		"bySubnet":           assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "subnet", 10),
-		"byOwner":            assetGroupedCounts(applyAssetFilters(h.db.Model(&model.Asset{}), c), "owner", 10),
+		"byAssetType":        assetGroupedCounts(scoped(applyAssetFilters(h.db.Model(&model.Asset{}), c)), "asset_type", 10),
+		"bySubnet":           assetGroupedCounts(scoped(applyAssetFilters(h.db.Model(&model.Asset{}), c)), "subnet", 10),
+		"byOwner":            assetGroupedCounts(scoped(applyAssetFilters(h.db.Model(&model.Asset{}), c)), "owner", 10),
 		"topOpenPorts":       topAssetTokens(openPortValues, 10, true),
 		"topServices":        topAssetTokens(serviceValues, 10, false),
 	})
@@ -460,6 +503,7 @@ func (h *Handler) CreateAsset(c *gin.Context) {
 		return
 	}
 	h.audit(currentUser(c).ID, "asset", asset.ID, "create", asset.AssetNo)
+	h.checkIPConflict(currentUser(c).ID, &asset)
 	c.JSON(http.StatusCreated, asset)
 }
 
@@ -470,6 +514,10 @@ func (h *Handler) GetAsset(c *gin.Context) {
 	}
 	var asset model.Asset
 	if !h.findByID(c, id, &asset) {
+		return
+	}
+	if !canViewAsset(currentUser(c), asset) {
+		errorJSON(c, http.StatusForbidden, "无权查看该资产")
 		return
 	}
 	c.JSON(http.StatusOK, asset)
@@ -496,6 +544,7 @@ func (h *Handler) UpdateAsset(c *gin.Context) {
 		return
 	}
 	h.audit(currentUser(c).ID, "asset", updated.ID, "update", updated.AssetNo)
+	h.checkIPConflict(currentUser(c).ID, &updated)
 	actorID := currentUser(c).ID
 	if err := (&service.AssetSnapshotter{DB: h.db}).CreateSnapshot(&updated, model.SnapshotSourceManual, &actorID, "update"); err != nil {
 		log.Printf("asset snapshot failed for asset %d: %v", updated.ID, err)
@@ -602,10 +651,136 @@ func (h *Handler) BatchDeleteAssets(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"deleted": count})
 }
 
+type batchAssetUpdateRequest struct {
+	IDs    []uint         `json:"ids" binding:"required"`
+	Fields map[string]any `json:"fields" binding:"required"`
+}
+
+// batchAssetUpdateColumns 批量编辑字段白名单：json 字段名 → 数据库列名。
+// GORM Updates(map) 使用数据库列名，故 camelCase 字段必须显式映射。
+var batchAssetUpdateColumns = map[string]string{
+	"owner":              "owner",
+	"department":         "department",
+	"location":           "location",
+	"rack":               "rack",
+	"rackPosition":       "rack_position",
+	"environment":        "environment",
+	"businessSystem":     "business_system",
+	"maintenanceVendor":  "maintenance_vendor",
+	"warrantyExpireDate": "warranty_expire_date",
+	"status":             "status",
+	"remark":             "remark",
+}
+
+func validAssetStatus(status string) bool {
+	switch model.AssetStatus(status) {
+	case model.AssetStatusPending, model.AssetStatusInUse, model.AssetStatusMaintenance,
+		model.AssetStatusRetired, model.AssetStatusDecommission:
+		return true
+	}
+	return false
+}
+
+// BatchUpdateAssets 批量编辑资产：仅允许白名单字段，逐台更新并生成快照与审计。
+func (h *Handler) BatchUpdateAssets(c *gin.Context) {
+	var req batchAssetUpdateRequest
+	if !bind(c, &req) {
+		return
+	}
+	if len(req.IDs) == 0 {
+		errorJSON(c, http.StatusBadRequest, "未选择要修改的资产")
+		return
+	}
+	if len(req.IDs) > 200 {
+		errorJSON(c, http.StatusBadRequest, "单次最多修改 200 台资产")
+		return
+	}
+	if len(req.Fields) == 0 {
+		errorJSON(c, http.StatusBadRequest, "未提供要修改的字段")
+		return
+	}
+	updates := map[string]any{}
+	for key, value := range req.Fields {
+		column, ok := batchAssetUpdateColumns[key]
+		if !ok {
+			errorJSON(c, http.StatusBadRequest, "字段不允许批量修改: "+key)
+			return
+		}
+		updates[column] = value
+	}
+	// 日期字段：字符串 → time.Time；空字符串表示置空；非字符串类型直接拒绝
+	if value, ok := updates["warranty_expire_date"]; ok {
+		str, isStr := value.(string)
+		if !isStr {
+			errorJSON(c, http.StatusBadRequest, "维保到期日期必须是 YYYY-MM-DD 字符串")
+			return
+		}
+		if strings.TrimSpace(str) == "" {
+			updates["warranty_expire_date"] = nil
+		} else {
+			parsed, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(str), time.Local)
+			if err != nil {
+				errorJSON(c, http.StatusBadRequest, "维保到期日期格式应为 YYYY-MM-DD")
+				return
+			}
+			updates["warranty_expire_date"] = parsed
+		}
+	}
+	if statusValue, ok := updates["status"]; ok {
+		statusStr, _ := statusValue.(string)
+		if !validAssetStatus(statusStr) {
+			errorJSON(c, http.StatusBadRequest, "资产状态不合法")
+			return
+		}
+	}
+	actorID := currentUser(c).ID
+	updatedCount := 0
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		var assets []model.Asset
+		if err := tx.Where("id IN ?", req.IDs).Find(&assets).Error; err != nil {
+			return err
+		}
+		if len(assets) == 0 {
+			return errors.New("未找到要修改的资产")
+		}
+		snapper := service.AssetSnapshotter{DB: tx}
+		for i := range assets {
+			asset := assets[i]
+			if err := tx.Model(&asset).Updates(updates).Error; err != nil {
+				return err
+			}
+			var updated model.Asset
+			if err := tx.First(&updated, asset.ID).Error; err != nil {
+				return err
+			}
+			if err := snapper.CreateSnapshot(&updated, model.SnapshotSourceManual, &actorID, "batch_update"); err != nil {
+				return err
+			}
+			if err := tx.Create(&model.AuditLog{
+				ActorID:  actorID,
+				Entity:   "asset",
+				EntityID: updated.ID,
+				Action:   "batch_update",
+				Detail:   "批量编辑: " + updated.AssetNo,
+			}).Error; err != nil {
+				return err
+			}
+			updatedCount++
+		}
+		return nil
+	})
+	if err != nil {
+		log.Printf("batch update assets: %v", err)
+		errorJSON(c, http.StatusBadRequest, "批量修改失败")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"updated": updatedCount})
+}
+
 func (h *Handler) ListTickets(c *gin.Context) {
 	user := currentUser(c)
 	var tickets []model.Ticket
-	db := h.db.Preload("Applicant").Preload("Asset").Preload("WorkflowSteps.Approvers").Order("id desc")
+	db := h.db.Preload("Applicant").Preload("Asset").Preload("WorkflowSteps.Approvers").Order("tickets.id desc")
 	switch c.Query("view") {
 	case "todo":
 		db = h.applyTodoFilter(db, user)
@@ -620,6 +795,7 @@ func (h *Handler) ListTickets(c *gin.Context) {
 		db = db.Where("applicant_id = ?", user.ID)
 	}
 	if err := db.Find(&tickets).Error; err != nil {
+		log.Printf("list tickets: %v", err)
 		errorJSON(c, http.StatusInternalServerError, "查询工单失败")
 		return
 	}
@@ -774,6 +950,32 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 			c.JSON(http.StatusOK, ticket)
 			return
 		}
+		if action == "withdraw" {
+			// 仅申请人本人或管理员可撤回；回到草稿后可修改并重新提交
+			if ticket.ApplicantID != user.ID && user.Role != model.RoleAdmin {
+				errorJSON(c, http.StatusForbidden, "只能撤回自己提交的工单")
+				return
+			}
+			from := ticket.Status
+			ticket.Status = next
+			// 重置审批流程快照，清理当前节点与 SLA 审批截止时间
+			if err := h.db.Where("ticket_id = ?", ticket.ID).Delete(&model.TicketWorkflowStep{}).Error; err != nil {
+				errorJSON(c, http.StatusBadRequest, "重置流程快照失败: "+err.Error())
+				return
+			}
+			ticket.CurrentWorkflowStepID = nil
+			ticket.CurrentWorkflowStepName = ""
+			ticket.SLAApprovalDeadline = nil
+			if err := h.db.Save(&ticket).Error; err != nil {
+				errorJSON(c, http.StatusBadRequest, "撤回工单失败: "+err.Error())
+				return
+			}
+			h.addRecord(ticket.ID, user.ID, "withdraw", from, next, req.Remark)
+			h.notifyTicketIM(&ticket, "工单已撤回",
+				fmt.Sprintf("- 工单：#%d %s\n- 撤回人：%s", ticket.ID, ticket.Title, user.Username))
+			c.JSON(http.StatusOK, ticket)
+			return
+		}
 		if action == "approve" {
 			if !h.approveCurrentStep(c, &ticket, user, req.Remark) {
 				return
@@ -843,6 +1045,157 @@ func (h *Handler) TicketAction(action string) gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, ticket)
 	}
+}
+
+type ticketTransferRequest struct {
+	ToUserID uint `json:"toUserId" binding:"required"`
+}
+
+// TransferTicketApprover 审批转交：当前节点审批人或 admin 将当前审批节点转交给其他用户。
+func (h *Handler) TransferTicketApprover(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var req ticketTransferRequest
+	if !bind(c, &req) {
+		return
+	}
+	user := currentUser(c)
+	if user.Role != model.RoleAdmin && user.Role != model.RoleApprover {
+		errorJSON(c, http.StatusForbidden, "没有权限执行该操作")
+		return
+	}
+	var ticket model.Ticket
+	if !h.findTicketForUser(c, id, &ticket) {
+		return
+	}
+	if ticket.Status != model.TicketStatusPendingApproval {
+		errorJSON(c, http.StatusBadRequest, "只有审批中的工单可以转交")
+		return
+	}
+	var target model.User
+	if err := h.db.First(&target, req.ToUserID).Error; err != nil {
+		statusForDBError(c, err, "目标用户不存在")
+		return
+	}
+	if target.Status != "active" {
+		errorJSON(c, http.StatusBadRequest, "目标用户未启用")
+		return
+	}
+	var step model.TicketWorkflowStep
+	if !h.currentStep(c, &ticket, &step) {
+		return
+	}
+	if user.Role != model.RoleAdmin && !h.isStepApprover(step.ID, user.ID) {
+		errorJSON(c, http.StatusForbidden, "只有当前节点审批人可以转交")
+		return
+	}
+	// 替换当前节点审批人为目标用户
+	if err := h.db.Where("step_id = ?", step.ID).Delete(&model.TicketWorkflowStepApprover{}).Error; err != nil {
+		log.Printf("transfer ticket: %v", err)
+		errorJSON(c, http.StatusBadRequest, "转交失败")
+		return
+	}
+	if err := h.db.Create(&model.TicketWorkflowStepApprover{StepID: step.ID, UserID: target.ID}).Error; err != nil {
+		log.Printf("transfer ticket: %v", err)
+		errorJSON(c, http.StatusBadRequest, "转交失败")
+		return
+	}
+	h.addRecord(ticket.ID, user.ID, "transfer", ticket.Status, ticket.Status, "审批转交: "+target.Name)
+	h.notifyTicketIM(&ticket, "工单审批已转交",
+		fmt.Sprintf("- 工单：#%d %s\n- 转交人：%s → %s", ticket.ID, ticket.Title, user.Name, target.Name))
+	c.JSON(http.StatusOK, ticket)
+}
+
+type ticketBatchApproveRequest struct {
+	IDs    []uint `json:"ids" binding:"required"`
+	Remark string `json:"remark"`
+}
+
+// BatchApproveTickets 批量审批：逐单校验（审批中 + 当前节点审批人/admin），
+// 成功单生效，无权/非审批中的单计入 skipped 返回。
+func (h *Handler) BatchApproveTickets(c *gin.Context) {
+	var req ticketBatchApproveRequest
+	if !bind(c, &req) {
+		return
+	}
+	if len(req.IDs) == 0 {
+		errorJSON(c, http.StatusBadRequest, "未选择工单")
+		return
+	}
+	if len(req.IDs) > 100 {
+		errorJSON(c, http.StatusBadRequest, "单次最多审批 100 张工单")
+		return
+	}
+	user := currentUser(c)
+	if user.Role != model.RoleAdmin && user.Role != model.RoleApprover {
+		errorJSON(c, http.StatusForbidden, "没有权限执行该操作")
+		return
+	}
+	approved := 0
+	var skipped []uint
+	for _, id := range req.IDs {
+		var ticket model.Ticket
+		if err := h.db.First(&ticket, id).Error; err != nil {
+			skipped = append(skipped, id)
+			continue
+		}
+		if ticket.Status != model.TicketStatusPendingApproval {
+			skipped = append(skipped, id)
+			continue
+		}
+		if user.Role != model.RoleAdmin {
+			var step model.TicketWorkflowStep
+			if err := h.db.Where("ticket_id = ? AND status = ?", ticket.ID, workflowStepPending).Order("sort_order asc").First(&step).Error; err != nil || !h.isStepApprover(step.ID, user.ID) {
+				skipped = append(skipped, id)
+				continue
+			}
+		}
+		if !h.approveSingleSilent(&ticket, user, req.Remark) {
+			skipped = append(skipped, id)
+			continue
+		}
+		approved++
+	}
+	c.JSON(http.StatusOK, gin.H{"approved": approved, "skipped": skipped})
+}
+
+// approveSingleSilent 单工单审批（批量场景用，不向响应写错误）。
+func (h *Handler) approveSingleSilent(ticket *model.Ticket, user model.User, remark string) bool {
+	var step model.TicketWorkflowStep
+	if err := h.db.Where("ticket_id = ? AND status = ?", ticket.ID, workflowStepPending).Order("sort_order asc").First(&step).Error; err != nil {
+		return false
+	}
+	now := time.Now()
+	step.Status = workflowStepApproved
+	step.ActorID = &user.ID
+	step.Remark = remark
+	step.ActedAt = &now
+	if err := h.db.Save(&step).Error; err != nil {
+		return false
+	}
+	h.addRecord(ticket.ID, user.ID, "approve:"+step.Name, ticket.Status, ticket.Status, remark)
+	return h.activateNextStepSilent(ticket)
+}
+
+// activateNextStepSilent 推进到下一审批节点（批量场景用，不向响应写错误）。
+func (h *Handler) activateNextStepSilent(ticket *model.Ticket) bool {
+	var step model.TicketWorkflowStep
+	err := h.db.Preload("Approvers").Where("ticket_id = ? AND status = ?", ticket.ID, workflowStepPending).Order("sort_order asc").First(&step).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		ticket.CurrentWorkflowStepID = nil
+		ticket.CurrentWorkflowStepName = ""
+		ticket.Status = model.TicketStatusApproved
+		return h.db.Save(ticket).Error == nil
+	}
+	if err != nil || len(step.Approvers) == 0 {
+		return false
+	}
+	ticket.CurrentWorkflowStepID = &step.ID
+	ticket.CurrentWorkflowStepName = step.Name
+	ticket.Status = model.TicketStatusPendingApproval
+	return h.db.Save(ticket).Error == nil
 }
 
 func (h *Handler) DownloadTicketArchive(c *gin.Context) {
@@ -996,6 +1349,11 @@ func (h *Handler) UploadTicketAttachment(c *gin.Context) {
 		errorJSON(c, http.StatusBadRequest, "请选择上传文件")
 		return
 	}
+	const maxUploadSize = 20 << 20 // 20MB
+	if file.Size > maxUploadSize {
+		errorJSON(c, http.StatusBadRequest, "附件大小不能超过 20MB")
+		return
+	}
 	storedName := uniqueStoredName(file.Filename)
 	dir := filepath.Join(h.cfg.Storage.AttachmentDir, fmt.Sprint(ticket.ID))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -1058,12 +1416,23 @@ func (h *Handler) applyTodoFilter(db *gorm.DB, user model.User) *gorm.DB {
 	case model.RoleApprover:
 		return db.Joins("JOIN ticket_workflow_steps ON ticket_workflow_steps.ticket_id = tickets.id AND ticket_workflow_steps.id = tickets.current_workflow_step_id").
 			Joins("JOIN ticket_workflow_step_approvers ON ticket_workflow_step_approvers.step_id = ticket_workflow_steps.id").
-			Where("tickets.status = ? AND ticket_workflow_step_approvers.user_id = ?", model.TicketStatusPendingApproval, user.ID)
+			Where("tickets.status = ? AND ticket_workflow_step_approvers.user_id IN ?", model.TicketStatusPendingApproval, h.approverIDsWithProxy(user.ID))
 	case model.RoleAssetManager:
 		return db.Where("status IN ?", []model.TicketStatus{model.TicketStatusApproved, model.TicketStatusInProgress})
 	default:
 		return db.Where("status IN ? AND applicant_id = ?", []model.TicketStatus{model.TicketStatusPendingAcceptance, model.TicketStatusRejected}, user.ID)
 	}
+}
+
+// approverIDsWithProxy 返回用户的审批范围：自己 + 所有设置了本人为代理审批人的用户。
+// 用于待办筛选与审批权限判断（单级代理，不支持代理链）。
+func (h *Handler) approverIDsWithProxy(userID uint) []uint {
+	var proxied []uint
+	_ = h.db.Model(&model.User{}).Where("proxy_user_id = ?", userID).Pluck("id", &proxied).Error
+	ids := make([]uint, 0, len(proxied)+1)
+	ids = append(ids, userID)
+	ids = append(ids, proxied...)
+	return ids
 }
 
 func (h *Handler) defaultApproverID(c *gin.Context, ticketType model.TicketType) (uint, bool) {
@@ -1270,6 +1639,10 @@ func (h *Handler) authenticate(username, password string) (model.User, bool) {
 	if user.Status != "active" {
 		return model.User{}, false
 	}
+	// 登录锁定检查（暴力破解防护）
+	if user.LockedUntil != nil && time.Now().Before(*user.LockedUntil) {
+		return model.User{}, false
+	}
 	authMode := strings.ToLower(defaultString(h.cfg.Auth.Mode, "mixed"))
 	if user.AuthSource == "" {
 		user.AuthSource = "local"
@@ -1279,8 +1652,10 @@ func (h *Handler) authenticate(username, password string) (model.User, bool) {
 			return model.User{}, false
 		}
 		if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
+			h.recordLoginFailure(&user)
 			return model.User{}, false
 		}
+		h.clearLoginFailure(&user)
 		now := time.Now()
 		user.LastLoginAt = &now
 		_ = h.db.Save(&user).Error
@@ -1296,8 +1671,10 @@ func (h *Handler) authenticate(username, password string) (model.User, bool) {
 		}
 		info, err := h.ad.Authenticate(adConfig, bindPassword, username, password)
 		if err != nil {
+			h.recordLoginFailure(&user)
 			return model.User{}, false
 		}
+		h.clearLoginFailure(&user)
 		service.ApplyADInfo(&user, info)
 		if err := h.db.Save(&user).Error; err != nil {
 			return model.User{}, false
@@ -1305,6 +1682,32 @@ func (h *Handler) authenticate(username, password string) (model.User, bool) {
 		return user, true
 	}
 	return model.User{}, false
+}
+
+// recordLoginFailure 记录一次登录失败，连续 5 次失败锁定 15 分钟。
+func (h *Handler) recordLoginFailure(user *model.User) {
+	user.FailedAttempts++
+	if user.FailedAttempts >= 5 {
+		lockUntil := time.Now().Add(15 * time.Minute)
+		user.LockedUntil = &lockUntil
+		user.FailedAttempts = 0
+	}
+	_ = h.db.Model(user).Updates(map[string]any{
+		"failed_attempts": user.FailedAttempts,
+		"locked_until":    user.LockedUntil,
+	}).Error
+}
+
+// clearLoginFailure 登录成功后清零失败计数与锁定。
+func (h *Handler) clearLoginFailure(user *model.User) {
+	if user.FailedAttempts != 0 || user.LockedUntil != nil {
+		user.FailedAttempts = 0
+		user.LockedUntil = nil
+		_ = h.db.Model(user).Updates(map[string]any{
+			"failed_attempts": 0,
+			"locked_until":    nil,
+		}).Error
+	}
 }
 
 func (h *Handler) adConfigForAuth() (model.ADConfig, string, bool) {
@@ -1475,6 +1878,9 @@ func (h *Handler) AuthRequired() gin.HandlerFunc {
 		}
 		tokenText := strings.TrimPrefix(auth, "Bearer ")
 		parsed, err := jwt.ParseWithClaims(tokenText, &claims{}, func(token *jwt.Token) (interface{}, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Method.Alg())
+			}
 			return []byte(h.cfg.Security.JWTSecret), nil
 		})
 		if err != nil || !parsed.Valid {
@@ -1537,8 +1943,30 @@ func (h *Handler) findTicketForUser(c *gin.Context, id uint, ticket *model.Ticke
 
 func (h *Handler) canViewTicket(c *gin.Context, ticket model.Ticket) bool {
 	user := currentUser(c)
-	if user.Role != model.RoleApplicant || ticket.ApplicantID == user.ID {
+	if user.Role == model.RoleAdmin || ticket.ApplicantID == user.ID {
 		return true
+	}
+	if ticket.ExecutorID != nil && *ticket.ExecutorID == user.ID {
+		return true
+	}
+	// 审批人：参与过任一审批节点的（含代理）可查看
+	if user.Role == model.RoleApprover {
+		var count int64
+		_ = h.db.Model(&model.TicketWorkflowStepApprover{}).
+			Joins("JOIN ticket_workflow_steps ON ticket_workflow_steps.id = ticket_workflow_step_approvers.step_id").
+			Joins("JOIN users ON users.id = ticket_workflow_step_approvers.user_id").
+			Where("ticket_workflow_steps.ticket_id = ? AND (ticket_workflow_step_approvers.user_id = ? OR users.proxy_user_id = ?)", ticket.ID, user.ID, user.ID).
+			Count(&count).Error
+		if count > 0 {
+			return true
+		}
+	}
+	// 资产管理员：执行阶段及之后可查看
+	if user.Role == model.RoleAssetManager {
+		return ticket.Status == model.TicketStatusApproved ||
+			ticket.Status == model.TicketStatusInProgress ||
+			ticket.Status == model.TicketStatusPendingAcceptance ||
+			ticket.Status == model.TicketStatusClosed
 	}
 	errorJSON(c, http.StatusForbidden, "没有权限查看该工单")
 	return false
@@ -1665,7 +2093,8 @@ func parseIDPath(c *gin.Context, name string) (uint, bool) {
 
 func bind(c *gin.Context, out interface{}) bool {
 	if err := c.ShouldBindJSON(out); err != nil {
-		errorJSON(c, http.StatusBadRequest, "请求参数无效: "+err.Error())
+		log.Printf("bind request: %v", err)
+		errorJSON(c, http.StatusBadRequest, "请求参数无效")
 		return false
 	}
 	return true
@@ -1676,7 +2105,8 @@ func statusForDBError(c *gin.Context, err error, notFound string) {
 		errorJSON(c, http.StatusNotFound, notFound)
 		return
 	}
-	errorJSON(c, http.StatusInternalServerError, err.Error())
+	log.Printf("database error: %v", err)
+	errorJSON(c, http.StatusInternalServerError, "服务内部错误")
 }
 
 func errorJSON(c *gin.Context, status int, message string) {

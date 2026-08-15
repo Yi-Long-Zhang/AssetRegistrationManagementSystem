@@ -12,6 +12,7 @@ var transitions = map[string]struct {
 	Roles []model.Role
 }{
 	"submit":   {From: model.TicketStatusDraft, To: model.TicketStatusPendingApproval, Roles: []model.Role{model.RoleAdmin, model.RoleApplicant}},
+	"withdraw": {From: model.TicketStatusPendingApproval, To: model.TicketStatusDraft, Roles: []model.Role{model.RoleAdmin, model.RoleApplicant}},
 	"approve":  {From: model.TicketStatusPendingApproval, To: model.TicketStatusPendingApproval, Roles: []model.Role{model.RoleAdmin, model.RoleApprover}},
 	"reject":   {From: model.TicketStatusPendingApproval, To: model.TicketStatusRejected, Roles: []model.Role{model.RoleAdmin, model.RoleApprover}},
 	"start":    {From: model.TicketStatusApproved, To: model.TicketStatusInProgress, Roles: []model.Role{model.RoleAdmin, model.RoleAssetManager}},

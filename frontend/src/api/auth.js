@@ -9,5 +9,8 @@ export const authApi = {
   },
   me() {
     return request.get('/auth/me').then(unwrap)
+  },
+  changePassword(oldPassword, newPassword) {
+    return request.post('/auth/change-password', { oldPassword, newPassword }).then(unwrap)
   }
 }

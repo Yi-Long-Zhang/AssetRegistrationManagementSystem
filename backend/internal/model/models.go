@@ -7,21 +7,25 @@ import (
 )
 
 type User struct {
-	ID           uint           `json:"id" gorm:"primaryKey"`
-	Username     string         `json:"username" gorm:"uniqueIndex;size:64;not null"`
-	Name         string         `json:"name" gorm:"size:128;not null"`
-	DisplayName  string         `json:"displayName" gorm:"size:128"`
-	Email        string         `json:"email" gorm:"size:128"`
-	Department   string         `json:"department" gorm:"size:128"`
-	Role         Role           `json:"role" gorm:"size:32;not null;index"`
-	Status       string         `json:"status" gorm:"size:32;not null;default:active"`
-	AuthSource   string         `json:"authSource" gorm:"size:32;not null;default:local;index"`
-	ADDN         string         `json:"adDn" gorm:"size:512"`
-	LastLoginAt  *time.Time     `json:"lastLoginAt"`
-	PasswordHash string         `json:"-" gorm:"size:255;not null"`
-	CreatedAt    time.Time      `json:"createdAt"`
-	UpdatedAt    time.Time      `json:"updatedAt"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+	ID                 uint           `json:"id" gorm:"primaryKey"`
+	Username           string         `json:"username" gorm:"uniqueIndex;size:64;not null"`
+	Name               string         `json:"name" gorm:"size:128;not null"`
+	DisplayName        string         `json:"displayName" gorm:"size:128"`
+	Email              string         `json:"email" gorm:"size:128"`
+	Department         string         `json:"department" gorm:"size:128"`
+	Role               Role           `json:"role" gorm:"size:32;not null;index"`
+	Status             string         `json:"status" gorm:"size:32;not null;default:active"`
+	AuthSource         string         `json:"authSource" gorm:"size:32;not null;default:local;index"`
+	ADDN               string         `json:"adDn" gorm:"size:512"`
+	ProxyUserID        *uint          `json:"proxyUserId" gorm:"index"` // 审批代理：设置为本人审批的工单由代理处理
+	LastLoginAt        *time.Time     `json:"lastLoginAt"`
+	FailedAttempts     int            `json:"-" gorm:"not null;default:0"`                      // 连续登录失败次数
+	LockedUntil        *time.Time     `json:"-" gorm:"index"`                                   // 登录锁定截止时间（暴力破解防护）
+	MustChangePassword bool           `json:"mustChangePassword" gorm:"not null;default:false"` // 首次登录强制改密
+	PasswordHash       string         `json:"-" gorm:"size:255;not null"`
+	CreatedAt          time.Time      `json:"createdAt"`
+	UpdatedAt          time.Time      `json:"updatedAt"`
+	DeletedAt          gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 type ADConfig struct {
@@ -435,4 +439,14 @@ type AssetSnapshot struct {
 	DiffSummary  string         `json:"diffSummary" gorm:"type:text"`
 	CreatedBy    *uint          `json:"createdBy" gorm:"index"`
 	CreatedAt    time.Time      `json:"createdAt"`
+}
+
+// IPSegment IP 地址池网段（IP 规划与占用管理）
+type IPSegment struct {
+	ID          uint      `json:"id" gorm:"primaryKey"`
+	Name        string    `json:"name" gorm:"size:128;not null"` // 网段名称，如「生产网段 A」
+	CIDR        string    `json:"cidr" gorm:"size:64;not null"`  // CIDR，如 10.0.0.0/24
+	Description string    `json:"description" gorm:"size:255"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }

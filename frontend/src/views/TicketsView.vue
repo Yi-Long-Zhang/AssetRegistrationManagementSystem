@@ -2,6 +2,7 @@
   <section class="page">
     <PageHeader title="工单流程">
       <template #actions>
+        <el-button v-if="canBatchApprove" :disabled="!selectedRows.length" @click="batchApproveSelected">批量审批{{ selectedRows.length ? ` (${selectedRows.length})` : '' }}</el-button>
         <el-button :disabled="!selectedArchiveRows.length" @click="downloadSelectedArchives">批量下载归档</el-button>
         <el-button type="primary" :icon="Plus" @click="openCreate">新建工单</el-button>
       </template>
@@ -116,6 +117,9 @@
         <div v-if="detail.status === 'closed'" class="archive-actions">
           <el-button type="primary" @click="downloadArchive">下载归档 PDF</el-button>
         </div>
+        <div v-if="detail.status === 'pending_approval' && ['admin', 'approver'].includes(auth.user?.role)" class="archive-actions">
+          <el-button @click="openTransfer">转交审批人</el-button>
+        </div>
         <el-steps v-if="detail.workflowSteps?.length" class="workflow-steps" :active="activeStepIndex" finish-status="success" process-status="process">
           <el-step v-for="step in detail.workflowSteps" :key="step.id" :title="step.name" :description="stepDescription(step)" />
         </el-steps>
@@ -146,6 +150,17 @@
         </el-table>
       </template>
     </el-drawer>
+
+    <!-- 转交审批人弹窗 -->
+    <el-dialog v-model="transferVisible" title="转交审批人" width="420px">
+      <el-select v-model="transferUserId" filterable placeholder="选择目标审批人" style="width: 100%">
+        <el-option v-for="user in userOptions" :key="user.id" :label="`${user.name || user.username} (${user.username})`" :value="user.id" />
+      </el-select>
+      <template #footer>
+        <el-button @click="transferVisible = false">取消</el-button>
+        <el-button type="primary" :loading="transferSubmitting" :disabled="!transferUserId" @click="submitTransfer">确认转交</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -155,6 +170,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { ticketsApi } from '../api'
 import { assetsApi } from '../api'
+import { usersApi } from '../api'
 import PageHeader from '../components/common/PageHeader.vue'
 import StatusTag from '../components/common/StatusTag.vue'
 import { PRIORITY_MAP, TICKET_STATUS_MAP, TICKET_TYPE_MAP, dictOptions } from '../constants/dictionaries'
@@ -173,6 +189,56 @@ const attachments = ref([])
 const commentText = ref('')
 const form = reactive(emptyForm())
 const ticketTypeOptions = dictOptions(TICKET_TYPE_MAP)
+
+// 批量审批：仅「我的待办」视图下审批人/admin 可用
+const canBatchApprove = computed(() => activeView.value === 'todo' && ['admin', 'approver'].includes(auth.user?.role))
+
+// 审批转交
+const transferVisible = ref(false)
+const transferSubmitting = ref(false)
+const transferUserId = ref(null)
+const userOptions = ref([])
+
+async function openTransfer() {
+  if (!detail.value) return
+  try {
+    const res = await usersApi.list()
+    userOptions.value = (res.items || []).filter((u) => ['admin', 'approver'].includes(u.role) && u.status === 'active')
+    transferUserId.value = null
+    transferVisible.value = true
+  } catch (e) {
+    ElMessage.error(e.message || '加载用户失败')
+  }
+}
+
+async function submitTransfer() {
+  if (!detail.value || !transferUserId.value) return
+  transferSubmitting.value = true
+  try {
+    await ticketsApi.transfer(detail.value.id, transferUserId.value)
+    ElMessage.success('已转交')
+    transferVisible.value = false
+    await view(detail.value)
+  } catch (e) {
+    ElMessage.error(e.message || '转交失败')
+  } finally {
+    transferSubmitting.value = false
+  }
+}
+
+async function batchApproveSelected() {
+  if (!selectedRows.value.length) return
+  const ids = selectedRows.value.map((row) => row.id)
+  try {
+    const { value } = await ElMessageBox.prompt('审批备注（可留空）', '批量审批', { inputType: 'textarea', inputValue: '' })
+    const res = await ticketsApi.batchApprove(ids, value || '')
+    ElMessage.success(`审批成功 ${res.approved} 张` + (res.skipped?.length ? `，跳过 ${res.skipped.length} 张` : ''))
+    selectedRows.value = []
+    await load()
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error(error.message || '批量审批失败')
+  }
+}
 const priorityOptions = dictOptions(PRIORITY_MAP)
 const assetOptions = ref([])
 
@@ -278,6 +344,7 @@ function actions(row) {
   if (row.status === 'draft' && (role === 'admin' || row.applicantId === user?.id)) items.push({ name: 'submit', label: '提交' })
   if (row.status === 'rejected' && (role === 'admin' || row.applicantId === user?.id)) items.push({ name: 'submit', label: '重新提交' })
   if (row.status === 'pending_approval' && ['admin', 'approver'].includes(role)) items.push({ name: 'approve', label: '通过' }, { name: 'reject', label: '驳回' })
+  if (row.status === 'pending_approval' && (role === 'admin' || row.applicantId === user?.id)) items.push({ name: 'withdraw', label: '撤回' })
   if (row.status === 'approved' && ['admin', 'asset_manager'].includes(role)) items.push({ name: 'start', label: '开始' })
   if (row.status === 'in_progress' && ['admin', 'asset_manager'].includes(role)) items.push({ name: 'complete', label: '完成' })
   if (row.status === 'pending_acceptance' && ['admin', 'applicant'].includes(role)) items.push({ name: 'accept', label: '验收' })
@@ -287,11 +354,17 @@ function actions(row) {
 
 async function doAction(row, action) {
   try {
-    const { value } = await ElMessageBox.prompt('处理备注', '工单操作', { inputType: 'textarea', inputValue: action })
+    let remark = ''
+    if (action === 'withdraw') {
+      await ElMessageBox.confirm(`确认撤回工单「${row.title}」？撤回后将回到草稿状态，可修改后重新提交。`, '撤回确认', { type: 'warning' })
+    } else {
+      const { value } = await ElMessageBox.prompt('处理备注', '工单操作', { inputType: 'textarea', inputValue: action })
+      remark = value
+    }
     await ticketsApi.action(row.id, action, {
-      remark: value,
-      result: action === 'complete' ? value : '',
-      acceptanceResult: action === 'accept' ? value : ''
+      remark,
+      result: action === 'complete' ? remark : '',
+      acceptanceResult: action === 'accept' ? remark : ''
     })
     ElMessage.success('操作成功')
     load()

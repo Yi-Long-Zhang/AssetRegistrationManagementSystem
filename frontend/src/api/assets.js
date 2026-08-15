@@ -22,6 +22,9 @@ export const assetsApi = {
   batchDelete(ids) {
     return request.post('/assets/batch-delete', { ids }).then(unwrap)
   },
+  batchUpdate(ids, fields) {
+    return request.post('/assets/batch-update', { ids, fields }).then(unwrap)
+  },
   import(payload) {
     return request.post('/assets/import', payload).then(unwrap)
   },

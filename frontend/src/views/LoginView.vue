@@ -29,6 +29,17 @@
       </el-form>
       <p class="muted hint">支持本地账号或已导入的域账号登录</p>
     </section>
+
+    <el-dialog v-model="changePwdVisible" title="首次登录请修改密码" width="420px" :close-on-click-modal="false" :show-close="false">
+      <el-form label-width="90px">
+        <el-form-item label="原密码"><el-input v-model="changeForm.oldPassword" type="password" show-password /></el-form-item>
+        <el-form-item label="新密码"><el-input v-model="changeForm.newPassword" type="password" show-password placeholder="至少 8 位" /></el-form-item>
+        <el-form-item label="确认新密码"><el-input v-model="changeForm.confirm" type="password" show-password /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button type="primary" :loading="changeLoading" @click="submitChangePassword">确认修改</el-button>
+      </template>
+    </el-dialog>
   </main>
 </template>
 
@@ -38,21 +49,49 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
+import { authApi } from '../api'
 
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
 const form = reactive({ username: 'admin', password: 'admin123456' })
+const changePwdVisible = ref(false)
+const changeLoading = ref(false)
+const changeForm = reactive({ oldPassword: '', newPassword: '', confirm: '' })
 
 async function submit() {
   loading.value = true
   try {
     await auth.login(form)
-    router.push('/assets')
+    if (auth.user?.mustChangePassword) {
+      changeForm.oldPassword = form.password
+      changeForm.newPassword = ''
+      changeForm.confirm = ''
+      changePwdVisible.value = true
+    } else {
+      router.push('/assets')
+    }
   } catch (error) {
     ElMessage.error(error.response?.data?.error || '登录失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function submitChangePassword() {
+  if (changeForm.newPassword.length < 8) return ElMessage.warning('新密码长度不能少于 8 位')
+  if (changeForm.newPassword !== changeForm.confirm) return ElMessage.warning('两次输入的新密码不一致')
+  changeLoading.value = true
+  try {
+    await authApi.changePassword(changeForm.oldPassword, changeForm.newPassword)
+    ElMessage.success('密码已修改，请重新登录')
+    changePwdVisible.value = false
+    await auth.logout()
+    form.password = ''
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '修改密码失败')
+  } finally {
+    changeLoading.value = false
   }
 }
 </script>

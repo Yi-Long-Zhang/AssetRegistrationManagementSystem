@@ -9,6 +9,7 @@
         <el-button v-if="canManage" :icon="Download" @click="exportAssets">批量导出</el-button>
         <el-button v-if="canManage" :icon="Download" @click="exportStatsReport">报表导出</el-button>
         <el-button v-if="canManage" :icon="Delete" type="danger" plain :disabled="!selectedIds.length" @click="batchDelete">批量删除{{ selectedIds.length ? ` (${selectedIds.length})` : '' }}</el-button>
+        <el-button v-if="canManage" :icon="EditPen" plain :disabled="!selectedIds.length" @click="openBatchEdit">批量编辑{{ selectedIds.length ? ` (${selectedIds.length})` : '' }}</el-button>
         <el-button v-if="canManage" :icon="Printer" plain :disabled="!selectedIds.length" @click="printLabels">打印标签</el-button>
         <el-button v-if="canManage" type="primary" :icon="Plus" @click="openCreate">新增资产</el-button>
       </template>
@@ -179,6 +180,40 @@
       </template>
     </el-dialog>
 
+    <!-- 批量编辑弹窗 -->
+    <el-dialog v-model="batchEditVisible" title="批量编辑资产" width="620px" class="batch-edit-dialog">
+      <el-alert :title="`将对选中的 ${selectedIds.length} 台资产生效：仅勾选并填写了值的字段会被修改`" type="info" :closable="false" show-icon style="margin-bottom: 14px" />
+      <el-form label-width="130px" label-position="left">
+        <el-form-item v-for="field in batchEditFields" :key="field.key" :label="field.label">
+          <div class="batch-edit-row">
+            <el-checkbox v-model="batchEditForm[field.key].checked" style="margin-right: 10px" />
+            <el-select
+              v-if="field.options"
+              v-model="batchEditForm[field.key].value"
+              :disabled="!batchEditForm[field.key].checked"
+              placeholder="选择状态"
+              clearable
+              style="flex: 1"
+            >
+              <el-option v-for="opt in field.options" :key="opt.value" :label="opt.label" :value="opt.value" />
+            </el-select>
+            <el-input
+              v-else
+              v-model="batchEditForm[field.key].value"
+              :disabled="!batchEditForm[field.key].checked"
+              :placeholder="`填写新的${field.label}`"
+              clearable
+              style="flex: 1"
+            />
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchEditVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchEditSubmitting" @click="submitBatchEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 资产详情弹窗（弹出式 + 动画） -->
     <AssetDetailDialog v-model="detail.visible" :asset="detail.asset" @updated="load" />
   </section>
@@ -187,8 +222,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Delete, Download, Plus, Printer, Refresh, Search, Setting, Upload } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Download, EditPen, Plus, Printer, Refresh, Search, Setting, Upload } from '@element-plus/icons-vue'
 import { assetsApi } from '../api'
 import { rackApi } from '../api'
 import AssetDetailDialog from '../components/assets/AssetDetailDialog.vue'
@@ -200,6 +235,7 @@ import { canManageAssets } from '../utils/permissions'
 import {
   ONLINE_STATUS_MAP,
   ASSET_TYPE_MAP,
+  ASSET_STATUS_MAP,
   dictItem,
   dictOptions
 } from '../constants/dictionaries'
@@ -538,6 +574,64 @@ async function batchDelete() {
   }
 }
 
+// ---------- 批量编辑 ----------
+const batchEditVisible = ref(false)
+const batchEditSubmitting = ref(false)
+const batchEditFields = [
+  { key: 'owner', label: '资产归属/负责人' },
+  { key: 'department', label: '部门' },
+  { key: 'location', label: '机房' },
+  { key: 'rack', label: '机柜' },
+  { key: 'rackPosition', label: 'U 位' },
+  { key: 'environment', label: '环境' },
+  { key: 'businessSystem', label: '业务系统' },
+  { key: 'maintenanceVendor', label: '维保厂商' },
+  {
+    key: 'status',
+    label: '资产状态',
+    options: Object.entries(ASSET_STATUS_MAP).map(([value, item]) => ({ value, label: item.label }))
+  },
+  { key: 'remark', label: '备注' }
+]
+const batchEditForm = reactive({})
+batchEditFields.forEach((field) => {
+  batchEditForm[field.key] = { checked: false, value: '' }
+})
+
+function openBatchEdit() {
+  if (!selectedIds.value.length) return ElMessage.warning('请先勾选资产')
+  batchEditFields.forEach((field) => {
+    batchEditForm[field.key].checked = false
+    batchEditForm[field.key].value = ''
+  })
+  batchEditVisible.value = true
+}
+
+async function submitBatchEdit() {
+  const fields = {}
+  batchEditFields.forEach((field) => {
+    if (batchEditForm[field.key].checked && String(batchEditForm[field.key].value || '').trim() !== '') {
+      fields[field.key] = batchEditForm[field.key].value
+    }
+  })
+  if (!Object.keys(fields).length) {
+    ElMessage.warning('请至少勾选并填写一个字段')
+    return
+  }
+  batchEditSubmitting.value = true
+  try {
+    const res = await assetsApi.batchUpdate(selectedIds.value, fields)
+    ElMessage.success(`已更新 ${res.updated || selectedIds.value.length} 台资产`)
+    batchEditVisible.value = false
+    selectedIds.value = []
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message || '批量编辑失败')
+  } finally {
+    batchEditSubmitting.value = false
+  }
+}
+
 // 当前生效筛选条件（chips 展示，让筛选状态一目了然）
 const activeFilterChips = computed(() => {
   const labelMap = Object.fromEntries(filterFields.map((f) => [f.key, f.label]))
@@ -715,6 +809,13 @@ onMounted(() => {
 .table-skeleton-row {
   height: 40px;
   border-radius: 8px;
+}
+
+/* 批量编辑弹窗：勾选框 + 输入框一行排布 */
+.batch-edit-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
 
 .pagination-bar {

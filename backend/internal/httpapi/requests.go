@@ -25,6 +25,7 @@ type userRequest struct {
 	Status      string     `json:"status"`
 	AuthSource  string     `json:"authSource"`
 	Password    string     `json:"password"`
+	ProxyUserID *uint      `json:"proxyUserId"`
 }
 
 type assetRequest struct {
@@ -55,6 +56,7 @@ type assetRequest struct {
 	Department         string            `json:"department"`
 	Owner              string            `json:"owner"`
 	MaintenanceVendor  string            `json:"maintenanceVendor"`
+	AdditionalIPs      string            `json:"additionalIPs"`
 	PurchaseDate       *time.Time        `json:"purchaseDate"`
 	WarrantyExpireDate *time.Time        `json:"warrantyExpireDate"`
 	Status             model.AssetStatus `json:"status"`
@@ -98,6 +100,7 @@ func (r assetRequest) toModel() model.Asset {
 		Environment:        r.Environment,
 		Department:         r.Department,
 		Owner:              r.Owner,
+		AdditionalIPs:      r.AdditionalIPs,
 		MaintenanceVendor:  r.MaintenanceVendor,
 		PurchaseDate:       r.PurchaseDate,
 		WarrantyExpireDate: r.WarrantyExpireDate,
@@ -141,7 +144,7 @@ type workflowRequest struct {
 
 type workflowNodeRequest struct {
 	Name        string `json:"name" binding:"required"`
-	ApproverIDs []uint `json:"approverIds" binding:"required"`
+	ApproverIDs []uint `json:"approverIds"` // 可为空：提交工单时按资产负责人/类型默认审批人自动分派
 }
 
 type ticketCommentRequest struct {
