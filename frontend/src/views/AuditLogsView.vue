@@ -54,7 +54,8 @@ const entityOptions = [
   { value: 'asset', label: '资产' },
   { value: 'ticket', label: '工单' },
   { value: 'user', label: '用户' },
-  { value: 'discovery_rule', label: '发现规则' }
+  { value: 'discovery_rule', label: '发现规则' },
+  { value: 'software_license', label: '软件许可' }
 ]
 const actionOptions = [
   { value: 'create', label: '创建' },

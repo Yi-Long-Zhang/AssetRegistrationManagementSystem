@@ -70,6 +70,10 @@ func main() {
 	warrantyScheduler.Start()
 	defer warrantyScheduler.Stop()
 
+	licenseScheduler := service.NewLicenseReminderScheduler(db, cfg.Security.ConfigEncryptionKey)
+	licenseScheduler.Start()
+	defer licenseScheduler.Stop()
+
 	backupScheduler := service.NewBackupScheduler(service.NewBackupService(db, cfg.Storage.DatabasePath, cfg.Storage.BackupDir, cfg.Storage.BackupKeepDays))
 	backupScheduler.Start()
 	defer backupScheduler.Stop()

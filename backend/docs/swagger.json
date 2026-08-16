@@ -1967,6 +1967,469 @@
                 }
             }
         },
+        "/licenses": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "软件许可证列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "创建软件许可证",
+                "parameters": [
+                    {
+                        "description": "软件许可证",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.softwareLicenseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.SoftwareLicense"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "导出软件许可证 CSV",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/import": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "导入软件许可证",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "CSV 或 XLSX 文件",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/template": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "下载许可证导入模板",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "模板格式 csv 或 xlsx",
+                        "name": "format",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "更新软件许可证",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "许可证 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "软件许可证",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.softwareLicenseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.SoftwareLicense"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "删除软件许可证",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "许可证 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/{id}/attachments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "许可证附件列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "许可证 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "上传许可证附件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "许可证 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "附件",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.LicenseAttachment"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/{id}/attachments/{attachmentId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "删除许可证附件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "许可证 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "附件 ID",
+                        "name": "attachmentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/{id}/attachments/{attachmentId}/download": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "下载许可证附件",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "许可证 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "附件 ID",
+                        "name": "attachmentId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/{id}/reveal": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "software-licenses"
+                ],
+                "summary": "查看许可证密钥明文",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "许可证 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/racks": {
             "get": {
                 "security": [
@@ -4532,6 +4995,38 @@
                 }
             }
         },
+        "asset-registration-management-system_backend_internal_model.LicenseAttachment": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "licenseId": {
+                    "type": "integer"
+                },
+                "originalName": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "storedName": {
+                    "type": "string"
+                },
+                "uploader": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.User"
+                },
+                "uploaderId": {
+                    "type": "integer"
+                }
+            }
+        },
         "asset-registration-management-system_backend_internal_model.Priority": {
             "type": "string",
             "enum": [
@@ -4606,6 +5101,56 @@
                 "SnapshotSourceImport",
                 "SnapshotSourceManual"
             ]
+        },
+        "asset-registration-management-system_backend_internal_model.SoftwareLicense": {
+            "type": "object",
+            "properties": {
+                "asset": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Asset"
+                },
+                "assetId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "expireDate": {
+                    "description": "到期日",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "description": "软件名",
+                    "type": "string"
+                },
+                "purchaseDate": {
+                    "type": "string"
+                },
+                "remark": {
+                    "type": "string"
+                },
+                "totalSeats": {
+                    "description": "授权数量",
+                    "type": "integer"
+                },
+                "type": {
+                    "description": "commercial/open-source/subscription/other",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "usedSeats": {
+                    "description": "已用数量",
+                    "type": "integer"
+                },
+                "vendor": {
+                    "description": "厂商",
+                    "type": "string"
+                }
+            }
         },
         "asset-registration-management-system_backend_internal_model.StocktakeItem": {
             "type": "object",
@@ -4764,6 +5309,10 @@
                 },
                 "ipAddress": {
                     "type": "string"
+                },
+                "licenseId": {
+                    "description": "关联软件许可（到期自动续费工单专用，可选）",
+                    "type": "integer"
                 },
                 "manufacturer": {
                     "type": "string"
@@ -4962,14 +5511,27 @@
                 "asset_change",
                 "asset_retire",
                 "maintenance",
-                "inspection"
+                "inspection",
+                "license_renew"
+            ],
+            "x-enum-comments": {
+                "TicketTypeLicenseRenew": "软件许可续费"
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                "软件许可续费"
             ],
             "x-enum-varnames": [
                 "TicketTypeAssetRegister",
                 "TicketTypeAssetChange",
                 "TicketTypeAssetRetire",
                 "TicketTypeMaintenance",
-                "TicketTypeInspection"
+                "TicketTypeInspection",
+                "TicketTypeLicenseRenew"
             ]
         },
         "asset-registration-management-system_backend_internal_model.TicketWorkflow": {
@@ -5797,6 +6359,44 @@
                     "type": "string"
                 },
                 "service": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_httpapi.softwareLicenseRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "assetId": {
+                    "type": "integer"
+                },
+                "expireDate": {
+                    "type": "string"
+                },
+                "licenseKey": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "purchaseDate": {
+                    "type": "string"
+                },
+                "remark": {
+                    "type": "string"
+                },
+                "totalSeats": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "usedSeats": {
+                    "type": "integer"
+                },
+                "vendor": {
                     "type": "string"
                 }
             }

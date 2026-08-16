@@ -29,6 +29,8 @@ func Migrate(db *gorm.DB) error {
 		&model.IMCallbackConfig{},
 		&model.Asset{},
 		&model.Credential{},
+		&model.SoftwareLicense{},
+		&model.LicenseAttachment{},
 		&model.Ticket{},
 		&model.TicketTypeApprover{},
 		&model.TicketWorkflow{},

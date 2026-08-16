@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 type Role string
 
 const (
@@ -31,6 +33,7 @@ const (
 	TicketTypeAssetRetire   TicketType = "asset_retire"
 	TicketTypeMaintenance   TicketType = "maintenance"
 	TicketTypeInspection    TicketType = "inspection"
+	TicketTypeLicenseRenew  TicketType = "license_renew" // 软件许可续费
 )
 
 type TicketStatus string
@@ -101,3 +104,26 @@ const (
 	SnapshotSourceImport    SnapshotSource = "import"
 	SnapshotSourceManual    SnapshotSource = "manual"
 )
+
+// 软件许可证类型
+const (
+	LicenseTypeCommercial   = "commercial"   // 商业授权
+	LicenseTypeOpenSource   = "open-source"  // 开源
+	LicenseTypeSubscription = "subscription" // 订阅制
+	LicenseTypeOther        = "other"        // 其他
+)
+
+// NormalizeLicenseType 规整许可证类型：兼容中英文标签，空/未知值回退为商业授权。
+func NormalizeLicenseType(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case LicenseTypeCommercial, "商业授权", "商业", "commercial license":
+		return LicenseTypeCommercial
+	case LicenseTypeOpenSource, "开源", "开源软件", "open source":
+		return LicenseTypeOpenSource
+	case LicenseTypeSubscription, "订阅", "订阅制", "subscription license":
+		return LicenseTypeSubscription
+	case LicenseTypeOther, "其他", "其它":
+		return LicenseTypeOther
+	}
+	return LicenseTypeCommercial
+}

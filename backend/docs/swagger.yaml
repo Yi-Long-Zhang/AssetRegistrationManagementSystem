@@ -372,6 +372,27 @@ definitions:
       updatedAt:
         type: string
     type: object
+  asset-registration-management-system_backend_internal_model.LicenseAttachment:
+    properties:
+      contentType:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      licenseId:
+        type: integer
+      originalName:
+        type: string
+      size:
+        type: integer
+      storedName:
+        type: string
+      uploader:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.User'
+      uploaderId:
+        type: integer
+    type: object
   asset-registration-management-system_backend_internal_model.Priority:
     enum:
     - low
@@ -428,6 +449,41 @@ definitions:
     - SnapshotSourceTicket
     - SnapshotSourceImport
     - SnapshotSourceManual
+  asset-registration-management-system_backend_internal_model.SoftwareLicense:
+    properties:
+      asset:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+      assetId:
+        type: integer
+      createdAt:
+        type: string
+      expireDate:
+        description: 到期日
+        type: string
+      id:
+        type: integer
+      name:
+        description: 软件名
+        type: string
+      purchaseDate:
+        type: string
+      remark:
+        type: string
+      totalSeats:
+        description: 授权数量
+        type: integer
+      type:
+        description: commercial/open-source/subscription/other
+        type: string
+      updatedAt:
+        type: string
+      usedSeats:
+        description: 已用数量
+        type: integer
+      vendor:
+        description: 厂商
+        type: string
+    type: object
   asset-registration-management-system_backend_internal_model.StocktakeItem:
     properties:
       asset:
@@ -534,6 +590,9 @@ definitions:
         type: string
       ipAddress:
         type: string
+      licenseId:
+        description: 关联软件许可（到期自动续费工单专用，可选）
+        type: integer
       manufacturer:
         type: string
       openPorts:
@@ -672,13 +731,24 @@ definitions:
     - asset_retire
     - maintenance
     - inspection
+    - license_renew
     type: string
+    x-enum-comments:
+      TicketTypeLicenseRenew: 软件许可续费
+    x-enum-descriptions:
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - 软件许可续费
     x-enum-varnames:
     - TicketTypeAssetRegister
     - TicketTypeAssetChange
     - TicketTypeAssetRetire
     - TicketTypeMaintenance
     - TicketTypeInspection
+    - TicketTypeLicenseRenew
   asset-registration-management-system_backend_internal_model.TicketWorkflow:
     properties:
       approvalHours:
@@ -1229,6 +1299,31 @@ definitions:
         type: string
       service:
         type: string
+    type: object
+  internal_httpapi.softwareLicenseRequest:
+    properties:
+      assetId:
+        type: integer
+      expireDate:
+        type: string
+      licenseKey:
+        type: string
+      name:
+        type: string
+      purchaseDate:
+        type: string
+      remark:
+        type: string
+      totalSeats:
+        type: integer
+      type:
+        type: string
+      usedSeats:
+        type: integer
+      vendor:
+        type: string
+    required:
+    - name
     type: object
   internal_httpapi.stocktakeItemRequest:
     properties:
@@ -2607,6 +2702,294 @@ paths:
       summary: 试运行巡检规则
       tags:
       - inspection
+  /licenses:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 软件许可证列表
+      tags:
+      - software-licenses
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 软件许可证
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.softwareLicenseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.SoftwareLicense'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建软件许可证
+      tags:
+      - software-licenses
+  /licenses/{id}:
+    delete:
+      parameters:
+      - description: 许可证 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除软件许可证
+      tags:
+      - software-licenses
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 许可证 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 软件许可证
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.softwareLicenseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.SoftwareLicense'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新软件许可证
+      tags:
+      - software-licenses
+  /licenses/{id}/attachments:
+    get:
+      parameters:
+      - description: 许可证 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 许可证附件列表
+      tags:
+      - software-licenses
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: 许可证 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 附件
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.LicenseAttachment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 上传许可证附件
+      tags:
+      - software-licenses
+  /licenses/{id}/attachments/{attachmentId}:
+    delete:
+      parameters:
+      - description: 许可证 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 附件 ID
+        in: path
+        name: attachmentId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除许可证附件
+      tags:
+      - software-licenses
+  /licenses/{id}/attachments/{attachmentId}/download:
+    get:
+      parameters:
+      - description: 许可证 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 附件 ID
+        in: path
+        name: attachmentId
+        required: true
+        type: integer
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: 下载许可证附件
+      tags:
+      - software-licenses
+  /licenses/{id}/reveal:
+    post:
+      parameters:
+      - description: 许可证 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 查看许可证密钥明文
+      tags:
+      - software-licenses
+  /licenses/export:
+    get:
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: 导出软件许可证 CSV
+      tags:
+      - software-licenses
+  /licenses/import:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: CSV 或 XLSX 文件
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 导入软件许可证
+      tags:
+      - software-licenses
+  /licenses/template:
+    get:
+      parameters:
+      - description: 模板格式 csv 或 xlsx
+        in: query
+        name: format
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: 下载许可证导入模板
+      tags:
+      - software-licenses
   /racks:
     get:
       description: 查询机柜列表（可按 roomId 过滤，admin/asset_manager）

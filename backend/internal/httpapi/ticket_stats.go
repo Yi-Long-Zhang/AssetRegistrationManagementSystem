@@ -223,6 +223,7 @@ func ticketTypeLabel(t string) string {
 	labels := map[string]string{
 		"asset_register": "资产登记", "asset_change": "资产变更",
 		"asset_retire": "资产下线/报废", "maintenance": "权限/维护申请", "inspection": "定期巡检",
+		"license_renew": "软件许可续费",
 	}
 	if label, ok := labels[t]; ok {
 		return label
