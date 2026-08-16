@@ -48,6 +48,7 @@
         </el-table-column>
         <el-table-column label="操作" width="360">
           <template #default="{ row }">
+            <el-button v-if="['draft', 'rejected'].includes(row.status) && (auth.user?.role === 'admin' || row.applicantId === auth.user?.id)" link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button link type="primary" @click="view(row)">详情</el-button>
             <el-button v-for="action in actions(row)" :key="action.name" link type="primary" @click="doAction(row, action.name)">{{ action.label }}</el-button>
           </template>
@@ -56,7 +57,7 @@
       </el-skeleton>
     </div>
 
-    <el-dialog v-model="dialogVisible" title="新建工单" width="640px">
+    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑工单' : '新建工单'" width="640px">
       <el-form :model="form" label-width="90px">
         <el-form-item label="类型"><el-select v-model="form.type"><el-option v-for="option in ticketTypeOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
         <el-form-item label="标题"><el-input v-model="form.title" /></el-form-item>
@@ -182,6 +183,7 @@ const selectedRows = ref([])
 const loading = ref(false)
 const activeView = ref('todo')
 const dialogVisible = ref(false)
+const editingId = ref(null)
 const drawerVisible = ref(false)
 const detail = ref(null)
 const comments = ref([])
@@ -283,7 +285,33 @@ async function load() {
 }
 
 function openCreate() {
+  editingId.value = null
   Object.assign(form, emptyForm())
+  dialogVisible.value = true
+}
+
+// openEdit 加载草稿/驳回工单详情回填表单，保存时走更新接口。
+async function openEdit(row) {
+  const data = await ticketsApi.detail(row.id)
+  editingId.value = row.id
+  Object.assign(form, {
+    type: data.type,
+    title: data.title,
+    assetIds: (data.assets || []).map((link) => link.assetId),
+    priority: data.priority,
+    description: data.description,
+    deviceType: data.deviceType,
+    deviceName: data.deviceName,
+    ipAddress: data.ipAddress,
+    openPorts: data.openPorts,
+    runningServices: data.runningServices,
+    appVersion: data.appVersion,
+    manufacturer: data.manufacturer,
+    antivirus: data.antivirus,
+    changeContent: data.changeContent,
+    impact: data.impact,
+    remark: data.remark
+  })
   dialogVisible.value = true
 }
 
@@ -309,9 +337,15 @@ function emptyForm() {
 }
 
 async function save() {
-  await ticketsApi.create(form)
-  ElMessage.success('已创建草稿')
+  if (editingId.value) {
+    await ticketsApi.update(editingId.value, form)
+    ElMessage.success('工单已更新')
+  } else {
+    await ticketsApi.create(form)
+    ElMessage.success('已创建草稿')
+  }
   dialogVisible.value = false
+  editingId.value = null
   load()
 }
 

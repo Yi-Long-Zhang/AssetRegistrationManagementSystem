@@ -55,7 +55,11 @@ const entityOptions = [
   { value: 'ticket', label: '工单' },
   { value: 'user', label: '用户' },
   { value: 'discovery_rule', label: '发现规则' },
-  { value: 'software_license', label: '软件许可' }
+  { value: 'discovery_run', label: '发现任务' },
+  { value: 'credential', label: '凭据' },
+  { value: 'software_license', label: '软件许可' },
+  { value: 'ip_segment', label: 'IP地址段' },
+  { value: 'backup', label: '数据备份' }
 ]
 const actionOptions = [
   { value: 'create', label: '创建' },
@@ -64,7 +68,16 @@ const actionOptions = [
   { value: 'alert', label: '预警' },
   { value: 'adopt', label: '纳管' },
   { value: 'apply', label: '应用' },
-  { value: 'offline', label: '离线' }
+  { value: 'offline', label: '离线' },
+  { value: 'import', label: '导入' },
+  { value: 'batch_delete', label: '批量删除' },
+  { value: 'batch_update', label: '批量编辑' },
+  { value: 'retire', label: '退役' },
+  { value: 'reveal', label: '查看明文' },
+  { value: 'start', label: '开始' },
+  { value: 'restore', label: '恢复' },
+  { value: 'change_password', label: '修改密码' },
+  { value: 'ip_conflict', label: 'IP冲突' }
 ]
 
 const entityLabels = Object.fromEntries(entityOptions.map((i) => [i.value, i.label]))

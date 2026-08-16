@@ -16,6 +16,9 @@ export const ticketsApi = {
   create(payload) {
     return request.post('/tickets', payload).then(unwrap)
   },
+  update(id, payload) {
+    return request.put(`/tickets/${id}`, payload).then(unwrap)
+  },
   action(id, action, payload) {
     return request.post(`/tickets/${id}/${action}`, payload).then(unwrap)
   },

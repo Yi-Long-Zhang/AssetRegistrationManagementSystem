@@ -257,7 +257,8 @@ const filters = reactive({
   manufacturer: '',
   openPort: '',
   service: '',
-  onlineStatus: ''
+  onlineStatus: '',
+  rack: ''
 })
 const pagination = reactive({
   page: 1,
@@ -753,9 +754,13 @@ watch(
 )
 
 onMounted(() => {
-  load()
   loadRackOptions()
   openAssetFromQuery()
+  // 机柜视图跳转：URL 带 rack 时按机柜名过滤资产列表
+  if (route.query.rack) {
+    filters.rack = String(route.query.rack)
+  }
+  load()
 })
 </script>
 

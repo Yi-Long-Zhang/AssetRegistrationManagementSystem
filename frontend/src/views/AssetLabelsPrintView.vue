@@ -35,8 +35,13 @@ function labelUrl(asset) {
 onMounted(async () => {
   const ids = String(route.query.ids || '').split(',').filter(Boolean)
   if (!ids.length) return
-  const data = await assetsApi.list({ page: 1, pageSize: 200 })
-  const map = new Map((data.items || []).map((a) => [String(a.id), a]))
+  // 后端 pageSize 上限 200：分页拉全量（或已覆盖全部选中 id）后按 id 匹配，避免超量静默丢标签
+  const map = new Map()
+  for (let page = 1; ; page++) {
+    const data = await assetsApi.list({ page, pageSize: 200 })
+    for (const a of data.items || []) map.set(String(a.id), a)
+    if (!data.items?.length || map.size >= (data.total || 0) || ids.every((id) => map.has(id))) break
+  }
   assets.value = ids.map((id) => map.get(id)).filter(Boolean)
 })
 </script>

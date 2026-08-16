@@ -54,7 +54,7 @@ import { authApi } from '../api'
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
-const form = reactive({ username: 'admin', password: 'admin123456' })
+const form = reactive({ username: '', password: '' })
 const changePwdVisible = ref(false)
 const changeLoading = ref(false)
 const changeForm = reactive({ oldPassword: '', newPassword: '', confirm: '' })
