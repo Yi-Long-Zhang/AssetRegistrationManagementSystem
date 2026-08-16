@@ -163,6 +163,14 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	ipSegments.PUT("/:id", h.UpdateIPSegment)
 	ipSegments.DELETE("/:id", h.DeleteIPSegment)
 	ipSegments.GET("/:id/usage", h.GetIPSegmentUsage)
+
+	credentials := api.Group("/credentials", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager))
+	credentials.GET("", h.ListCredentials)
+	credentials.POST("", h.CreateCredential)
+	credentials.PUT("/:id", h.UpdateCredential)
+	credentials.DELETE("/:id", h.DeleteCredential)
+	credentials.POST("/:id/reveal", h.RevealCredential)
+
 	discovery.POST("/runs/:id/apply", h.ApplyDiscoveryHosts)
 	discovery.GET("/stats/trend", h.GetDiscoveryTrend)
 	discovery.GET("/stats/subnets", h.GetDiscoverySubnetStats)

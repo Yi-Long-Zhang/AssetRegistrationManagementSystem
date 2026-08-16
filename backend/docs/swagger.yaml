@@ -131,6 +131,31 @@ definitions:
     x-enum-varnames:
     - ChangeRiskLow
     - ChangeRiskHigh
+  asset-registration-management-system_backend_internal_model.Credential:
+    properties:
+      asset:
+        $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Asset'
+      assetId:
+        type: integer
+      createdAt:
+        type: string
+      id:
+        type: integer
+      lastAccessedAt:
+        type: string
+      name:
+        description: 凭据用途名，如 "root 登录"
+        type: string
+      remark:
+        type: string
+      type:
+        description: ssh/rdp/database/app/other
+        type: string
+      updatedAt:
+        type: string
+      username:
+        type: string
+    type: object
   asset-registration-management-system_backend_internal_model.DatacenterRoom:
     properties:
       createdAt:
@@ -984,6 +1009,24 @@ definitions:
         type: string
     required:
     - name
+    type: object
+  internal_httpapi.credentialRequest:
+    properties:
+      assetId:
+        type: integer
+      name:
+        type: string
+      remark:
+        type: string
+      secret:
+        type: string
+      type:
+        type: string
+      username:
+        type: string
+    required:
+    - name
+    - username
     type: object
   internal_httpapi.discoveryHostActionRequest:
     properties:
@@ -1973,6 +2016,133 @@ paths:
       summary: 恢复备份
       tags:
       - backups
+  /credentials:
+    get:
+      description: 查询全部凭据（admin/asset_manager），不含明文
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 凭据列表
+      tags:
+      - credentials
+    post:
+      consumes:
+      - application/json
+      description: 创建凭据，secret 以 AES-GCM 加密存储（admin/asset_manager）
+      parameters:
+      - description: 凭据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.credentialRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Credential'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建凭据
+      tags:
+      - credentials
+  /credentials/{id}:
+    delete:
+      description: 删除凭据（admin/asset_manager）
+      parameters:
+      - description: 凭据 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除凭据
+      tags:
+      - credentials
+    put:
+      consumes:
+      - application/json
+      description: 更新凭据元信息，secret 非空时重新加密存储（admin/asset_manager）
+      parameters:
+      - description: 凭据 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 凭据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_httpapi.credentialRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/asset-registration-management-system_backend_internal_model.Credential'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新凭据
+      tags:
+      - credentials
+  /credentials/{id}/reveal:
+    post:
+      description: 解密返回明文 secret，写入查看审计（admin/asset_manager）
+      parameters:
+      - description: 凭据 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: 查看凭据明文
+      tags:
+      - credentials
   /discovery/rules:
     get:
       produces:

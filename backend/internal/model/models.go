@@ -141,6 +141,22 @@ type Asset struct {
 	DeletedAt          gorm.DeletedAt    `json:"-" gorm:"index"`
 }
 
+// Credential 服务器凭据（账号/密码或密钥），敏感字段 AES-GCM 加密存储。
+type Credential struct {
+	ID              uint           `json:"id" gorm:"primaryKey"`
+	AssetID         *uint          `json:"assetId" gorm:"index"`
+	Asset           *Asset         `json:"asset,omitempty" gorm:"foreignKey:AssetID"`
+	Name            string         `json:"name" gorm:"size:128;not null"` // 凭据用途名，如 "root 登录"
+	Username        string         `json:"username" gorm:"size:128;not null"`
+	Type            string         `json:"type" gorm:"size:32;not null;default:'ssh'"` // ssh/rdp/database/app/other
+	EncryptedSecret string         `json:"-" gorm:"type:text;not null"`                // AES-GCM 密文（不对外暴露）
+	Remark          string         `json:"remark" gorm:"type:text"`
+	LastAccessedAt  *time.Time     `json:"lastAccessedAt"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	UpdatedAt       time.Time      `json:"updatedAt"`
+	DeletedAt       gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
 type Ticket struct {
 	ID                      uint                 `json:"id" gorm:"primaryKey"`
 	Type                    TicketType           `json:"type" gorm:"size:32;not null;index"`

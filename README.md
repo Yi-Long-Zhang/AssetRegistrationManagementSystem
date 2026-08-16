@@ -157,6 +157,13 @@ discovery:
 - **可视化与报表**：数据看板首页（资产概览/类型分布/发现趋势/最近运行）、发现趋势统计（`/discovery/stats/trend`）、网段分布（`/discovery/stats/subnets`）、端口/服务矩阵热力图（`/discovery/stats/services`）、资产统计报表导出（`/assets/stats/export`）、操作审计日志页（`/audit-logs`）。
 - **资产生命周期**：资产详情支持**退役归档**（状态置 retired、保留快照与审计）、展示**使用年限**（按 `purchaseDate` 计算）。
 
+## v2.19 凭据管理（密码保险库）
+
+- **加密托管**：服务器账号/密码/密钥以 AES-GCM 加密存储（密钥来自 `security.config_encryption_key`），明文不落库、不在列表/详情接口暴露。
+- **凭据管理**：管理员/资产管理员在「凭据管理」页面新增、编辑、删除凭据（名称、用户名、类型 ssh/rdp/database/app/other、可选关联资产）。
+- **查看明文**：查看明文需二次确认并写入操作审计，同时更新「最后查看」时间。
+- **权限**：凭据接口仅 admin/asset_manager 可访问：`/credentials` CRUD、`/credentials/:id/reveal` 查看明文。
+
 ## v2.18 数据备份与恢复
 
 - **数据库快照备份**：备份采用 SQLite `VACUUM INTO` 一致性快照，生成到 `storage.backup_dir`（默认 `data/backups`），文件名 `backup-YYYYMMDD-HHMMSS.db`。

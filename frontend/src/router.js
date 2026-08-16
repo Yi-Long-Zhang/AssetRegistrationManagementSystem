@@ -28,6 +28,7 @@ const router = createRouter({
         { path: 'racks', component: () => import('./views/RackManageView.vue'), meta: { auth: true, menu: true, title: '机房机柜', icon: 'OfficeBuilding', roles: ['admin', 'asset_manager'], order: 18 } },
         { path: 'rack-view', component: () => import('./views/RackView.vue'), meta: { auth: true, menu: true, title: '机柜视图', icon: 'Grid', roles: ['admin', 'asset_manager'], order: 19 } },
         { path: 'ip-pool', component: () => import('./views/IpPoolView.vue'), meta: { auth: true, menu: true, title: 'IP 地址池', icon: 'Connection', roles: ['admin', 'asset_manager'], order: 19.5 } },
+        { path: 'credentials', component: () => import('./views/CredentialsView.vue'), meta: { auth: true, menu: true, title: '凭据管理', icon: 'Key', roles: ['admin', 'asset_manager'], order: 19.7 } },
         { path: 'asset-labels', component: () => import('./views/AssetLabelsPrintView.vue'), meta: { auth: true, menu: false, title: '资产标签打印' } },
         { path: 'tickets', component: TicketsView, meta: { auth: true, menu: true, title: '工单流程', icon: 'Tickets', order: 20 } },
         { path: 'ticket-stats', component: () => import('./views/TicketsStatsView.vue'), meta: { auth: true, menu: true, title: '工单报表', icon: 'TrendCharts', roles: ['admin'], order: 22 } },

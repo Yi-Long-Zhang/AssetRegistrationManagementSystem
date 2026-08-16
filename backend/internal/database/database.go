@@ -28,6 +28,7 @@ func Migrate(db *gorm.DB) error {
 		&model.IMBinding{},
 		&model.IMCallbackConfig{},
 		&model.Asset{},
+		&model.Credential{},
 		&model.Ticket{},
 		&model.TicketTypeApprover{},
 		&model.TicketWorkflow{},
