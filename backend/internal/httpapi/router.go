@@ -69,6 +69,13 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	settings := api.Group("/settings", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
 	auditLogs := api.Group("/audit-logs", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
 	auditLogs.GET("", h.ListAuditLogs)
+
+	backups := api.Group("/backups", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
+	backups.GET("", h.ListBackups)
+	backups.POST("", h.CreateBackup)
+	backups.DELETE("/:name", h.DeleteBackup)
+	backups.GET("/:name/download", h.DownloadBackup)
+	backups.POST("/:name/restore", h.RestoreBackup)
 	settings.GET("/mail", h.GetMailConfig)
 	settings.PUT("/mail", h.SaveMailConfig)
 	settings.GET("/im", h.GetIMConfig)

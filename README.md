@@ -157,6 +157,22 @@ discovery:
 - **可视化与报表**：数据看板首页（资产概览/类型分布/发现趋势/最近运行）、发现趋势统计（`/discovery/stats/trend`）、网段分布（`/discovery/stats/subnets`）、端口/服务矩阵热力图（`/discovery/stats/services`）、资产统计报表导出（`/assets/stats/export`）、操作审计日志页（`/audit-logs`）。
 - **资产生命周期**：资产详情支持**退役归档**（状态置 retired、保留快照与审计）、展示**使用年限**（按 `purchaseDate` 计算）。
 
+## v2.18 数据备份与恢复
+
+- **数据库快照备份**：备份采用 SQLite `VACUUM INTO` 一致性快照，生成到 `storage.backup_dir`（默认 `data/backups`），文件名 `backup-YYYYMMDD-HHMMSS.db`。
+- **手动与自动备份**：管理员在「数据备份」页面「立即备份」手动创建；进程内调度器每日自动备份一次。
+- **备份管理**：列表展示备份文件（大小/修改时间，按时间倒序），支持下载 `.db` 与删除；超过 `storage.backup_keep_days`（默认 30 天）的旧备份在每次备份时自动清理。
+- **恢复流程**：「恢复」会先校验 SQLite 文件头并标记待恢复，**重启后端后生效**（启动时用备份替换当前库）；恢复操作写入审计日志。
+- **权限**：备份接口仅管理员可访问：`/backups` 列表/创建、`/backups/:name` 删除、`/backups/:name/download` 下载、`/backups/:name/restore` 恢复。
+
+相关配置位于 YAML 的 `storage` 节点：
+
+```yaml
+storage:
+  backup_dir: data/backups
+  backup_keep_days: 30
+```
+
 ## v2.17 二维码资产标签
 
 - **资产标签二维码**：资产详情弹窗展示二维码（内容为前端详情地址 `{origin}/assets?assetId=<id>`），手机扫码自动打开该资产详情（需登录态），支持下载 PNG。

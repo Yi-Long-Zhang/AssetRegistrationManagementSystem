@@ -853,6 +853,183 @@ const docTemplate = `{
                 }
             }
         },
+        "/backups": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "查询全部数据库备份文件（admin）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backups"
+                ],
+                "summary": "备份列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "生成一份 SQLite 一致性快照备份（admin）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backups"
+                ],
+                "summary": "创建备份",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_service.BackupInfo"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/backups/{name}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除指定备份文件（admin）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backups"
+                ],
+                "summary": "删除备份",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "备份文件名",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/backups/{name}/download": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "下载指定备份数据库文件（admin）",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "backups"
+                ],
+                "summary": "下载备份",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "备份文件名",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/backups/{name}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "校验备份并标记待恢复，重启后端后生效（admin）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backups"
+                ],
+                "summary": "恢复备份",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "备份文件名",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/discovery/rules": {
             "get": {
                 "security": [
@@ -4741,8 +4918,16 @@ const docTemplate = `{
                 "lastLoginAt": {
                     "type": "string"
                 },
+                "mustChangePassword": {
+                    "description": "首次登录强制改密",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
+                },
+                "proxyUserId": {
+                    "description": "审批代理：设置为本人审批的工单由代理处理",
+                    "type": "integer"
                 },
                 "role": {
                     "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Role"
@@ -4775,6 +4960,20 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "asset-registration-management-system_backend_internal_service.BackupInfo": {
+            "type": "object",
+            "properties": {
+                "modTime": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
                 }
             }
         },
@@ -4909,6 +5108,9 @@ const docTemplate = `{
                 "ip"
             ],
             "properties": {
+                "additionalIPs": {
+                    "type": "string"
+                },
                 "appVersion": {
                     "type": "string"
                 },
@@ -5507,6 +5709,9 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "proxyUserId": {
+                    "type": "integer"
+                },
                 "role": {
                     "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.Role"
                 },
@@ -5521,11 +5726,11 @@ const docTemplate = `{
         "internal_httpapi.workflowNodeRequest": {
             "type": "object",
             "required": [
-                "approverIds",
                 "name"
             ],
             "properties": {
                 "approverIds": {
+                    "description": "可为空：提交工单时按资产负责人/类型默认审批人自动分派",
                     "type": "array",
                     "items": {
                         "type": "integer"

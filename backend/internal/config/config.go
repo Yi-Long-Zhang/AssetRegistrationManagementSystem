@@ -47,6 +47,8 @@ type StorageConfig struct {
 	TicketArchiveDir   string `yaml:"ticket_archive_dir"`
 	TicketTemplatePath string `yaml:"ticket_template_path"`
 	LibreOfficeBin     string `yaml:"libreoffice_bin"`
+	BackupDir          string `yaml:"backup_dir"`
+	BackupKeepDays     int    `yaml:"backup_keep_days"`
 }
 
 type SecurityConfig struct {
@@ -128,6 +130,8 @@ func defaultConfig() Config {
 			TicketArchiveDir:   "data/ticket-archives",
 			TicketTemplatePath: "../templates/ticket-it-change-template.docx",
 			LibreOfficeBin:     "soffice",
+			BackupDir:          "data/backups",
+			BackupKeepDays:     30,
 		},
 		Security: SecurityConfig{
 			JWTSecret:           DefaultJWTSecret,
@@ -182,6 +186,12 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Storage.LibreOfficeBin == "" {
 		c.Storage.LibreOfficeBin = defaults.Storage.LibreOfficeBin
+	}
+	if c.Storage.BackupDir == "" {
+		c.Storage.BackupDir = defaults.Storage.BackupDir
+	}
+	if c.Storage.BackupKeepDays == 0 {
+		c.Storage.BackupKeepDays = defaults.Storage.BackupKeepDays
 	}
 	if c.Security.JWTSecret == "" {
 		c.Security.JWTSecret = defaults.Security.JWTSecret

@@ -55,6 +55,7 @@ func testRouterWithConfig(t *testing.T, cfgOverride config.Config) http.Handler 
 	cfg.Storage.DatabasePath = filepath.Join(dir, "test.db")
 	cfg.Storage.AttachmentDir = filepath.Join(dir, "attachments")
 	cfg.Storage.TicketArchiveDir = filepath.Join(dir, "archives")
+	cfg.Storage.BackupDir = filepath.Join(dir, "backups")
 	cfg.Security.JWTSecret = "test-secret"
 	cfg.Security.ConfigEncryptionKey = "test-config-key"
 	cfg.Auth.Mode = "mixed"

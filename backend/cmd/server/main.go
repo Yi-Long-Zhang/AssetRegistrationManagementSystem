@@ -26,6 +26,14 @@ func main() {
 		log.Fatalf("invalid config: %v", err)
 	}
 
+	// 处理待恢复的数据库备份（恢复操作标记后重启生效）
+	restoreSvc := service.NewBackupService(nil, cfg.Storage.DatabasePath, cfg.Storage.BackupDir, cfg.Storage.BackupKeepDays)
+	if restored, err := restoreSvc.ApplyPendingRestore(); err != nil {
+		log.Fatalf("apply pending restore: %v", err)
+	} else if restored {
+		log.Printf("database restored from pending backup")
+	}
+
 	db, err := database.Open(cfg.Storage.DatabasePath)
 	if err != nil {
 		log.Fatalf("open database: %v", err)
@@ -61,6 +69,10 @@ func main() {
 	warrantyScheduler := service.NewWarrantyReminderScheduler(db, cfg.Security.ConfigEncryptionKey)
 	warrantyScheduler.Start()
 	defer warrantyScheduler.Stop()
+
+	backupScheduler := service.NewBackupScheduler(service.NewBackupService(db, cfg.Storage.DatabasePath, cfg.Storage.BackupDir, cfg.Storage.BackupKeepDays))
+	backupScheduler.Start()
+	defer backupScheduler.Stop()
 
 	log.Printf("asset registration management backend listening on %s", cfg.HTTP.Addr)
 	if err := router.Run(cfg.HTTP.Addr); err != nil {

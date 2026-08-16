@@ -10,6 +10,8 @@ storage:
   ticket_archive_dir: data/ticket-archives
   ticket_template_path: ../templates/ticket-it-change-template.docx
   libreoffice_bin: soffice
+  backup_dir: data/backups
+  backup_keep_days: 30
 
 security:
   jwt_secret: change-me-in-production
