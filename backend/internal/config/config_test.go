@@ -1,4 +1,4 @@
-package tests
+package config_test
 
 import (
 	"os"
@@ -10,16 +10,8 @@ import (
 
 func TestLoadUsesDevelopmentDefaultsWhenNoConfigFileExists(t *testing.T) {
 	t.Setenv("CONFIG_FILE", "")
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(t.TempDir()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(originalWD)
-	})
+	t.Chdir(t.TempDir())
+
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)

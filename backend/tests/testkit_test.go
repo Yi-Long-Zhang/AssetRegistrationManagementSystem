@@ -12,6 +12,7 @@ import (
 )
 
 func testRouter(t *testing.T) http.Handler {
+	t.Helper()
 	return testRouterWithConfig(t, config.Config{})
 }
 

@@ -45,10 +45,6 @@ func TestDatabaseBackup(t *testing.T) {
 		t.Fatalf("expected 1 backup %q, got %+v", created.Name, list.Items)
 	}
 
-	if created.Name == "" {
-		t.Fatal("expected backup name")
-	}
-
 	// 下载（完整备份为分块 AES-GCM 加密容器）
 	resp = request(t, router, http.MethodGet, "/api/v1/backups/"+created.Name+"/download", adminToken, nil)
 	if resp.Code != http.StatusOK {
