@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -19,11 +21,17 @@ type DiscoveryScheduler struct {
 	running map[uint]bool // 规则 ID -> 是否正在运行（防重叠）
 	stop    chan struct{}
 	wg      sync.WaitGroup
+	tasks   *TaskManager
 }
 
 // NewDiscoveryScheduler 创建调度器。
 func NewDiscoveryScheduler(svc *DiscoveryService) *DiscoveryScheduler {
 	return &DiscoveryScheduler{svc: svc, running: map[uint]bool{}}
+}
+
+func (s *DiscoveryScheduler) WithTaskManager(tasks *TaskManager) *DiscoveryScheduler {
+	s.tasks = tasks
+	return s
 }
 
 // Start 启动调度循环（幂等：重复调用仅启动一次）。
@@ -32,6 +40,18 @@ func (s *DiscoveryScheduler) Start() {
 		return
 	}
 	s.stop = make(chan struct{})
+	if s.tasks != nil {
+		s.tasks.Register("discovery_scan", func(ctx context.Context, raw json.RawMessage) (interface{}, error) {
+			var payload struct {
+				RuleID uint `json:"ruleId"`
+			}
+			if err := json.Unmarshal(raw, &payload); err != nil {
+				return nil, err
+			}
+			return s.svc.RunRule(ctx, payload.RuleID, "schedule")
+		})
+		s.tasks.ResumeKind(context.Background(), "discovery_scan")
+	}
 	s.wg.Add(1)
 	go s.loop()
 	log.Printf("discovery scheduler started")
@@ -98,7 +118,19 @@ func (s *DiscoveryScheduler) tick() {
 			}()
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.svc.Config.Discovery.ScanTimeoutSec)*time.Second+30*time.Second)
 			defer cancel()
-			if _, err := s.svc.RunRule(ctx, r.ID, "schedule"); err != nil {
+			var err error
+			if s.tasks != nil {
+				dueAt := now
+				if r.LastRunAt != nil {
+					dueAt = r.LastRunAt.Add(interval)
+				}
+				_, err = s.tasks.Run(ctx, "discovery_scan", "schedule",
+					fmt.Sprintf("discovery:%d:%d", r.ID, dueAt.Unix()),
+					map[string]interface{}{"ruleId": r.ID})
+			} else {
+				_, err = s.svc.RunRule(ctx, r.ID, "schedule")
+			}
+			if err != nil {
 				log.Printf("discovery scheduler: rule %d run failed: %v", r.ID, err)
 			}
 		}(rule)

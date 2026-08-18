@@ -1,0 +1,42 @@
+app:
+  env: test
+
+http:
+  addr: 127.0.0.1:18080
+
+storage:
+  database_path: .tmp/e2e/data/assets.db
+  attachment_dir: .tmp/e2e/data/attachments
+  ticket_archive_dir: .tmp/e2e/data/ticket-archives
+  ticket_template_path: ../templates/ticket-it-change-template.docx
+  libreoffice_bin: "__E2E_TOOL__"
+  backup_dir: .tmp/e2e/data/backups
+  backup_keep_days: 7
+
+security:
+  jwt_secret: e2e-jwt-secret-not-for-production
+  config_encryption_key: e2e-config-key-not-for-production
+  login_max_attempts: 20
+  sensitive_reauth_minutes: 30
+
+auth:
+  mode: local
+
+swagger:
+  enabled: false
+
+admin:
+  username: admin
+  password: e2e-admin-123
+
+cors:
+  allowed_origins: http://127.0.0.1:5173
+
+discovery:
+  nmap_bin: "__E2E_TOOL__"
+  scan_timeout_sec: 10
+  default_ports: "22,80,443"
+  probe_ports: "22,80,443"
+  max_parallel_scans: 1
+  scan_chunk_size: 16
+  max_hosts: 32

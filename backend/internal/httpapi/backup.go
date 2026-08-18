@@ -3,7 +3,6 @@ package httpapi
 import (
 	"log"
 	"net/http"
-	"path/filepath"
 
 	"asset-registration-management-system/backend/internal/service"
 
@@ -11,7 +10,7 @@ import (
 )
 
 func (h *Handler) backupService() *service.BackupService {
-	return service.NewBackupService(h.db, h.cfg.Storage.DatabasePath, h.cfg.Storage.BackupDir, h.cfg.Storage.BackupKeepDays)
+	return service.NewFullBackupService(h.db, h.cfg)
 }
 
 // ListBackups 列出全部备份（按时间倒序）。
@@ -48,6 +47,7 @@ func (h *Handler) CreateBackup(c *gin.Context) {
 		errorJSON(c, http.StatusInternalServerError, "备份失败")
 		return
 	}
+	h.audit(currentUser(c).ID, "backup", 0, "create", info.Name)
 	c.JSON(http.StatusCreated, info)
 }
 
@@ -67,6 +67,7 @@ func (h *Handler) DeleteBackup(c *gin.Context) {
 		errorJSON(c, http.StatusBadRequest, "删除备份失败")
 		return
 	}
+	h.audit(currentUser(c).ID, "backup", 0, "delete", name)
 	c.JSON(http.StatusOK, gin.H{"deleted": true})
 }
 
@@ -82,11 +83,25 @@ func (h *Handler) DeleteBackup(c *gin.Context) {
 // @Router /backups/{name}/download [get]
 func (h *Handler) DownloadBackup(c *gin.Context) {
 	name := c.Param("name")
-	if filepath.Base(name) != name {
-		errorJSON(c, http.StatusBadRequest, "非法备份名")
+	path, err := h.backupService().Path(name)
+	if err != nil {
+		errorJSON(c, http.StatusNotFound, "备份不存在")
 		return
 	}
-	c.FileAttachment(filepath.Join(h.cfg.Storage.BackupDir, name), name)
+	h.audit(currentUser(c).ID, "backup", 0, "download", name)
+	c.FileAttachment(path, name)
+}
+
+func (h *Handler) VerifyBackup(c *gin.Context) {
+	name := c.Param("name")
+	info, err := h.backupService().Verify(name)
+	if err != nil {
+		h.audit(currentUser(c).ID, "backup", 0, "verify_failed", name)
+		errorJSON(c, http.StatusBadRequest, "备份校验失败")
+		return
+	}
+	h.audit(currentUser(c).ID, "backup", 0, "verify", name)
+	c.JSON(http.StatusOK, info)
 }
 
 // RestoreBackup 校验并标记待恢复（重启后端后生效）。
@@ -101,10 +116,16 @@ func (h *Handler) DownloadBackup(c *gin.Context) {
 // @Router /backups/{name}/restore [post]
 func (h *Handler) RestoreBackup(c *gin.Context) {
 	name := c.Param("name")
-	if err := h.backupService().Restore(name); err != nil {
+	backupService := h.backupService()
+	if err := backupService.Restore(name); err != nil {
 		errorJSON(c, http.StatusBadRequest, "恢复失败")
 		return
 	}
+	info, _ := backupService.Get(name)
 	h.audit(currentUser(c).ID, "backup", 0, "restore", name)
-	c.JSON(http.StatusOK, gin.H{"restored": true, "message": "已标记恢复，重启后端后生效"})
+	c.JSON(http.StatusOK, gin.H{
+		"restored": true,
+		"message":  "完整备份已校验并标记恢复，重启后端后生效",
+		"backup":   info,
+	})
 }

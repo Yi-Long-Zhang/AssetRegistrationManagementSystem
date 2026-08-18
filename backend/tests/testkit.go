@@ -100,6 +100,21 @@ func mergeConfig(target *config.Config, override config.Config) {
 	if override.Security.ConfigEncryptionKey != "" {
 		target.Security.ConfigEncryptionKey = override.Security.ConfigEncryptionKey
 	}
+	if len(override.Security.JWTPreviousSecrets) > 0 {
+		target.Security.JWTPreviousSecrets = override.Security.JWTPreviousSecrets
+	}
+	if override.Security.LoginMaxAttempts > 0 {
+		target.Security.LoginMaxAttempts = override.Security.LoginMaxAttempts
+	}
+	if override.Security.LoginWindowMinutes > 0 {
+		target.Security.LoginWindowMinutes = override.Security.LoginWindowMinutes
+	}
+	if override.Security.LoginBlockMinutes > 0 {
+		target.Security.LoginBlockMinutes = override.Security.LoginBlockMinutes
+	}
+	if override.Security.SensitiveReauthMinutes > 0 {
+		target.Security.SensitiveReauthMinutes = override.Security.SensitiveReauthMinutes
+	}
 	if override.Auth.Mode != "" {
 		target.Auth.Mode = override.Auth.Mode
 	}

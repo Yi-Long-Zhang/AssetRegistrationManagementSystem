@@ -34,16 +34,28 @@ type Handler struct {
 	archiver service.TicketArchiver
 	mail     service.MailSender
 	im       service.IMNotifier // nil 时使用默认群机器人通知器
+	limiter  *loginRateLimiter
+	tasks    *service.TaskManager
+	metrics  *HTTPMetrics
 }
 
 type claims struct {
-	UserID uint       `json:"userId"`
-	Role   model.Role `json:"role"`
+	UserID         uint       `json:"userId"`
+	Role           model.Role `json:"role"`
+	SessionID      string     `json:"sid"`
+	SessionVersion uint64     `json:"sv"`
 	jwt.RegisteredClaims
 }
 
 func NewHandler(cfg config.Config, db *gorm.DB, roles []model.Role, ad service.ADClient, archiver service.TicketArchiver, mailSender service.MailSender) *Handler {
-	return &Handler{cfg: cfg, db: db, roles: roles, ad: ad, archiver: archiver, mail: mailSender}
+	return &Handler{
+		cfg: cfg, db: db, roles: roles, ad: ad, archiver: archiver, mail: mailSender,
+		limiter: newLoginRateLimiter(
+			cfg.Security.LoginMaxAttempts,
+			time.Duration(cfg.Security.LoginWindowMinutes)*time.Minute,
+			time.Duration(cfg.Security.LoginBlockMinutes)*time.Minute,
+		),
+	}
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -51,14 +63,23 @@ func (h *Handler) Login(c *gin.Context) {
 	if !bind(c, &req) {
 		return
 	}
-
-	user, ok := h.authenticate(req.Username, req.Password)
-	if !ok {
-		errorJSON(c, http.StatusUnauthorized, "用户名或密码错误")
+	username := strings.ToLower(strings.TrimSpace(req.Username))
+	clientIP := c.ClientIP()
+	if retryAfter, ok := h.limiter.allow(username, clientIP, time.Now()); !ok {
+		c.Header("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
+		errorJSON(c, http.StatusTooManyRequests, "登录尝试过于频繁，请稍后再试")
 		return
 	}
 
-	token, err := h.issueToken(user)
+	user, ok := h.authenticate(req.Username, req.Password)
+	if !ok {
+		h.limiter.failure(username, clientIP, time.Now())
+		errorJSON(c, http.StatusUnauthorized, "用户名或密码错误")
+		return
+	}
+	h.limiter.success(username)
+
+	token, err := h.issueToken(c, user)
 	if err != nil {
 		errorJSON(c, http.StatusInternalServerError, "创建令牌失败")
 		return
@@ -67,6 +88,10 @@ func (h *Handler) Login(c *gin.Context) {
 }
 
 func (h *Handler) Logout(c *gin.Context) {
+	session := currentSession(c)
+	if session.ID != "" {
+		_ = h.revokeSession(session.ID, currentUser(c).ID, "logout")
+	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -99,7 +124,13 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	}
 	user.PasswordHash = string(hash)
 	user.MustChangePassword = false
-	if err := h.db.Save(&user).Error; err != nil {
+	user.SessionVersion++
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&user).Error; err != nil {
+			return err
+		}
+		return revokeUserSessions(tx, user.ID, "password_changed", "")
+	}); err != nil {
 		errorJSON(c, http.StatusBadRequest, "修改密码失败")
 		return
 	}
@@ -401,6 +432,8 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	if !bind(c, &req) {
 		return
 	}
+	previousRole := user.Role
+	previousStatus := user.Status
 	user.Username = req.Username
 	user.Name = req.Name
 	user.DisplayName = req.DisplayName
@@ -421,7 +454,19 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		}
 		user.PasswordHash = string(hash)
 	}
-	if err := h.db.Save(&user).Error; err != nil {
+	invalidateSessions := req.Password != "" || previousRole != user.Role || previousStatus != user.Status
+	if invalidateSessions {
+		user.SessionVersion++
+	}
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&user).Error; err != nil {
+			return err
+		}
+		if invalidateSessions {
+			return revokeUserSessions(tx, user.ID, "user_updated", "")
+		}
+		return nil
+	}); err != nil {
 		errorJSON(c, http.StatusBadRequest, "更新用户失败: "+err.Error())
 		return
 	}
@@ -1854,57 +1899,6 @@ func buildADUserFilter(loginAttribute string, filterUserObject, excludeDisabled 
 	return "(&" + strings.Join(parts, "") + ")"
 }
 
-func (h *Handler) issueToken(user model.User) (string, error) {
-	now := time.Now()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
-		UserID: user.ID,
-		Role:   user.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   fmt.Sprint(user.ID),
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(h.cfg.TokenTTL)),
-		},
-	})
-	return token.SignedString([]byte(h.cfg.Security.JWTSecret))
-}
-
-func (h *Handler) AuthRequired() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		auth := c.GetHeader("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") {
-			errorJSON(c, http.StatusUnauthorized, "请先登录")
-			c.Abort()
-			return
-		}
-		tokenText := strings.TrimPrefix(auth, "Bearer ")
-		parsed, err := jwt.ParseWithClaims(tokenText, &claims{}, func(token *jwt.Token) (interface{}, error) {
-			if token.Method != jwt.SigningMethodHS256 {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Method.Alg())
-			}
-			return []byte(h.cfg.Security.JWTSecret), nil
-		})
-		if err != nil || !parsed.Valid {
-			errorJSON(c, http.StatusUnauthorized, "登录已失效")
-			c.Abort()
-			return
-		}
-		claim, ok := parsed.Claims.(*claims)
-		if !ok {
-			errorJSON(c, http.StatusUnauthorized, "登录已失效")
-			c.Abort()
-			return
-		}
-		var user model.User
-		if err := h.db.First(&user, claim.UserID).Error; err != nil || user.Status != "active" {
-			errorJSON(c, http.StatusUnauthorized, "用户不可用")
-			c.Abort()
-			return
-		}
-		c.Set("user", user)
-		c.Next()
-	}
-}
-
 func (h *Handler) RequireAnyRole(roles ...model.Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := currentUser(c)
@@ -1922,6 +1916,12 @@ func (h *Handler) RequireAnyRole(roles ...model.Role) gin.HandlerFunc {
 func currentUser(c *gin.Context) model.User {
 	user, _ := c.Get("user")
 	typed, _ := user.(model.User)
+	return typed
+}
+
+func currentSession(c *gin.Context) model.AuthSession {
+	session, _ := c.Get("session")
+	typed, _ := session.(model.AuthSession)
 	return typed
 }
 

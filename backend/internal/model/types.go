@@ -76,6 +76,15 @@ const (
 	DiscoveryRunStatusFailed  DiscoveryRunStatus = "failed"
 )
 
+type BackgroundTaskStatus string
+
+const (
+	BackgroundTaskQueued    BackgroundTaskStatus = "queued"
+	BackgroundTaskRunning   BackgroundTaskStatus = "running"
+	BackgroundTaskSucceeded BackgroundTaskStatus = "succeeded"
+	BackgroundTaskFailed    BackgroundTaskStatus = "failed"
+)
+
 // DiscoveryChangeType 单台主机的发现比对结果
 type DiscoveryChangeType string
 

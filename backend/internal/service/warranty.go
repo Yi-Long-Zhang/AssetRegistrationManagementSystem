@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 	"net/mail"
 	"strconv"
@@ -24,11 +26,17 @@ type WarrantyReminderScheduler struct {
 	lastDay       string
 	stop          chan struct{}
 	wg            sync.WaitGroup
+	tasks         *TaskManager
 }
 
 // NewWarrantyReminderScheduler 创建维保提醒扫描器。
 func NewWarrantyReminderScheduler(db *gorm.DB, encryptionKey string) *WarrantyReminderScheduler {
 	return &WarrantyReminderScheduler{db: db, encryptionKey: encryptionKey}
+}
+
+func (s *WarrantyReminderScheduler) WithTaskManager(tasks *TaskManager) *WarrantyReminderScheduler {
+	s.tasks = tasks
+	return s
 }
 
 // Start 启动扫描循环（幂等）。
@@ -37,6 +45,10 @@ func (s *WarrantyReminderScheduler) Start() {
 		return
 	}
 	s.stop = make(chan struct{})
+	if s.tasks != nil {
+		s.tasks.Register("warranty_reminder", s.runTask)
+		s.tasks.ResumeKind(context.Background(), "warranty_reminder")
+	}
 	s.wg.Add(1)
 	go s.loop()
 	log.Printf("warranty reminder scheduler started")
@@ -72,11 +84,26 @@ func (s *WarrantyReminderScheduler) tick() {
 		return // 每天只提醒一次
 	}
 	s.lastDay = today
+	if s.tasks != nil {
+		if _, err := s.tasks.Run(context.Background(), "warranty_reminder", "schedule",
+			"warranty:"+today, map[string]interface{}{"date": today}); err != nil {
+			log.Printf("warranty reminder task: %v", err)
+		}
+		return
+	}
 	assets := s.expiringAssets(time.Now())
 	if len(assets) == 0 {
 		return
 	}
 	s.notify(assets)
+}
+
+func (s *WarrantyReminderScheduler) runTask(_ context.Context, _ json.RawMessage) (interface{}, error) {
+	assets := s.expiringAssets(time.Now())
+	if len(assets) > 0 {
+		s.notify(assets)
+	}
+	return map[string]interface{}{"count": len(assets)}, nil
 }
 
 // expiringAssets 查询维保到期日在 [now, now+30天] 或已过期的资产。

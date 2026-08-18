@@ -1,6 +1,9 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/mail"
 	"strconv"
@@ -20,11 +23,17 @@ type SLAScheduler struct {
 	encryptionKey string
 	stop          chan struct{}
 	wg            sync.WaitGroup
+	tasks         *TaskManager
 }
 
 // NewSLAScheduler 创建 SLA 扫描器。
 func NewSLAScheduler(db *gorm.DB, encryptionKey string) *SLAScheduler {
 	return &SLAScheduler{db: db, encryptionKey: encryptionKey}
+}
+
+func (s *SLAScheduler) WithTaskManager(tasks *TaskManager) *SLAScheduler {
+	s.tasks = tasks
+	return s
 }
 
 // Start 启动扫描循环（幂等：重复调用仅启动一次）。
@@ -33,6 +42,10 @@ func (s *SLAScheduler) Start() {
 		return
 	}
 	s.stop = make(chan struct{})
+	if s.tasks != nil {
+		s.tasks.Register("sla_overdue", s.runTask)
+		s.tasks.ResumeKind(context.Background(), "sla_overdue")
+	}
 	s.wg.Add(1)
 	go s.loop()
 	log.Printf("sla scheduler started")
@@ -79,6 +92,22 @@ func (s *SLAScheduler) tick() {
 	}
 	for i := range tickets {
 		t := &tickets[i]
+		if s.tasks != nil {
+			deadline := t.SLAApprovalDeadline
+			if t.Status == model.TicketStatusInProgress {
+				deadline = t.SLACompletionDeadline
+			}
+			deadlineUnix := int64(0)
+			if deadline != nil {
+				deadlineUnix = deadline.Unix()
+			}
+			if _, err := s.tasks.Run(context.Background(), "sla_overdue", "schedule",
+				fmt.Sprintf("sla:%d:%d", t.ID, deadlineUnix),
+				map[string]interface{}{"ticketId": t.ID}); err != nil {
+				log.Printf("sla scheduler: task for ticket %d: %v", t.ID, err)
+			}
+			continue
+		}
 		t.SLAOverdueNotified = true
 		if err := s.db.Save(t).Error; err != nil {
 			log.Printf("sla scheduler: mark ticket %d overdue: %v", t.ID, err)
@@ -86,6 +115,28 @@ func (s *SLAScheduler) tick() {
 		}
 		s.notify(t)
 	}
+}
+
+func (s *SLAScheduler) runTask(_ context.Context, raw json.RawMessage) (interface{}, error) {
+	var payload struct {
+		TicketID uint `json:"ticketId"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+	var ticket model.Ticket
+	if err := s.db.Preload("Applicant").Preload("Approver").Preload("Executor").First(&ticket, payload.TicketID).Error; err != nil {
+		return nil, err
+	}
+	if ticket.SLAOverdueNotified {
+		return map[string]interface{}{"skipped": true}, nil
+	}
+	ticket.SLAOverdueNotified = true
+	if err := s.db.Save(&ticket).Error; err != nil {
+		return nil, err
+	}
+	s.notify(&ticket)
+	return map[string]interface{}{"ticketId": ticket.ID}, nil
 }
 
 // notify 为超时工单发送审计、IM 群通知与邮件提醒。

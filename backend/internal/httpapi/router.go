@@ -23,11 +23,13 @@ type Dependencies struct {
 	AD       service.ADClient
 	Archiver service.TicketArchiver
 	Mail     service.MailSender
+	Tasks    *service.TaskManager
 }
 
 func NewRouter(dep Dependencies) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery(), cors(dep.Config.CORS.AllowedOrigins))
+	metrics := NewHTTPMetrics()
+	router.Use(requestObservability(metrics), gin.Recovery(), cors(dep.Config.CORS.AllowedOrigins))
 
 	adClient := dep.AD
 	if adClient == nil {
@@ -42,19 +44,41 @@ func NewRouter(dep Dependencies) *gin.Engine {
 		mailSender = service.SMTPMailSender{}
 	}
 	h := NewHandler(dep.Config, dep.DB, dep.Roles, adClient, archiver, mailSender)
+	h.tasks = dep.Tasks
+	if h.tasks == nil {
+		h.tasks = service.NewTaskManager(dep.DB)
+	}
+	h.metrics = metrics
 
-	router.GET("/healthz", func(c *gin.Context) {
+	liveness := func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now().UTC()})
+	}
+	router.GET("/healthz", liveness)
+	router.GET("/livez", liveness)
+	router.GET("/readyz", func(c *gin.Context) {
+		checks, ok := readiness(dep.Config, dep.DB, h.tasks)
+		status := http.StatusOK
+		state := "ready"
+		if !ok {
+			status = http.StatusServiceUnavailable
+			state = "not_ready"
+		}
+		c.JSON(status, gin.H{"status": state, "checks": checks, "time": time.Now().UTC()})
 	})
+	router.GET("/metrics", h.Metrics)
 	if dep.Config.Swagger.Enabled {
 		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
 	api := router.Group("/api/v1")
 	api.POST("/auth/login", h.Login)
-	api.POST("/auth/logout", h.Logout)
+	api.POST("/auth/logout", h.AuthRequired(), h.Logout)
 	api.GET("/auth/me", h.AuthRequired(), h.Me)
 	api.POST("/auth/change-password", h.AuthRequired(), h.ChangePassword)
+	api.POST("/auth/reauth", h.AuthRequired(), h.Reauthenticate)
+	api.GET("/auth/sessions", h.AuthRequired(), h.ListSessions)
+	api.DELETE("/auth/sessions/:id", h.AuthRequired(), h.RevokeSession)
+	api.POST("/auth/sessions/revoke-all", h.AuthRequired(), h.RevokeAllSessions)
 	api.POST("/im/callback", h.IMCallback)
 
 	api.GET("/roles", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin), h.ListRoles)
@@ -74,8 +98,15 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	backups.GET("", h.ListBackups)
 	backups.POST("", h.CreateBackup)
 	backups.DELETE("/:name", h.DeleteBackup)
-	backups.GET("/:name/download", h.DownloadBackup)
-	backups.POST("/:name/restore", h.RestoreBackup)
+	backups.GET("/:name/download", h.RequireRecentAuth(), h.DownloadBackup)
+	backups.POST("/:name/verify", h.VerifyBackup)
+	backups.POST("/:name/restore", h.RequireRecentAuth(), h.RestoreBackup)
+
+	tasks := api.Group("/tasks", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin))
+	tasks.GET("", h.ListBackgroundTasks)
+	tasks.GET("/:id", h.GetBackgroundTask)
+	tasks.POST("/:id/retry", h.RetryBackgroundTask)
+	tasks.POST("/:id/acknowledge", h.AcknowledgeBackgroundTask)
 	settings.GET("/mail", h.GetMailConfig)
 	settings.PUT("/mail", h.SaveMailConfig)
 	settings.GET("/im", h.GetIMConfig)
@@ -169,14 +200,14 @@ func NewRouter(dep Dependencies) *gin.Engine {
 	credentials.POST("", h.CreateCredential)
 	credentials.PUT("/:id", h.UpdateCredential)
 	credentials.DELETE("/:id", h.DeleteCredential)
-	credentials.POST("/:id/reveal", h.RevealCredential)
+	credentials.POST("/:id/reveal", h.RequireRecentAuth(), h.RevealCredential)
 
 	licenses := api.Group("/licenses", h.AuthRequired(), h.RequireAnyRole(model.RoleAdmin, model.RoleAssetManager))
 	licenses.GET("", h.ListSoftwareLicenses)
 	licenses.POST("", h.CreateSoftwareLicense)
 	licenses.PUT("/:id", h.UpdateSoftwareLicense)
 	licenses.DELETE("/:id", h.DeleteSoftwareLicense)
-	licenses.POST("/:id/reveal", h.RevealSoftwareLicense)
+	licenses.POST("/:id/reveal", h.RequireRecentAuth(), h.RevealSoftwareLicense)
 	licenses.GET("/template", h.DownloadLicenseImportTemplate)
 	licenses.GET("/export", h.ExportLicenses)
 	licenses.POST("/import", h.ImportLicenses)

@@ -45,13 +45,22 @@ func TestDatabaseBackup(t *testing.T) {
 		t.Fatalf("expected 1 backup %q, got %+v", created.Name, list.Items)
 	}
 
-	// 下载（应返回 SQLite 文件头 "SQLite format 3"）
+	if created.Name == "" {
+		t.Fatal("expected backup name")
+	}
+
+	// 下载（完整备份为分块 AES-GCM 加密容器）
 	resp = request(t, router, http.MethodGet, "/api/v1/backups/"+created.Name+"/download", adminToken, nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("download backup status=%d body=%s", resp.Code, resp.Body.String())
 	}
-	if len(resp.Body.Bytes()) < 16 || string(resp.Body.Bytes()[:15]) != "SQLite format 3" {
-		t.Fatalf("downloaded file is not a SQLite database, head=%q", resp.Body.Bytes()[:minInt(15, len(resp.Body.Bytes()))])
+	if len(resp.Body.Bytes()) < 8 || string(resp.Body.Bytes()[:8]) != "ARMSBK1\n" {
+		t.Fatalf("downloaded file is not an encrypted backup set, head=%q", resp.Body.Bytes()[:minInt(8, len(resp.Body.Bytes()))])
+	}
+
+	resp = request(t, router, http.MethodPost, "/api/v1/backups/"+created.Name+"/verify", adminToken, nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("verify backup status=%d body=%s", resp.Code, resp.Body.String())
 	}
 
 	// 恢复（标记待恢复）

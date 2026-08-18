@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
@@ -124,14 +126,20 @@ func buildInspectionDescription(rule model.InspectionRule) string {
 // InspectionScheduler 进程内巡检调度器：每分钟检查启用的巡检规则，
 // 到达执行时刻且未生成过本周期工单时自动创建巡检工单（草稿）。
 type InspectionScheduler struct {
-	db   *gorm.DB
-	stop chan struct{}
-	wg   sync.WaitGroup
+	db    *gorm.DB
+	stop  chan struct{}
+	wg    sync.WaitGroup
+	tasks *TaskManager
 }
 
 // NewInspectionScheduler 创建巡检调度器。
 func NewInspectionScheduler(db *gorm.DB) *InspectionScheduler {
 	return &InspectionScheduler{db: db}
+}
+
+func (s *InspectionScheduler) WithTaskManager(tasks *TaskManager) *InspectionScheduler {
+	s.tasks = tasks
+	return s
 }
 
 // Start 启动调度循环（幂等）。
@@ -140,6 +148,10 @@ func (s *InspectionScheduler) Start() {
 		return
 	}
 	s.stop = make(chan struct{})
+	if s.tasks != nil {
+		s.tasks.Register("inspection_ticket", s.runTask)
+		s.tasks.ResumeKind(context.Background(), "inspection_ticket")
+	}
 	s.wg.Add(1)
 	go s.loop()
 	log.Printf("inspection scheduler started")
@@ -188,7 +200,19 @@ func (s *InspectionScheduler) tick() {
 		if rule.LastRunAt != nil && !rule.LastRunAt.Before(runAt) {
 			continue // 本周期已生成
 		}
-		ticket, err := CreateInspectionTicket(s.db, rule)
+		var ticket *model.Ticket
+		var err error
+		if s.tasks != nil {
+			task, taskErr := s.tasks.Run(context.Background(), "inspection_ticket", "schedule",
+				fmt.Sprintf("inspection:%d:%d", rule.ID, runAt.Unix()),
+				map[string]interface{}{"ruleId": rule.ID, "runAt": runAt})
+			err = taskErr
+			if err == nil {
+				log.Printf("inspection scheduler: task %d completed", task.ID)
+			}
+			continue
+		}
+		ticket, err = CreateInspectionTicket(s.db, rule)
 		if err != nil {
 			log.Printf("inspection scheduler: rule %d create ticket: %v", rule.ID, err)
 			continue
@@ -199,6 +223,39 @@ func (s *InspectionScheduler) tick() {
 		}
 		log.Printf("inspection scheduler: rule %d created ticket #%d", rule.ID, ticket.ID)
 	}
+}
+
+func (s *InspectionScheduler) runTask(_ context.Context, raw json.RawMessage) (interface{}, error) {
+	var payload struct {
+		RuleID uint      `json:"ruleId"`
+		RunAt  time.Time `json:"runAt"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+	var ticket *model.Ticket
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var rule model.InspectionRule
+		if err := tx.First(&rule, payload.RuleID).Error; err != nil {
+			return err
+		}
+		if rule.LastRunAt != nil && !rule.LastRunAt.Before(payload.RunAt) {
+			return nil
+		}
+		created, err := CreateInspectionTicket(tx, rule)
+		if err != nil {
+			return err
+		}
+		ticket = created
+		return tx.Model(&rule).Update("last_run_at", time.Now()).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	if ticket == nil {
+		return map[string]interface{}{"skipped": true}, nil
+	}
+	return map[string]interface{}{"ticketId": ticket.ID}, nil
 }
 
 // cycleRunTime 计算规则在当前周期（今天/本周/本月）内的执行时刻。

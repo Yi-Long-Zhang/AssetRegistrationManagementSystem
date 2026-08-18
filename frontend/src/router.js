@@ -38,6 +38,7 @@ const router = createRouter({
         { path: 'users', component: UsersView, meta: { auth: true, menu: true, title: '用户管理', icon: 'User', roles: ['admin'], order: 40 } },
         { path: 'audit-logs', component: AuditLogsView, meta: { auth: true, menu: true, title: '操作审计', icon: 'Document', roles: ['admin'], order: 45 } },
         { path: 'backups', component: () => import('./views/BackupView.vue'), meta: { auth: true, menu: true, title: '数据备份', icon: 'FolderOpened', roles: ['admin'], order: 48 } },
+        { path: 'tasks', component: () => import('./views/TasksView.vue'), meta: { auth: true, menu: true, title: '任务运行中心', icon: 'Timer', roles: ['admin'], order: 49 } },
         { path: 'settings', component: SettingsView, meta: { auth: true, menu: true, title: '系统配置', icon: 'Setting', roles: ['admin'], order: 50 } }
       ]
     }

@@ -23,9 +23,28 @@ type User struct {
 	LockedUntil        *time.Time     `json:"-" gorm:"index"`                                   // 登录锁定截止时间（暴力破解防护）
 	MustChangePassword bool           `json:"mustChangePassword" gorm:"not null;default:false"` // 首次登录强制改密
 	PasswordHash       string         `json:"-" gorm:"size:255;not null"`
+	SessionVersion     uint64         `json:"-" gorm:"not null;default:1"`
 	CreatedAt          time.Time      `json:"createdAt"`
 	UpdatedAt          time.Time      `json:"updatedAt"`
 	DeletedAt          gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+// AuthSession is the server-side authority for a JWT.
+type AuthSession struct {
+	ID                string     `json:"id" gorm:"primaryKey;size:64"`
+	UserID            uint       `json:"userId" gorm:"not null;index"`
+	User              User       `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	KeyID             string     `json:"keyId" gorm:"size:32;not null;index"`
+	SessionVersion    uint64     `json:"-" gorm:"not null"`
+	ClientIP          string     `json:"clientIp" gorm:"size:64"`
+	UserAgent         string     `json:"userAgent" gorm:"size:512"`
+	ReauthenticatedAt time.Time  `json:"reauthenticatedAt"`
+	LastSeenAt        time.Time  `json:"lastSeenAt"`
+	ExpiresAt         time.Time  `json:"expiresAt" gorm:"not null;index"`
+	RevokedAt         *time.Time `json:"revokedAt" gorm:"index"`
+	RevokedReason     string     `json:"revokedReason,omitempty" gorm:"size:128"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
 }
 
 type ADConfig struct {
@@ -400,6 +419,27 @@ type AuditLog struct {
 	Action    string    `json:"action" gorm:"size:64;not null"`
 	Detail    string    `json:"detail" gorm:"type:text"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// BackgroundTask records scheduler and manually retried executions.
+type BackgroundTask struct {
+	ID             uint                 `json:"id" gorm:"primaryKey"`
+	Kind           string               `json:"kind" gorm:"size:64;not null;index"`
+	Source         string               `json:"source" gorm:"size:32;not null;default:schedule;index"`
+	UniqueKey      string               `json:"uniqueKey" gorm:"size:191;uniqueIndex"`
+	Status         BackgroundTaskStatus `json:"status" gorm:"size:32;not null;index"`
+	Payload        string               `json:"-" gorm:"type:text"`
+	Result         string               `json:"result,omitempty" gorm:"type:text"`
+	Error          string               `json:"error,omitempty" gorm:"type:text"`
+	Attempts       int                  `json:"attempts" gorm:"not null;default:0"`
+	MaxAttempts    int                  `json:"maxAttempts" gorm:"not null;default:3"`
+	ScheduledAt    time.Time            `json:"scheduledAt" gorm:"not null;index"`
+	StartedAt      *time.Time           `json:"startedAt"`
+	FinishedAt     *time.Time           `json:"finishedAt"`
+	AcknowledgedAt *time.Time           `json:"acknowledgedAt"`
+	AcknowledgedBy *uint                `json:"acknowledgedBy" gorm:"index"`
+	CreatedAt      time.Time            `json:"createdAt"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
 }
 
 // DiscoveryRule 资产发现规则：定义扫描目标与行为

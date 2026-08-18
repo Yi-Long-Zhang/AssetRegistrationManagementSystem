@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"log/slog"
+	"os"
 
 	"asset-registration-management-system/backend/internal/config"
 	"asset-registration-management-system/backend/internal/database"
@@ -18,6 +20,11 @@ import (
 // @in header
 // @name Authorization
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+	log.SetFlags(0)
+	log.SetOutput(slog.NewLogLogger(logger.Handler(), slog.LevelInfo).Writer())
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -27,7 +34,7 @@ func main() {
 	}
 
 	// 处理待恢复的数据库备份（恢复操作标记后重启生效）
-	restoreSvc := service.NewBackupService(nil, cfg.Storage.DatabasePath, cfg.Storage.BackupDir, cfg.Storage.BackupKeepDays)
+	restoreSvc := service.NewFullBackupService(nil, cfg)
 	if restored, err := restoreSvc.ApplyPendingRestore(); err != nil {
 		log.Fatalf("apply pending restore: %v", err)
 	} else if restored {
@@ -46,35 +53,40 @@ func main() {
 	if err := database.SeedAdmin(db, cfg.Admin.Username, cfg.Admin.Password); err != nil {
 		log.Fatalf("seed admin: %v", err)
 	}
+	taskManager := service.NewTaskManager(db)
+	if err := taskManager.RecoverInterrupted(); err != nil {
+		log.Fatalf("recover interrupted tasks: %v", err)
+	}
 
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		Config: cfg,
 		DB:     db,
 		Roles:  model.AllRoles(),
+		Tasks:  taskManager,
 	})
 
 	discoverySvc := service.NewDiscoveryService(db, cfg)
-	scheduler := service.NewDiscoveryScheduler(discoverySvc)
+	scheduler := service.NewDiscoveryScheduler(discoverySvc).WithTaskManager(taskManager)
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	slaScheduler := service.NewSLAScheduler(db, cfg.Security.ConfigEncryptionKey)
+	slaScheduler := service.NewSLAScheduler(db, cfg.Security.ConfigEncryptionKey).WithTaskManager(taskManager)
 	slaScheduler.Start()
 	defer slaScheduler.Stop()
 
-	inspectionScheduler := service.NewInspectionScheduler(db)
+	inspectionScheduler := service.NewInspectionScheduler(db).WithTaskManager(taskManager)
 	inspectionScheduler.Start()
 	defer inspectionScheduler.Stop()
 
-	warrantyScheduler := service.NewWarrantyReminderScheduler(db, cfg.Security.ConfigEncryptionKey)
+	warrantyScheduler := service.NewWarrantyReminderScheduler(db, cfg.Security.ConfigEncryptionKey).WithTaskManager(taskManager)
 	warrantyScheduler.Start()
 	defer warrantyScheduler.Stop()
 
-	licenseScheduler := service.NewLicenseReminderScheduler(db, cfg.Security.ConfigEncryptionKey)
+	licenseScheduler := service.NewLicenseReminderScheduler(db, cfg.Security.ConfigEncryptionKey).WithTaskManager(taskManager)
 	licenseScheduler.Start()
 	defer licenseScheduler.Stop()
 
-	backupScheduler := service.NewBackupScheduler(service.NewBackupService(db, cfg.Storage.DatabasePath, cfg.Storage.BackupDir, cfg.Storage.BackupKeepDays))
+	backupScheduler := service.NewBackupScheduler(service.NewFullBackupService(db, cfg)).WithTaskManager(taskManager)
 	backupScheduler.Start()
 	defer backupScheduler.Stop()
 

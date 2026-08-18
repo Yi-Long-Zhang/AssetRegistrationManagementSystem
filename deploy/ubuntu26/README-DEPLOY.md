@@ -1,6 +1,6 @@
 # 企业内部服务器资产管理系统 Ubuntu 26 部署手册
 
-本文档适用于 Ubuntu 26.x amd64 服务器，采用 systemd 运行 Go 后端，Nginx 托管 Vue 前端并反向代理 `/api/`、`/swagger/`、`/healthz` 到后端。生产环境默认关闭 Swagger，未显式开启时 `/swagger/` 返回 404。
+本文档适用于 Ubuntu 26.x amd64 服务器，采用 systemd 运行 Go 后端，Nginx 托管 Vue 前端并反向代理 `/api/`、`/swagger/`、`/healthz` 到后端。生产环境默认关闭 Swagger，未显式开启时 `/swagger/` 返回 404。发布检查清单见仓库根目录 `docs/PRODUCTION-READINESS.md`。
 
 ## 1. 部署目录
 
@@ -31,7 +31,7 @@
 
 ```bash
 sudo apt update
-sudo apt install -y nginx ca-certificates tar rsync libreoffice-writer fonts-noto-cjk
+sudo apt install -y nginx ca-certificates curl jq tar rsync libreoffice-writer fonts-noto-cjk
 ```
 
 如服务器不能访问外网，请提前用离线方式安装 Nginx。
@@ -129,6 +129,8 @@ http://服务器IP/
 ```bash
 curl http://127.0.0.1:8080/healthz
 curl http://服务器IP/healthz
+curl --fail http://127.0.0.1:8080/livez
+curl --fail http://127.0.0.1:8080/readyz
 ```
 
 Swagger 文档默认关闭。如需在测试环境临时开启，修改 `/opt/asset-management/config.yaml`：
@@ -150,7 +152,24 @@ http://服务器IP/swagger/index.html
 admin / 你在 config/asset-management.yaml 中设置的 admin.password
 ```
 
-## 7. 迁移现有数据库
+## 8. 完整备份与恢复演练
+
+管理员备份接口生成加密 `.abk` 完整备份集，覆盖数据库、附件、工单归档、
+许可证附件和运行配置，并返回 SHA-256、内容清单和恢复验证结果。生产环境
+不要直接复制 SQLite 文件代替完整备份。
+
+可使用部署脚本执行定期备份：
+
+```bash
+sudo install -m 600 /dev/null /etc/asset-management-backup.env
+sudo sh -c 'printf "BACKUP_TOKEN=%s\n" "替换为管理员短期令牌" > /etc/asset-management-backup.env'
+sudo env $(cat /etc/asset-management-backup.env) APP_DIR=/opt/asset-management \
+  bash /opt/asset-management/scripts/backup.sh
+```
+
+备份文件应复制到异地存储，并在空目录定期执行 verify/restore 演练。
+
+## 9. 迁移现有数据库
 
 如果要把开发机已有数据迁移到服务器：
 

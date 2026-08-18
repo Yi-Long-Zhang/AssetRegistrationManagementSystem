@@ -13,6 +13,9 @@ export const backupsApi = {
   download(name) {
     return request.get(`/backups/${encodeURIComponent(name)}/download`, { responseType: 'blob' }).then(unwrap)
   },
+  verify(name) {
+    return request.post(`/backups/${encodeURIComponent(name)}/verify`).then(unwrap)
+  },
   restore(name) {
     return request.post(`/backups/${encodeURIComponent(name)}/restore`).then(unwrap)
   }

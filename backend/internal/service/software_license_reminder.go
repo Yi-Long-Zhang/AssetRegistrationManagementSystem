@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 	"net/mail"
 	"strconv"
@@ -24,11 +26,17 @@ type LicenseReminderScheduler struct {
 	lastDay       string
 	stop          chan struct{}
 	wg            sync.WaitGroup
+	tasks         *TaskManager
 }
 
 // NewLicenseReminderScheduler 创建许可证提醒扫描器。
 func NewLicenseReminderScheduler(db *gorm.DB, encryptionKey string) *LicenseReminderScheduler {
 	return &LicenseReminderScheduler{db: db, encryptionKey: encryptionKey}
+}
+
+func (s *LicenseReminderScheduler) WithTaskManager(tasks *TaskManager) *LicenseReminderScheduler {
+	s.tasks = tasks
+	return s
 }
 
 // Start 启动扫描循环（幂等）。
@@ -37,6 +45,10 @@ func (s *LicenseReminderScheduler) Start() {
 		return
 	}
 	s.stop = make(chan struct{})
+	if s.tasks != nil {
+		s.tasks.Register("license_reminder", s.runTask)
+		s.tasks.ResumeKind(context.Background(), "license_reminder")
+	}
 	s.wg.Add(1)
 	go s.loop()
 	log.Printf("license reminder scheduler started")
@@ -72,12 +84,28 @@ func (s *LicenseReminderScheduler) tick() {
 		return // 每天只提醒一次
 	}
 	s.lastDay = today
+	if s.tasks != nil {
+		if _, err := s.tasks.Run(context.Background(), "license_reminder", "schedule",
+			"license:"+today, map[string]interface{}{"date": today}); err != nil {
+			log.Printf("license reminder task: %v", err)
+		}
+		return
+	}
 	licenses := s.expiringLicenses(time.Now())
 	if len(licenses) == 0 {
 		return
 	}
 	s.notify(licenses)
 	s.createRenewalTickets(licenses)
+}
+
+func (s *LicenseReminderScheduler) runTask(_ context.Context, _ json.RawMessage) (interface{}, error) {
+	licenses := s.expiringLicenses(time.Now())
+	if len(licenses) > 0 {
+		s.notify(licenses)
+		s.createRenewalTickets(licenses)
+	}
+	return map[string]interface{}{"count": len(licenses)}, nil
 }
 
 // expiringLicenses 查询许可证到期日在 [now, now+30天] 或已过期的许可证。

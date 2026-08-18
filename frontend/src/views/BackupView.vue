@@ -1,6 +1,6 @@
 <template>
   <section class="page">
-    <PageHeader title="数据备份" description="SQLite 数据库一致性快照备份，每日自动备份；恢复将覆盖当前数据库，需重启后端后生效" />
+    <PageHeader title="数据备份" description="数据库、附件、工单归档与配置的加密完整备份；每日自动创建并执行恢复校验" />
     <div class="panel">
       <div class="toolbar">
         <h3>备份列表</h3>
@@ -14,9 +14,18 @@
         <el-table-column label="修改时间" width="190">
           <template #default="{ row }">{{ formatTime(row.modTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="210" fixed="right">
+        <el-table-column label="状态" width="150">
+          <template #default="{ row }">
+            <el-tag v-if="row.verifyError" type="danger">校验失败</el-tag>
+            <el-tag v-else-if="row.verifiedAt" type="success">已校验</el-tag>
+            <el-tag v-else type="info">待校验</el-tag>
+            <el-tag v-if="row.offsiteCopied" type="primary" class="offsite-tag">异地副本</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="downloadBackup(row)">下载</el-button>
+            <el-button link type="success" @click="verifyBackup(row)">校验</el-button>
             <el-button link type="warning" @click="restoreBackup(row)">恢复</el-button>
             <el-button link type="danger" @click="deleteBackup(row)">删除</el-button>
           </template>
@@ -81,6 +90,12 @@ async function restoreBackup(row) {
   ElMessage.success(res.message || '已标记恢复，重启后端后生效')
 }
 
+async function verifyBackup(row) {
+  await backupsApi.verify(row.name)
+  ElMessage.success('备份完整性校验通过')
+  await load()
+}
+
 async function deleteBackup(row) {
   await ElMessageBox.confirm(`确认删除备份「${row.name}」？删除后不可恢复。`, '删除确认', { type: 'warning' })
   await backupsApi.remove(row.name)
@@ -102,3 +117,9 @@ function formatTime(t) {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.offsite-tag {
+  margin-left: 6px;
+}
+</style>

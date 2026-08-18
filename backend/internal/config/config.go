@@ -21,16 +21,17 @@ const (
 )
 
 type Config struct {
-	App       AppConfig       `yaml:"app"`
-	HTTP      HTTPConfig      `yaml:"http"`
-	Storage   StorageConfig   `yaml:"storage"`
-	Security  SecurityConfig  `yaml:"security"`
-	Auth      AuthConfig      `yaml:"auth"`
-	Swagger   SwaggerConfig   `yaml:"swagger"`
-	Admin     AdminConfig     `yaml:"admin"`
-	CORS      CORSConfig      `yaml:"cors"`
-	Discovery DiscoveryConfig `yaml:"discovery"`
-	TokenTTL  time.Duration   `yaml:"-"`
+	App        AppConfig       `yaml:"app"`
+	HTTP       HTTPConfig      `yaml:"http"`
+	Storage    StorageConfig   `yaml:"storage"`
+	Security   SecurityConfig  `yaml:"security"`
+	Auth       AuthConfig      `yaml:"auth"`
+	Swagger    SwaggerConfig   `yaml:"swagger"`
+	Admin      AdminConfig     `yaml:"admin"`
+	CORS       CORSConfig      `yaml:"cors"`
+	Discovery  DiscoveryConfig `yaml:"discovery"`
+	TokenTTL   time.Duration   `yaml:"-"`
+	ConfigPath string          `yaml:"-"`
 }
 
 type AppConfig struct {
@@ -49,11 +50,17 @@ type StorageConfig struct {
 	LibreOfficeBin     string `yaml:"libreoffice_bin"`
 	BackupDir          string `yaml:"backup_dir"`
 	BackupKeepDays     int    `yaml:"backup_keep_days"`
+	BackupOffsiteDir   string `yaml:"backup_offsite_dir"`
 }
 
 type SecurityConfig struct {
-	JWTSecret           string `yaml:"jwt_secret"`
-	ConfigEncryptionKey string `yaml:"config_encryption_key"`
+	JWTSecret              string   `yaml:"jwt_secret"`
+	JWTPreviousSecrets     []string `yaml:"jwt_previous_secrets"`
+	ConfigEncryptionKey    string   `yaml:"config_encryption_key"`
+	LoginMaxAttempts       int      `yaml:"login_max_attempts"`
+	LoginWindowMinutes     int      `yaml:"login_window_minutes"`
+	LoginBlockMinutes      int      `yaml:"login_block_minutes"`
+	SensitiveReauthMinutes int      `yaml:"sensitive_reauth_minutes"`
 }
 
 type AuthConfig struct {
@@ -101,6 +108,7 @@ func LoadFile(path string) (Config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) && useDefaultPath {
+			cfg.ConfigPath = path
 			return cfg, nil
 		}
 		return Config{}, err
@@ -109,6 +117,7 @@ func LoadFile(path string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.applyDefaults()
+	cfg.ConfigPath = path
 	return cfg, nil
 }
 
@@ -134,8 +143,12 @@ func defaultConfig() Config {
 			BackupKeepDays:     30,
 		},
 		Security: SecurityConfig{
-			JWTSecret:           DefaultJWTSecret,
-			ConfigEncryptionKey: DefaultConfigKey,
+			JWTSecret:              DefaultJWTSecret,
+			ConfigEncryptionKey:    DefaultConfigKey,
+			LoginMaxAttempts:       10,
+			LoginWindowMinutes:     15,
+			LoginBlockMinutes:      15,
+			SensitiveReauthMinutes: 10,
 		},
 		Auth: AuthConfig{
 			Mode: "mixed",
@@ -198,6 +211,18 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Security.ConfigEncryptionKey == "" {
 		c.Security.ConfigEncryptionKey = defaults.Security.ConfigEncryptionKey
+	}
+	if c.Security.LoginMaxAttempts <= 0 {
+		c.Security.LoginMaxAttempts = defaults.Security.LoginMaxAttempts
+	}
+	if c.Security.LoginWindowMinutes <= 0 {
+		c.Security.LoginWindowMinutes = defaults.Security.LoginWindowMinutes
+	}
+	if c.Security.LoginBlockMinutes <= 0 {
+		c.Security.LoginBlockMinutes = defaults.Security.LoginBlockMinutes
+	}
+	if c.Security.SensitiveReauthMinutes <= 0 {
+		c.Security.SensitiveReauthMinutes = defaults.Security.SensitiveReauthMinutes
 	}
 	if c.Auth.Mode == "" {
 		c.Auth.Mode = defaults.Auth.Mode

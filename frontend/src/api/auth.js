@@ -12,5 +12,14 @@ export const authApi = {
   },
   changePassword(oldPassword, newPassword) {
     return request.post('/auth/change-password', { oldPassword, newPassword }).then(unwrap)
+  },
+  sessions() {
+    return request.get('/auth/sessions').then(unwrap)
+  },
+  revokeSession(id) {
+    return request.delete(`/auth/sessions/${encodeURIComponent(id)}`).then(unwrap)
+  },
+  revokeAllSessions() {
+    return request.post('/auth/sessions/revoke-all').then(unwrap)
   }
 }
