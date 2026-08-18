@@ -2,6 +2,11 @@
 
 前后端分离的服务器资产台账与工单流程管理系统。
 
+## 使用文档
+
+- [用户手册](docs/USER-MANUAL.md)：登录、角色权限、资产、工单、管理员配置和常见问题。
+- [生产就绪说明](docs/PRODUCTION-READINESS.md)：部署前检查、监控、备份恢复和回滚要求。
+
 ## 技术栈
 
 - 后端：Go、Gin、GORM、SQLite、JWT
