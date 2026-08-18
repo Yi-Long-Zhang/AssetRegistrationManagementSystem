@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,11 +16,15 @@ import (
 
 // recordingRunner 记录每次调用的参数，可注入序列化输出。
 type recordingRunner struct {
+	mu    sync.Mutex
 	calls [][]string
 	outs  [][]byte
 }
 
 func (r *recordingRunner) Run(_ context.Context, _ string, args ...string) ([]byte, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	r.calls = append(r.calls, append([]string(nil), args...))
 	if len(r.outs) > 0 {
 		out := r.outs[0]
@@ -29,6 +34,17 @@ func (r *recordingRunner) Run(_ context.Context, _ string, args ...string) ([]by
 		return out, nil
 	}
 	return []byte(sampleNmapXML), nil
+}
+
+func (r *recordingRunner) snapshotCalls() [][]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	calls := make([][]string, len(r.calls))
+	for i := range r.calls {
+		calls[i] = append([]string(nil), r.calls[i]...)
+	}
+	return calls
 }
 
 func TestExpandTargets(t *testing.T) {
@@ -69,18 +85,25 @@ func TestTwoPhaseScanCalls(t *testing.T) {
 		t.Fatalf("Scan error: %v", err)
 	}
 	// /24 = 256 台 → 探活分 2 片（ScanChunkSize 128）+ 详扫 1 次 = 3 次调用
-	if len(rec.calls) != 3 {
-		t.Fatalf("expected 3 nmap calls (probe x2 chunks + detail), got %d: %v", len(rec.calls), rec.calls)
+	calls := rec.snapshotCalls()
+	if len(calls) != 3 {
+		t.Fatalf("expected 3 nmap calls (probe x2 chunks + detail), got %d: %v", len(calls), calls)
 	}
-	for i := 0; i < 2; i++ {
-		probe := rec.calls[i]
-		if !containsArg(probe, "-p") || !containsArg(probe, "445") {
-			t.Fatalf("probe call %d should use rule probe ports 445: %v", i, probe)
+	var probeCount int
+	var detail []string
+	for _, call := range calls {
+		switch {
+		case containsArg(call, "22,80"):
+			detail = call
+		case containsArg(call, "445"):
+			probeCount++
 		}
 	}
-	detail := rec.calls[2]
-	if !containsArg(detail, "-p") || !containsArg(detail, "22,80") {
-		t.Fatalf("detail call should use rule ports 22,80: %v", detail)
+	if probeCount != 2 {
+		t.Fatalf("expected 2 probe calls using rule probe ports 445, got %d: %v", probeCount, calls)
+	}
+	if detail == nil {
+		t.Fatalf("detail call should use rule ports 22,80: %v", calls)
 	}
 	// 详扫目标应为探活发现的 up 主机（sampleNmapXML 里 2 台）
 	if !containsArg(detail, "10.0.0.5") || !containsArg(detail, "192.168.1.10") {
@@ -99,10 +122,11 @@ func TestSingleTargetSkipsProbe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan error: %v", err)
 	}
-	if len(rec.calls) != 1 {
-		t.Fatalf("single target should make exactly 1 call, got %d", len(rec.calls))
+	calls := rec.snapshotCalls()
+	if len(calls) != 1 {
+		t.Fatalf("single target should make exactly 1 call, got %d", len(calls))
 	}
-	call := rec.calls[0]
+	call := calls[0]
 	if containsArg(call, "445") || containsArg(call, "22,80,443,445") {
 		t.Fatalf("single target should not run probe phase: %v", call)
 	}
@@ -125,14 +149,15 @@ func TestProbeFiltersDownHosts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan error: %v", err)
 	}
-	if len(rec.calls) != 2 {
-		t.Fatalf("expected 2 calls (probe + detail), got %d", len(rec.calls))
+	calls := rec.snapshotCalls()
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 calls (probe + detail), got %d", len(calls))
 	}
 	if len(results) != 1 || results[0].IP != "10.0.0.5" {
 		t.Fatalf("expected only up host 10.0.0.5, got %+v", results)
 	}
-	if !containsArg(rec.calls[1], "10.0.0.5") || containsArg(rec.calls[1], "10.0.0.6") {
-		t.Fatalf("detail call should only include up host: %v", rec.calls[1])
+	if !containsArg(calls[1], "10.0.0.5") || containsArg(calls[1], "10.0.0.6") {
+		t.Fatalf("detail call should only include up host: %v", calls[1])
 	}
 }
 

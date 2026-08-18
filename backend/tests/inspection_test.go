@@ -51,8 +51,8 @@ func TestInspectionRuleCRUDAndTestRun(t *testing.T) {
 		t.Fatalf("test run status=%d body=%s", resp.Code, resp.Body.String())
 	}
 	var ticket struct {
-		ID     uint            `json:"id"`
-		Type   model.TicketType `json:"type"`
+		ID     uint               `json:"id"`
+		Type   model.TicketType   `json:"type"`
 		Status model.TicketStatus `json:"status"`
 	}
 	if err := json.Unmarshal(resp.Body.Bytes(), &ticket); err != nil {

@@ -1,3 +1,4 @@
+// Command server runs the asset registration management HTTP service.
 package main
 
 import (

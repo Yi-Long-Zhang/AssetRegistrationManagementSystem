@@ -58,33 +58,50 @@
 ## 4. Code Style（代码风格规范）
 
 ### 4.1 后端 Go
-- 使用 `gofmt` 格式化 Go 文件。
-- 遵循标准 Go 项目布局：
-  - `cmd/<程序名>/` 只保留薄入口，负责日志、配置加载、信号和退出码，不承载业务初始化细节。
-  - `internal/app/` 负责进程级依赖组装、HTTP 服务生命周期和后台任务启停。
-  - `internal/httpapi/` 只负责协议适配、参数校验、认证授权和响应，不实现可复用业务规则。
-  - `internal/service/` 放业务用例与领域服务，不得反向依赖 `httpapi`。
-  - `internal/database/` 负责连接和版本化迁移；`internal/model/` 只放模型与业务枚举。
-- 包依赖方向固定为 `cmd -> app -> httpapi/service/database/model`；禁止循环依赖，禁止用 `utils`、`common` 等无边界包堆放杂项。
-- 包名使用简短、小写、单数名词；导出标识符必须有职责明确的 GoDoc。接口定义在消费方，只有存在替换实现或测试替身时才抽象接口。
-- 长流程接收 `context.Context` 作为第一个参数并向下传递；错误使用 `%w` 保留错误链，HTTP 层统一转换为 `{"error":"..."}`，业务层不得直接写 HTTP 响应。
-- HTTP 服务必须使用 `http.Server`，设置合理超时并处理 `SIGINT/SIGTERM`；关闭顺序为停止接收请求、等待在途请求、停止后台任务、关闭数据库。
-- 新业务按领域拆文件，避免继续扩张综合型 `handler.go`、`models.go`；当一个文件承担多个不相关领域或明显难以审查时，先拆包内文件，再考虑抽包。
-- 业务枚举集中放在 `backend/internal/model/types.go`，不要在业务逻辑中散落硬编码状态值。
-- 工单状态流集中维护在 `backend/internal/service/ticket_flow.go`。
-- 工单 PDF 归档通过 DOCX 模板填充后调用 LibreOffice 转换，模板位于 `templates/ticket-it-change-template.docx`。
-- HTTP 层放在 `backend/internal/httpapi/`，认证、RBAC、AD 配置、资产、工单接口应保持 REST 风格。
-- 数据模型放在 `backend/internal/model/`；数据库变更必须新增有序、可审计的版本化迁移，`AutoMigrate` 只能作为某个明确迁移步骤的实现，不得在启动流程中绕过迁移版本表直接调用。
-- 错误返回使用统一 JSON 结构：`{"error": "..."}`。
-- 避免变量名遮蔽导入包名，例如不要用 `config := ...` 遮蔽 `internal/config` 包。
+- 本节区分“Go 通用规范”和“本项目架构约束”。前者遵循 Go 官方文档、Effective Go、Go Code Review Comments 和标准工具链；后者只描述本仓库的设计选择，不宣称是 Go 官方目录标准。
 
-### 4.2 API 与 Swagger
+#### 4.1.1 Go 通用规范
+- 所有 Go 文件必须通过 `gofmt`；导入由 `goimports` 或等价工具分组，标准库、当前模块、第三方依赖之间留空行。
+- 包名应简短、小写、单数且表达职责；禁止 `util`、`common`、`misc`、`base` 等无法说明所有权的包。包路径不得重复包名语义，例如避免 `service/services`。
+- 名称遵循 Go 惯例：使用 `ID`、`HTTP`、`URL`、`API`、`IP` 等一致的首字母缩写；局部变量保持简短但可读；导出名称避免重复包名；普通 getter 不加 `Get` 前缀。
+- 导出的包、类型、函数、方法和变量应有以名称开头的 GoDoc；注释解释约束、原因和非显然行为，不逐行翻译代码。
+- 优先返回具体类型，仅在调用方需要替换实现时定义最小接口；接口通常定义在消费方，不为“未来可能复用”预先抽象。
+- 构造函数应返回立即可用的值并显式接收必需依赖；避免可变全局状态和隐式 `init()`。业务包不得自行读取环境变量或进程参数。
+- `context.Context` 作为第一个参数传递，不存入结构体，不传 `nil`，不把可选参数塞进 context；请求和任务不得无故改用 `context.Background()` 截断取消链。
+- 错误值用于正常失败路径，禁止用 `panic` 代替错误返回。错误文本小写且不加句号；使用 `%w`、`errors.Is/As` 保留错误链，不用字符串匹配判断错误类型。
+- 错误只在最终处理边界记录一次；中间层选择“包装并返回”或“处理并记录”之一，避免重复日志。敏感字段不得进入错误或日志。
+- goroutine 必须有明确退出条件和所有者；创建 goroutine 的代码负责取消、等待和资源回收。共享可变状态使用 channel、mutex 或原子操作明确保护，并发代码应可通过 race detector。
+- 文件、响应体、数据库连接、ticker、临时目录等资源在成功获取后立即安排 `defer`/`Cleanup`；忽略关闭错误必须有明确理由。
+- 使用标准库能力优先于自建实现；新增依赖前确认维护状态、许可证、最小 Go 版本和现有依赖是否已覆盖需求。依赖变更必须保持 `go.mod`、`go.sum` 一致并运行 `go mod tidy` 检查。
+
+#### 4.1.2 本项目架构约束
+- `cmd/server/` 是薄入口，只负责日志初始化、配置加载、信号和退出码；进程级依赖组装及生命周期归 `internal/app/`。
+- 当前依赖方向为 `cmd/server -> internal/app -> httpapi/service/database/model`。`model` 不依赖上层包；`service` 不依赖 `httpapi` 或 `app`；`httpapi` 不依赖 `app`；生产包不得导入 `backend/tests`。
+- `internal/httpapi/` 负责 HTTP 协议、参数绑定、认证授权和响应映射；可复用业务规则放入 `internal/service/`；数据库连接和版本化迁移放入 `internal/database/`；持久化模型和业务枚举放入 `internal/model/`。
+- 文件按领域和职责命名并保持内聚。综合文件出现多个无关领域时应在同包内拆分；是否拆包由依赖和所有权决定，不以固定行数作为 Go 规范。
+- HTTP 服务使用 `http.Server` 并处理 `SIGINT/SIGTERM`；关闭顺序为停止接收请求、等待在途请求、停止后台任务、关闭数据库。
+- 业务枚举集中在 `internal/model/types.go`；工单状态转换集中在 `internal/service/ticket_flow.go`；不得在 handler、scheduler 中复制状态机规则。
+- 数据库变更必须新增有序版本迁移。`AutoMigrate` 只能作为某个明确迁移步骤的实现，不得绕过迁移版本表直接在启动入口执行。
+- 多表写入、状态流转及业务数据与审计记录的一致性由 service/database 层事务保证；HTTP handler 不负责拼装跨表事务。
+- 外部命令、LDAP、邮件、时间、随机数和文件转换等不稳定边界，在需要替换或测试时通过消费方小接口或函数依赖注入。
+- HTTP 错误统一返回 `{"error":"..."}`；工单归档继续通过 DOCX 模板和 LibreOffice 生成，模板路径保持 `templates/ticket-it-change-template.docx`。
+- 变量不得遮蔽有语义的包名或外层错误，例如避免 `config :=`、`http :=` 和在长函数中反复使用不相关的 `err :=`。
+
+### 4.2 Go 测试与自动约束
+- 同包单元测试使用 `*_test.go` 与实现同目录；仅测试导出 API 时使用 `<package>_test`。跨层集成测试统一在 `backend/tests/`，e2e fixture 统一在 `backend/tests/e2e/`。
+- 测试辅助函数必须调用 `t.Helper()`；临时数据库、文件、HTTP 服务和 goroutine 必须通过 `t.TempDir()`、`t.Cleanup()` 或上下文可靠回收。
+- 表驱动测试优先覆盖状态组合和边界条件；涉及并发、幂等、权限、迁移和状态机的改动必须有失败路径测试，不得只测成功路径。
+- 禁止测试依赖执行顺序、真实网络、真实 LDAP、系统时区或开发机已有数据；需要外部程序时使用 `backend/tests/e2e/` 下的确定性 fixture。
+- 架构测试只检查本项目明确声明的依赖方向和生产/测试边界，不把文件行数、目录模板等团队偏好伪装成 Go 官方规范。
+- 后端提交必须执行 `gofmt`、`go test ./...`、`go vet ./...`、`go build ./...`；并发相关改动在支持环境中增加 `go test -race ./...`。
+
+### 4.3 API 与 Swagger
 - 路由集中在 `internal/httpapi/router.go` 注册；处理函数按领域拆分文件，REST 路径、权限中间件和状态码必须可从路由表直接审查。
 - 每个新增或变更的 `/api/v1` 接口必须同步 Swaggo 注解，至少包含 `Summary`、`Tags`、输入参数、成功响应、主要失败响应、`Security` 和 `Router`。
 - Swagger 注解完成后必须重新生成 `backend/docs/docs.go`、`swagger.json`、`swagger.yaml`，禁止手工编辑生成文件。
 - `/livez`、`/readyz`、`/metrics` 等不受 `/api/v1` BasePath 管理的运维端点记录在生产运维文档中，不得用错误 BasePath 强行写入 Swagger 2.0。
 
-### 4.3 前端 Vue
+### 4.4 前端 Vue
 - 使用 Vue 3 Composition API 和 `<script setup>`。
 - API 调用按业务模块放在 `frontend/src/api/`，页面不要直接重复创建 Axios 实例。
 - 登录态、用户信息、页面状态放在 Pinia store：`frontend/src/stores/`。

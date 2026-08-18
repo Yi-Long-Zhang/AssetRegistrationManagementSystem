@@ -1,3 +1,4 @@
+// Command tool provides deterministic nmap and LibreOffice behavior for e2e tests.
 package main
 
 import (
