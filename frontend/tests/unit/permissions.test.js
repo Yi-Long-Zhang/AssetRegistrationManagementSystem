@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canManageAssets, canManageUsers, hasAnyRole, hasRole } from './permissions'
+import { canManageAssets, canManageUsers, hasAnyRole, hasRole } from '../../src/utils/permissions'
 
 describe('role permissions', () => {
   it('enforces administrator-only user management', () => {

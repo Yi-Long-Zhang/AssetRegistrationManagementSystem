@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import StatusTag from './StatusTag.vue'
+import StatusTag from '../../src/components/common/StatusTag.vue'
 
 const ElTagStub = {
   props: ['type'],

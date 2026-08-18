@@ -744,6 +744,57 @@
                 }
             }
         },
+        "/auth/change-password": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "修改当前用户密码",
+                "parameters": [
+                    {
+                        "description": "密码修改参数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.changePasswordDocRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "consumes": [
@@ -835,6 +886,161 @@
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reauth": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "刷新当前会话的敏感操作认证有效期",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "二次认证",
+                "parameters": [
+                    {
+                        "description": "当前密码",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.reauthenticateDocRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "当前用户会话列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/sessions/revoke-all": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "撤销当前用户的全部服务端会话",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "全端退出",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/sessions/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "撤销指定会话",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
                         }
                     },
                     "401": {
@@ -1012,6 +1218,45 @@
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/backups/{name}/verify": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backups"
+                ],
+                "summary": "校验完整备份",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "备份文件名",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_service.BackupInfo"
                         }
                     },
                     "400": {
@@ -3353,6 +3598,181 @@
                 }
             }
         },
+        "/tasks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "后台任务列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "任务类型",
+                        "name": "kind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "任务状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "后台任务详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "任务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.BackgroundTask"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{id}/acknowledge": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "确认后台任务告警",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "任务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{id}/retry": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "重试后台任务",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "任务 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.BackgroundTask"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_httpapi.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/tickets": {
             "get": {
                 "security": [
@@ -4633,6 +5053,74 @@
                 "AssetStatusDecommission"
             ]
         },
+        "asset-registration-management-system_backend_internal_model.BackgroundTask": {
+            "type": "object",
+            "properties": {
+                "acknowledgedAt": {
+                    "type": "string"
+                },
+                "acknowledgedBy": {
+                    "type": "integer"
+                },
+                "attempts": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "finishedAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "maxAttempts": {
+                    "type": "integer"
+                },
+                "result": {
+                    "type": "string"
+                },
+                "scheduledAt": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/asset-registration-management-system_backend_internal_model.BackgroundTaskStatus"
+                },
+                "uniqueKey": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "asset-registration-management-system_backend_internal_model.BackgroundTaskStatus": {
+            "type": "string",
+            "enum": [
+                "queued",
+                "running",
+                "succeeded",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "BackgroundTaskQueued",
+                "BackgroundTaskRunning",
+                "BackgroundTaskSucceeded",
+                "BackgroundTaskFailed"
+            ]
+        },
         "asset-registration-management-system_backend_internal_model.ChangeRiskLevel": {
             "type": "string",
             "enum": [
@@ -5756,17 +6244,52 @@
                 }
             }
         },
+        "asset-registration-management-system_backend_internal_service.BackupContent": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
         "asset-registration-management-system_backend_internal_service.BackupInfo": {
             "type": "object",
             "properties": {
+                "contents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/asset-registration-management-system_backend_internal_service.BackupContent"
+                    }
+                },
+                "encrypted": {
+                    "type": "boolean"
+                },
                 "modTime": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
                 },
+                "offsiteCopied": {
+                    "type": "boolean"
+                },
+                "sha256": {
+                    "type": "string"
+                },
                 "size": {
                     "type": "integer"
+                },
+                "verifiedAt": {
+                    "type": "string"
+                },
+                "verifyError": {
+                    "type": "string"
                 }
             }
         },
@@ -6013,6 +6536,17 @@
                     "items": {
                         "type": "integer"
                     }
+                }
+            }
+        },
+        "internal_httpapi.changePasswordDocRequest": {
+            "type": "object",
+            "properties": {
+                "newPassword": {
+                    "type": "string"
+                },
+                "oldPassword": {
+                    "type": "string"
                 }
             }
         },
@@ -6329,6 +6863,14 @@
                 },
                 "units": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_httpapi.reauthenticateDocRequest": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string"
                 }
             }
         },

@@ -2,7 +2,7 @@
 
 ## 1. Project Overview（项目基础信息）
 - 项目类型：企业内部服务器资产管理与工单流程系统，前后端分离、同仓分目录开发。
-- 核心技术栈：后端 Go 1.26 + Gin + GORM + SQLite + JWT + LDAP；前端 Vue 3 + Vite 5 + Element Plus + Pinia。
+- 核心技术栈：后端 Go 1.26 + Gin + GORM + SQLite + JWT + LDAP；前端 Vue 3 + Vite 8 + Element Plus + Pinia。
 - 项目用途：管理内部服务器资产台账、工单审批执行、用户角色、AD/LDAP 用户导入与混合登录。
 - 核心约束：后端只提供 REST API，不内嵌或托管前端静态资源；前端独立放在 `frontend/`；SQLite 和附件使用后端本地目录；系统角色由本系统维护，AD 只负责认证。
 
@@ -41,6 +41,8 @@
 
 ## 3. Testing Guidelines（测试规范）
 - 后端测试框架：Go testing。
+- Go 单元测试与被测包同目录，文件名使用 `*_test.go`；跨包 HTTP/数据库集成测试统一放在 `backend/tests/`；e2e 专用配置和可执行夹具统一放在 `backend/tests/e2e/`，禁止放入 `cmd/` 或生产包。
+- 前端单元测试统一放在 `frontend/tests/unit/`，Playwright 测试及启动夹具统一放在 `frontend/tests/e2e/`；生产源码目录 `frontend/src/` 不放测试文件。
 - 后端测试命令：
   - 常规：`go test ./...`
   - Windows/受限环境推荐：
@@ -57,15 +59,32 @@
 
 ### 4.1 后端 Go
 - 使用 `gofmt` 格式化 Go 文件。
+- 遵循标准 Go 项目布局：
+  - `cmd/<程序名>/` 只保留薄入口，负责日志、配置加载、信号和退出码，不承载业务初始化细节。
+  - `internal/app/` 负责进程级依赖组装、HTTP 服务生命周期和后台任务启停。
+  - `internal/httpapi/` 只负责协议适配、参数校验、认证授权和响应，不实现可复用业务规则。
+  - `internal/service/` 放业务用例与领域服务，不得反向依赖 `httpapi`。
+  - `internal/database/` 负责连接和版本化迁移；`internal/model/` 只放模型与业务枚举。
+- 包依赖方向固定为 `cmd -> app -> httpapi/service/database/model`；禁止循环依赖，禁止用 `utils`、`common` 等无边界包堆放杂项。
+- 包名使用简短、小写、单数名词；导出标识符必须有职责明确的 GoDoc。接口定义在消费方，只有存在替换实现或测试替身时才抽象接口。
+- 长流程接收 `context.Context` 作为第一个参数并向下传递；错误使用 `%w` 保留错误链，HTTP 层统一转换为 `{"error":"..."}`，业务层不得直接写 HTTP 响应。
+- HTTP 服务必须使用 `http.Server`，设置合理超时并处理 `SIGINT/SIGTERM`；关闭顺序为停止接收请求、等待在途请求、停止后台任务、关闭数据库。
+- 新业务按领域拆文件，避免继续扩张综合型 `handler.go`、`models.go`；当一个文件承担多个不相关领域或明显难以审查时，先拆包内文件，再考虑抽包。
 - 业务枚举集中放在 `backend/internal/model/types.go`，不要在业务逻辑中散落硬编码状态值。
 - 工单状态流集中维护在 `backend/internal/service/ticket_flow.go`。
 - 工单 PDF 归档通过 DOCX 模板填充后调用 LibreOffice 转换，模板位于 `templates/ticket-it-change-template.docx`。
 - HTTP 层放在 `backend/internal/httpapi/`，认证、RBAC、AD 配置、资产、工单接口应保持 REST 风格。
-- 数据模型放在 `backend/internal/model/`，数据库迁移由 GORM AutoMigrate 统一处理。
+- 数据模型放在 `backend/internal/model/`；数据库变更必须新增有序、可审计的版本化迁移，`AutoMigrate` 只能作为某个明确迁移步骤的实现，不得在启动流程中绕过迁移版本表直接调用。
 - 错误返回使用统一 JSON 结构：`{"error": "..."}`。
 - 避免变量名遮蔽导入包名，例如不要用 `config := ...` 遮蔽 `internal/config` 包。
 
-### 4.2 前端 Vue
+### 4.2 API 与 Swagger
+- 路由集中在 `internal/httpapi/router.go` 注册；处理函数按领域拆分文件，REST 路径、权限中间件和状态码必须可从路由表直接审查。
+- 每个新增或变更的 `/api/v1` 接口必须同步 Swaggo 注解，至少包含 `Summary`、`Tags`、输入参数、成功响应、主要失败响应、`Security` 和 `Router`。
+- Swagger 注解完成后必须重新生成 `backend/docs/docs.go`、`swagger.json`、`swagger.yaml`，禁止手工编辑生成文件。
+- `/livez`、`/readyz`、`/metrics` 等不受 `/api/v1` BasePath 管理的运维端点记录在生产运维文档中，不得用错误 BasePath 强行写入 Swagger 2.0。
+
+### 4.3 前端 Vue
 - 使用 Vue 3 Composition API 和 `<script setup>`。
 - API 调用按业务模块放在 `frontend/src/api/`，页面不要直接重复创建 Axios 实例。
 - 登录态、用户信息、页面状态放在 Pinia store：`frontend/src/stores/`。
@@ -112,8 +131,8 @@
     - frontend Vite build
     ```
 - 提交前检查：
-  - 后端改动：`gofmt` + `go test ./...`，必要时加 `go build ./...`、`go vet ./...`。
-  - 前端改动：`npm run build`。
+  - 后端改动：`gofmt` + `go test ./...` + `go vet ./...` + `go build ./...`。
+  - 前端改动：`npm run test:unit` + `npm run build`；涉及关键用户流程时增加或执行 Playwright。
   - 同时涉及前后端：后端测试与前端构建都要跑。
 - 工作区可能存在用户未提交改动；提交前必须用 `git status --short` 确认范围，不要回退或夹带无关文件。
 
@@ -121,6 +140,7 @@
 - 新功能必须在独立分支上开发，命名 `feature/<功能名>`，从最新的 main 分支切出：`git checkout main && git pull && git checkout -b feature/<功能名>`。
 - **一个功能的所有开发与问题修复必须集中在同一个 `feature/<功能名>` 分支上完成**：功能合并前，测试缺陷、评审意见、需求调整一律直接提交到该功能分支；禁止为同一功能拆分多个散碎分支（例如 `feature/<功能名>-fix-1`、`feature/<功能名>-part-2`）。功能合并后发现的遗留问题，回到原功能分支修复（分支保留机制支持），修复完成后再次 squash merge 回 main。
 - **功能分支必须按开发步骤分步提交**：模型/配置 → 核心逻辑 → 测试 → 前端 → 文档等各步骤独立 `git commit`（Conventional Commits），禁止把全部改动攒成一次提交就合并——功能分支保留的价值就是完整开发过程溯源，一次提交等于丢失开发过程。全部开发与验证完成后，才从 main 执行 squash merge。
+- 结构重构也必须分步提交：先做无行为变化的移动/拆分并验证，再提交行为改动；禁止在同一提交中混入目录整理、依赖升级和业务功能。
 - 禁止直接在 main 上提交功能代码；仅紧急修复（hotfix）可例外。
 - 功能开发完整（后端测试/构建、前端构建全部通过）后，先更新文档再合并：
   - README.md：按现有 v2.x 章节风格增补功能说明。

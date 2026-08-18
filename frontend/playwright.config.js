@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './tests/e2e',
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
@@ -14,7 +14,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'node e2e/start-backend.mjs',
+      command: 'node tests/e2e/start-backend.mjs',
       url: 'http://127.0.0.1:18080/readyz',
       timeout: 120000,
       reuseExistingServer: false
