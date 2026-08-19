@@ -8,6 +8,7 @@ import TicketsView from './views/TicketsView.vue'
 import UsersView from './views/UsersView.vue'
 import WorkflowsView from './views/WorkflowsView.vue'
 import SettingsView from './views/SettingsView.vue'
+import AppLayout from './layouts/AppLayout.vue'
 import { useAppStore } from './stores/app'
 import { useAuthStore } from './stores/auth'
 
@@ -17,7 +18,7 @@ const router = createRouter({
     { path: '/login', component: LoginView },
     {
       path: '/',
-      component: DashboardView,
+      component: AppLayout,
       meta: { auth: true },
       children: [
         { path: '', redirect: '/dashboard' },

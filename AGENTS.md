@@ -154,17 +154,17 @@
 - 工作区可能存在用户未提交改动；提交前必须用 `git status --short` 确认范围，不要回退或夹带无关文件。
 
 ### 6.1 分支与合并
-- 新功能必须在独立分支上开发，命名 `feature/<功能名>`，从最新的 main 分支切出：`git checkout main && git pull && git checkout -b feature/<功能名>`。
-- **一个功能的所有开发与问题修复必须集中在同一个 `feature/<功能名>` 分支上完成**：功能合并前，测试缺陷、评审意见、需求调整一律直接提交到该功能分支；禁止为同一功能拆分多个散碎分支（例如 `feature/<功能名>-fix-1`、`feature/<功能名>-part-2`）。功能合并后发现的遗留问题，回到原功能分支修复（分支保留机制支持），修复完成后再次 squash merge 回 main。
-- **功能分支必须按开发步骤分步提交**：模型/配置 → 核心逻辑 → 测试 → 前端 → 文档等各步骤独立 `git commit`（Conventional Commits），禁止把全部改动攒成一次提交就合并——功能分支保留的价值就是完整开发过程溯源，一次提交等于丢失开发过程。全部开发与验证完成后，才从 main 执行 squash merge。
+- 小范围、可独立验证的 bug 修复默认在当前工作分支提交，不为单个修复额外创建分支；只有新功能、跨模块改动、需要并行开发或当前分支不适合承载改动时，才创建一个专用分支。新功能分支命名为 `feature/<功能名>`，从最新的 main 分支切出：`git checkout main && git pull && git checkout -b feature/<功能名>`。
+- **一个事项只能使用一个开发分支**：功能分支上的测试缺陷、评审意见和需求调整一律提交到同一分支，禁止拆分 `feature/<功能名>-fix-1`、`feature/<功能名>-part-2` 等散碎分支。小范围 bug 修复如果已在当前分支开始，不再为同一事项补建新分支。
+- **功能分支必须按开发步骤分步提交**：模型/配置 → 核心逻辑 → 测试 → 前端 → 文档等各步骤独立 `git commit`（Conventional Commits），禁止把全部改动攒成一次提交就合并。小范围 bug 修复按实际变更范围保持单次或少量提交即可。
 - 结构重构也必须分步提交：先做无行为变化的移动/拆分并验证，再提交行为改动；禁止在同一提交中混入目录整理、依赖升级和业务功能。
-- 禁止直接在 main 上提交功能代码；仅紧急修复（hotfix）可例外。
+- 禁止直接在 main 上提交新功能代码；小范围 bug 修复可在当前分支提交，紧急修复（hotfix）同样例外。
 - 功能开发完整（后端测试/构建、前端构建全部通过）后，先更新文档再合并：
   - README.md：按现有 v2.x 章节风格增补功能说明。
   - Swagger：接口有变化时更新注解并重新生成 docs（`go run github.com/swaggo/swag/cmd/swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal`）。
   - 配置/部署：环境变量或部署方式变化时同步 `config.example.yaml` 与部署文档。
 - 合并采用 squash merge：`git checkout main && git merge --squash feature/<功能名> && git commit`，提交信息遵循 Conventional Commits（含 Changes / Validation 正文），并在正文末尾标注 `branch: feature/<功能名>`，便于从 main 提交溯源到功能分支的完整开发过程（`git log --all --grep="branch: feature/<功能名>"` 或直接切到该分支查看）。
-- 合并完成后**保留功能分支**，便于回溯功能开发过程与验证记录；不得删除功能分支（`git branch -D feature/<功能名>` 禁止使用）。如需归档，可将分支推送到远程长期保留。
+- 合并完成后是否保留功能分支按仓库托管策略决定；同一事项不得因修复或评审再创建新分支。删除本地分支前必须确认其提交已合并且没有未交付内容。
 
 ## 7. Security Notes（安全规范）
 - `JWT_SECRET`、`CONFIG_ENCRYPTION_KEY`、AD Bind 密码不得写入代码或文档示例之外的真实值。
