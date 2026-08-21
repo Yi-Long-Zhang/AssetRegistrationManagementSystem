@@ -30,9 +30,14 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import * as echarts from 'echarts'
+import { CustomChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import * as echarts from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
 import { rackApi, assetsApi } from '../api'
 import PageHeader from '../components/common/PageHeader.vue'
+
+echarts.use([CustomChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 const router = useRouter()
 const rooms = ref([])
@@ -60,10 +65,7 @@ async function loadRacks() {
   const data = await rackApi.listRacks({ roomId: roomId.value })
   racks.value = data.items || []
   rackAssets.value = {}
-  // 预加载每台机柜的资产数量
-  for (const rack of racks.value) {
-    await loadRackAssets(rack.name)
-  }
+  await Promise.all(racks.value.map((rack) => loadRackAssets(rack.name)))
   activeRack.value = null
 }
 

@@ -63,7 +63,7 @@
             </template>
             <div class="filter-settings-title">显示筛选字段（自动保存）</div>
             <el-checkbox-group v-model="filterFieldKeys">
-              <el-checkbox v-for="field in filterFields" :key="field.key" :label="field.key">
+              <el-checkbox v-for="field in filterFields" :key="field.key" :value="field.key">
                 {{ field.label }}
               </el-checkbox>
             </el-checkbox-group>
@@ -73,7 +73,7 @@
               <el-button :icon="Setting">列设置</el-button>
             </template>
             <el-checkbox-group v-model="visibleColumnKeys">
-              <el-checkbox v-for="column in columns" :key="column.key" :label="column.key" :disabled="column.required">
+              <el-checkbox v-for="column in columns" :key="column.key" :value="column.key" :disabled="column.required">
                 {{ column.label }}
               </el-checkbox>
             </el-checkbox-group>

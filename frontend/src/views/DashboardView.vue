@@ -165,7 +165,7 @@ async function load() {
   loadingRuns.value = true
   try {
     const res = await discoveryApi.listRuns({ page: 1, pageSize: 5 })
-    recentRuns.value = Array.isArray(res) ? res : res.list || []
+    recentRuns.value = res.items || []
   } catch (e) {
     console.error('load runs:', e)
   } finally {

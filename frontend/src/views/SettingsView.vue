@@ -148,7 +148,7 @@
           <p class="desc">建立 IM 用户与系统用户映射，为后续自建应用交互审批提供鉴权基础。</p>
           <div class="inline-form">
             <el-select v-model="bindingForm.userId" placeholder="选择系统用户" style="width: 180px" filterable>
-              <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.realName || '-'})`" :value="u.id" />
+              <el-option v-for="u in userOptions" :key="u.id" :label="`${u.username} (${u.displayName || u.name || '-'})`" :value="u.id" />
             </el-select>
             <el-select v-model="bindingForm.platform" style="width: 120px">
               <el-option label="钉钉" value="dingtalk" />
@@ -360,7 +360,8 @@ async function loadIMBindings() {
   try {
     imBindings.value = await settingsApi.imBindings()
     if (!userOptions.value.length) {
-      userOptions.value = await usersApi.list()
+      const data = await usersApi.list()
+      userOptions.value = data.items || []
     }
   } catch (error) {
     ElMessage.error(error.response?.data?.error || '加载 IM 绑定失败')

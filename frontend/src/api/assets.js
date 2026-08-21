@@ -35,7 +35,7 @@ export const assetsApi = {
     return request.get('/assets/stats', { params }).then(unwrap)
   },
   exportStatsReport() {
-    return request.get('/assets/stats/export', { responseType: 'blob' })
+    return request.get('/assets/stats/export', { responseType: 'blob' }).then(unwrap)
   },
   template(params) {
     return request.get('/assets/template', { params, responseType: 'blob' }).then(unwrap)
