@@ -154,17 +154,20 @@
 - 工作区可能存在用户未提交改动；提交前必须用 `git status --short` 确认范围，不要回退或夹带无关文件。
 
 ### 6.1 分支与合并
-- 新功能必须在独立分支上开发，命名 `feature/<功能名>`，从最新的 main 分支切出：`git checkout main && git pull && git checkout -b feature/<功能名>`。
-- **一个功能的所有开发与问题修复必须集中在同一个 `feature/<功能名>` 分支上完成**：功能合并前，测试缺陷、评审意见、需求调整一律直接提交到该功能分支；禁止为同一功能拆分多个散碎分支（例如 `feature/<功能名>-fix-1`、`feature/<功能名>-part-2`）。功能合并后发现的遗留问题，回到原功能分支修复（分支保留机制支持），修复完成后再次 squash merge 回 main。
-- **功能分支必须按开发步骤分步提交**：模型/配置 → 核心逻辑 → 测试 → 前端 → 文档等各步骤独立 `git commit`（Conventional Commits），禁止把全部改动攒成一次提交就合并——功能分支保留的价值就是完整开发过程溯源，一次提交等于丢失开发过程。全部开发与验证完成后，才从 main 执行 squash merge。
-- 结构重构也必须分步提交：先做无行为变化的移动/拆分并验证，再提交行为改动；禁止在同一提交中混入目录整理、依赖升级和业务功能。
-- 禁止直接在 main 上提交功能代码；仅紧急修复（hotfix）可例外。
+- 开始改动前先按范围和风险分类：新功能使用 `feature/<功能名>`，普通缺陷使用 `bugfix/<问题名>`，紧急生产修复使用 `hotfix/<问题名>`，纯文档或流程规范调整使用 `docs/<主题>` 或 `chore/<主题>`。分支命名使用小写英文和连字符，避免使用 `fix-1`、`part-2` 等序号分支。
+- `main` 是受保护的稳定分支。新功能、跨模块改动、认证/权限/数据迁移/工单状态机等高风险改动必须从最新 `main` 创建专用分支；创建前执行 `git status --short`，确认工作区干净，再执行 `git switch main && git pull --ff-only && git switch -c <分支名>`。
+- 小范围、低风险、可独立验证的修复可以直接在当前工作分支完成；如果当前分支是 `main` 且仓库启用了分支保护，则创建 `bugfix/*` 分支。不得为了同一个小修复事后补建分支，也不得因评审或测试修复再创建第二个分支。
+- **一个事项只能使用一个开发分支**：测试缺陷、评审意见、需求调整和后续修复全部回到该事项原分支；禁止拆分 `feature/<功能名>-fix-1`、`feature/<功能名>-part-2` 等散碎分支。开始改动后不得无理由切换分支或转移提交历史。
+- 功能和高风险改动按可审查的逻辑步骤提交：模型/配置 → 核心逻辑 → 测试 → 前端 → 文档。每个提交只包含一个逻辑主题，并使用 Conventional Commits；小范围修复通常一个提交即可。禁止把依赖升级、目录重构、业务行为和无关格式化混在同一提交。
+- 验证通过后必须在当前事项分支立即提交，不得以“稍后统一提交”为由长期保留未提交改动。提交前必须再次执行 `git status --short`，只暂存本事项文件，并检查 `git diff --cached --check`。
+- 业务代码、测试、文档和流程规范如果属于不同逻辑主题，必须拆成独立提交；修改本文件时不得顺带提交无关业务代码。
 - 功能开发完整（后端测试/构建、前端构建全部通过）后，先更新文档再合并：
   - README.md：按现有 v2.x 章节风格增补功能说明。
   - Swagger：接口有变化时更新注解并重新生成 docs（`go run github.com/swaggo/swag/cmd/swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal`）。
   - 配置/部署：环境变量或部署方式变化时同步 `config.example.yaml` 与部署文档。
-- 合并采用 squash merge：`git checkout main && git merge --squash feature/<功能名> && git commit`，提交信息遵循 Conventional Commits（含 Changes / Validation 正文），并在正文末尾标注 `branch: feature/<功能名>`，便于从 main 提交溯源到功能分支的完整开发过程（`git log --all --grep="branch: feature/<功能名>"` 或直接切到该分支查看）。
-- 合并完成后**保留功能分支**，便于回溯功能开发过程与验证记录；不得删除功能分支（`git branch -D feature/<功能名>` 禁止使用）。如需归档，可将分支推送到远程长期保留。
+- 合并前必须确认工作区干净、目标分支已同步、相关验证通过，并检查变更范围。默认使用 squash merge：`git switch main && git pull --ff-only && git merge --squash <事项分支> && git commit`。合并提交必须包含 `Changes:`、`Validation:`，并在正文末尾标注 `branch: <事项分支>`。
+- 合并提交只承载同一事项的业务变更及其必要测试/文档；流程规范、依赖升级和无关清理由独立提交完成。合并冲突必须人工审查，禁止用强制覆盖或丢弃他人改动的方式解决。
+- 合并完成后确认 `git status --short`、`git log --oneline --decorate -n 3` 和 `git branch -vv`；是否删除事项分支按仓库托管策略决定，但删除前必须确认已合并且没有未交付内容。
 
 ## 7. Security Notes（安全规范）
 - `JWT_SECRET`、`CONFIG_ENCRYPTION_KEY`、AD Bind 密码不得写入代码或文档示例之外的真实值。
