@@ -1,6 +1,6 @@
 <template>
-  <PageHeader title="操作审计" description="系统关键操作与变更审计日志" />
-  <div class="audit-page">
+  <section class="audit-page">
+    <PageHeader title="操作审计" description="系统关键操作与变更审计日志" />
     <div class="toolbar">
       <el-select v-model="filters.entity" placeholder="实体" clearable style="width: 140px" @change="load(1)">
         <el-option v-for="item in entityOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -42,7 +42,7 @@
         @current-change="load"
       />
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup>

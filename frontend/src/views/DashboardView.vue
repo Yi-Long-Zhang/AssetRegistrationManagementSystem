@@ -1,15 +1,14 @@
 <template>
-  <AppLayout>
-    <div class="dashboard">
-      <!-- 概览卡片 -->
-      <div class="stat-grid stagger">
-        <div class="stat-card">
-          <div class="stat-icon icon-total">📦</div>
-          <div class="stat-body">
-            <div class="stat-num">{{ totalNum }}</div>
-            <div class="stat-label">资产总数</div>
-          </div>
+  <div class="dashboard">
+    <!-- 概览卡片 -->
+    <div class="stat-grid stagger">
+      <div class="stat-card">
+        <div class="stat-icon icon-total">📦</div>
+        <div class="stat-body">
+          <div class="stat-num">{{ totalNum }}</div>
+          <div class="stat-label">资产总数</div>
         </div>
+      </div>
       <div class="stat-card">
         <div class="stat-icon icon-online">🟢</div>
         <div class="stat-body">
@@ -94,13 +93,11 @@
         </el-table-column>
       </el-table>
     </div>
-    </div>
-  </AppLayout>
+  </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import AppLayout from '../layouts/AppLayout.vue'
 import { assetsApi } from '../api/assets'
 import { discoveryApi } from '../api/discovery'
 import { ASSET_TYPE_MAP, DISCOVERY_RUN_STATUS_MAP, dictItem } from '../constants/dictionaries'

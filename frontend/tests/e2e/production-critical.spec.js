@@ -32,12 +32,25 @@ test.beforeAll(async () => {
 
 test('logs in through the user interface', async ({ page, request }) => {
   api = apiClient(request)
-  await page.goto('/login')
-  await page.getByPlaceholder('请输入账号').fill('admin')
-  await page.getByPlaceholder('请输入密码').fill(password)
-  await page.getByRole('button', { name: '登 录' }).click()
+  await loginThroughUI(page)
   await expect(page).toHaveURL(/\/assets$/)
   await expect(page.getByRole('heading', { name: '服务器资产' })).toBeVisible()
+})
+
+test('navigates away from audit logs without blanking the routed view', async ({ page }) => {
+  await loginThroughUI(page)
+
+  await page.getByRole('menuitem', { name: '操作审计' }).click()
+  await expect(page).toHaveURL(/\/audit-logs$/)
+  await expect(page.getByText('系统关键操作与变更审计日志', { exact: true })).toBeVisible()
+
+  await page.getByRole('menuitem', { name: '服务器资产' }).click()
+  await expect(page).toHaveURL(/\/assets$/)
+  await expect(page.getByText('服务器资产', { exact: true }).last()).toBeVisible()
+
+  await page.getByRole('menuitem', { name: '数据看板' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page.getByText('资产总数', { exact: true })).toBeVisible()
 })
 
 test('imports an asset from the mapping CSV format', async ({ request }) => {
@@ -177,4 +190,11 @@ async function apiFetch(path, options = {}) {
       ...(options.headers || {})
     }
   })
+}
+
+async function loginThroughUI(page) {
+  await page.goto('/login')
+  await page.getByPlaceholder('请输入账号').fill('admin')
+  await page.getByPlaceholder('请输入密码').fill(password)
+  await page.getByRole('button', { name: '登 录' }).click()
 }
